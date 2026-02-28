@@ -52,6 +52,19 @@ CREATE TABLE examples (
 
 CREATE INDEX idx_examples_word_id ON examples(word_id);
 
+-- ===================== USER ↔ WORD JUNCTION =====================
+-- Shared words table is a cache; user_words tracks per-user word lists.
+-- V1: hardcoded user_id. Future: Supabase Auth user IDs + RLS.
+CREATE TABLE user_words (
+  user_id text NOT NULL DEFAULT 'pierre',
+  word_id uuid NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+  added_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, word_id)
+);
+
+CREATE INDEX idx_user_words_user_id ON user_words(user_id);
+CREATE INDEX idx_user_words_word_id ON user_words(word_id);
+
 -- ===================== UPDATED_AT TRIGGER =====================
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$
