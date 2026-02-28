@@ -1,0 +1,62 @@
+.label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--charcoal-muted);
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  margin-bottom: 10px;
+  margin-top: 4px;
+  font-family: var(--font-ui);
+}
+
+.card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 8px;
+}
+
+.korean {
+  font-family: var(--font-kr);
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--charcoal);
+  line-height: 1.5;
+}
+
+.english {
+  font-size: 13px;
+  color: var(--charcoal-light);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.context {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--charcoal-muted);
+  background: var(--cream);
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-top: 6px;
+  font-weight: 500;
+  font-family: var(--font-ui);
+}
+
+@media (min-width: 640px) {
+  .korean {
+    font-size: 17px;
+  }
+
+  .english {
+    font-size: 14px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .card {
+    padding: 16px 20px;
+    border-radius: 16px;
+  }
+}

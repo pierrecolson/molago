@@ -1,0 +1,46 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px 2px 5px;
+  border-radius: 6px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.usageHigh {
+  background: rgba(52, 199, 89, 0.1);
+  color: var(--green);
+}
+
+.usageMid {
+  background: rgba(255, 149, 0, 0.1);
+  color: var(--yellow);
+}
+
+.usageLow {
+  background: rgba(221, 68, 37, 0.1);
+  color: var(--red);
+}
+
+/* Compact variant — icon only, used in word list */
+.compact {
+  margin-left: 5px;
+  padding: 4px;
+  border-radius: 6px;
+  font-size: 0;
+}
+
+/* Detail variant — matches pill style in detail hero badges row */
+.detail {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  background: rgba(232, 223, 212, 0.6);
+  color: var(--charcoal-light);
+}

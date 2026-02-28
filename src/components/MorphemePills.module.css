@@ -1,0 +1,71 @@
+.label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--charcoal-muted);
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  margin-bottom: 10px;
+  margin-top: 4px;
+  font-family: var(--font-ui);
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.pill {
+  flex: 1;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  text-align: center;
+}
+
+.korean {
+  font-family: var(--font-kr);
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--charcoal);
+}
+
+.hanja {
+  font-size: 16px;
+  color: var(--charcoal-muted);
+  margin-top: 2px;
+  font-weight: 400;
+}
+
+.meaning {
+  font-size: 12px;
+  color: var(--charcoal-light);
+  margin-top: 6px;
+  line-height: 1.3;
+}
+
+@media (min-width: 640px) {
+  .korean {
+    font-size: 32px;
+  }
+
+  .hanja {
+    font-size: 17px;
+  }
+
+  .meaning {
+    font-size: 13px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .pill {
+    padding: 18px;
+    border-radius: 16px;
+  }
+
+  .korean {
+    font-size: 34px;
+  }
+}

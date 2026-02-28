@@ -1,0 +1,88 @@
+.hero {
+  text-align: center;
+  padding: 20px 0 28px;
+}
+
+.korean {
+  font-family: var(--font-kr);
+  font-size: clamp(36px, 10vw, 52px);
+  font-weight: 700;
+  color: var(--coral);
+  line-height: 1.1;
+  letter-spacing: -1px;
+  overflow-wrap: break-word;
+  word-break: keep-all;
+  padding: 0 8px;
+}
+
+.romanization {
+  font-size: 16px;
+  color: var(--charcoal-muted);
+  margin-top: 6px;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+}
+
+.badges {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.badge {
+  display: inline-flex;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  font-family: var(--font-ui);
+}
+
+.badgePos {
+  background: var(--coral-light);
+  color: var(--coral);
+}
+
+.badgeOrigin {
+  background: rgba(232, 223, 212, 0.6);
+  color: var(--charcoal-light);
+}
+
+.definition {
+  text-align: center;
+  font-size: 17px;
+  color: var(--charcoal);
+  line-height: 1.5;
+  padding: 0 8px 24px;
+  font-weight: 400;
+}
+
+.literalMeaning {
+  display: block;
+  font-size: 13px;
+  color: var(--charcoal-muted);
+  margin-top: 4px;
+  font-style: italic;
+}
+
+@media (min-width: 640px) {
+  .korean {
+    font-size: 60px;
+  }
+
+  .romanization {
+    font-size: 17px;
+  }
+
+  .definition {
+    font-size: 18px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .korean {
+    font-size: 64px;
+  }
+}

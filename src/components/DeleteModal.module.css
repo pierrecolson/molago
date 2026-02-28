@@ -1,0 +1,85 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition);
+}
+
+.visible {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.box {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 24px;
+  width: 300px;
+  max-width: calc(100vw - 48px);
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  transform: scale(0.95);
+  transition: transform var(--transition);
+}
+
+.visible .box {
+  transform: scale(1);
+}
+
+.title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--charcoal);
+  margin-bottom: 6px;
+  font-family: var(--font-ui);
+}
+
+.text {
+  font-size: 14px;
+  color: var(--charcoal-light);
+  line-height: 1.4;
+  margin-bottom: 20px;
+  font-family: var(--font-ui);
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+
+.actions button {
+  flex: 1;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  border: none;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+  font-family: var(--font-ui);
+}
+
+.cancel {
+  background: var(--cream-dark);
+  color: var(--charcoal);
+}
+
+.cancel:hover {
+  background: var(--border);
+}
+
+.delete {
+  background: var(--coral);
+  color: white;
+}
+
+.delete:hover {
+  background: var(--coral-hover);
+}
