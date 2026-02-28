@@ -4,7 +4,7 @@ import "./globals.css";
 
 const notoSansKR = Noto_Sans_KR({
   variable: "--noto-sans-kr",
-  subsets: ["latin"],
+  preload: false,
   weight: ["300", "400", "500", "600", "700"],
   display: "swap",
 });
@@ -42,8 +42,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${notoSansKR.variable} ${inter.variable}`}>
+    <html lang="ko">
+      <body className={`${notoSansKR.variable} ${notoSansKR.className} ${inter.variable}`}>
         {children}
       </body>
     </html>
