@@ -4,6 +4,23 @@ import { mockWords } from './mock-data';
 
 const useMock = !supabase;
 
+// ===================== ERROR TYPES =====================
+
+export class ApiError extends Error {
+  type: 'too_long' | 'rate_limited' | 'unauthorized' | 'server_error' | 'network_error';
+  userMessage: string;
+
+  constructor(
+    type: ApiError['type'],
+    userMessage: string,
+    originalMessage?: string
+  ) {
+    super(originalMessage ?? userMessage);
+    this.type = type;
+    this.userMessage = userMessage;
+  }
+}
+
 // ===================== READ OPERATIONS (Supabase) =====================
 
 export async function fetchWords(): Promise<Word[]> {
@@ -101,41 +118,84 @@ export async function fetchWordById(id: string): Promise<Word | null> {
   };
 }
 
-// ===================== WRITE OPERATIONS (n8n webhooks) =====================
+// ===================== WRITE OPERATIONS (via API routes) =====================
 
-const addWordUrl = process.env.NEXT_PUBLIC_N8N_ADD_WORD_URL;
-const deleteWordUrl = process.env.NEXT_PUBLIC_N8N_DELETE_WORD_URL;
-
-export async function addWord(korean: string): Promise<AddWordResponse> {
-  if (!addWordUrl) {
-    throw new Error('N8N add word webhook URL not configured');
+async function handleApiError(res: Response): Promise<never> {
+  let errorData: { error?: string; message?: string } = {};
+  try {
+    errorData = await res.json();
+  } catch {
+    // non-JSON response
   }
 
-  const res = await fetch(addWordUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ word: korean }),
-  });
+  const errorCode = errorData.error ?? '';
+
+  if (res.status === 400 && errorCode === 'too_long') {
+    throw new ApiError('too_long', 'Word is too long (max 50 characters).');
+  }
+
+  if (res.status === 429) {
+    throw new ApiError('rate_limited', 'Too many requests. Please wait a moment.');
+  }
+
+  if (res.status === 401) {
+    throw new ApiError('unauthorized', 'Something went wrong. Please try again.');
+  }
+
+  throw new ApiError(
+    'server_error',
+    "Couldn't get the definition. Please try again."
+  );
+}
+
+export async function addWord(korean: string): Promise<AddWordResponse> {
+  let res: Response;
+
+  try {
+    res = await fetch('/api/add-word', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ word: korean }),
+    });
+  } catch {
+    throw new ApiError('network_error', 'No connection. Check your internet and try again.');
+  }
 
   if (!res.ok) {
-    throw new Error(`Failed to add word: ${res.statusText}`);
+    return handleApiError(res);
   }
 
   return res.json();
 }
 
 export async function deleteWord(wordId: string): Promise<void> {
-  if (!deleteWordUrl) {
-    throw new Error('N8N delete word webhook URL not configured');
+  let res: Response;
+
+  try {
+    res = await fetch('/api/delete-word', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ word_id: wordId }),
+    });
+  } catch {
+    throw new ApiError('network_error', 'No connection. Check your internet and try again.');
   }
 
-  const res = await fetch(deleteWordUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ word_id: wordId }),
-  });
-
   if (!res.ok) {
-    throw new Error(`Failed to delete word: ${res.statusText}`);
+    let errorData: { error?: string; message?: string } = {};
+    try {
+      errorData = await res.json();
+    } catch {
+      // non-JSON response
+    }
+
+    if (res.status === 401) {
+      throw new ApiError('unauthorized', 'Something went wrong. Please try again.');
+    }
+
+    throw new ApiError(
+      'server_error',
+      errorData.message ?? "Couldn't delete. Try again."
+    );
   }
 }

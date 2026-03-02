@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { CaretLeft, Trash } from '@phosphor-icons/react';
 import { Word, Suggestion, isSuggestionResponse } from '@/lib/types';
-import { fetchWords, fetchWordById, addWord as apiAddWord, deleteWord as apiDeleteWord } from '@/lib/api';
+import { fetchWords, fetchWordById, addWord as apiAddWord, deleteWord as apiDeleteWord, ApiError } from '@/lib/api';
 import Logo from '@/components/Logo';
 import WordCard from '@/components/WordCard';
 import AddInput from '@/components/AddInput';
@@ -35,6 +35,7 @@ export default function Home() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [addError, setAddError] = useState('');
   const { message: toastMessage, visible: toastVisible, showToast } = useToast();
 
   // Set of Korean words in the list for family "in list" check
@@ -83,6 +84,7 @@ export default function Home() {
     if (!val || adding) return;
 
     setInputValue('');
+    setAddError('');
     setShowSuggestions(false);
     setSuggestions([]);
     setAdding(true);
@@ -104,10 +106,14 @@ export default function Home() {
         setWords((prev) => [res.word, ...prev]);
         showToast(`${res.word.korean} added`);
       }
-    } catch {
+    } catch (err) {
       // Remove shimmer on error
       setShimmerCards((prev) => prev.filter((s) => s.korean !== val));
-      showToast('Failed to add word');
+      if (err instanceof ApiError) {
+        setAddError(err.userMessage);
+      } else {
+        setAddError("Couldn't get the definition. Please try again.");
+      }
     } finally {
       setAdding(false);
     }
@@ -128,9 +134,10 @@ export default function Home() {
         setWords((prev) => [res.word, ...prev]);
         showToast(`${res.word.korean} added`);
       }
-    } catch {
+    } catch (err) {
       setShimmerCards((prev) => prev.filter((s) => s.korean !== korean));
-      showToast('Failed to add word');
+      const msg = err instanceof ApiError ? err.userMessage : "Couldn't get the definition. Please try again.";
+      setAddError(msg);
     } finally {
       setAdding(false);
     }
@@ -151,8 +158,9 @@ export default function Home() {
       setWords((prev) => prev.filter((w) => w.id !== selectedWord.id));
       showToast(`${selectedWord.korean} deleted`);
       goBack();
-    } catch {
-      showToast('Failed to delete word');
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.userMessage : "Couldn't delete. Try again.";
+      showToast(msg);
     }
   }, [selectedWord, showToast, goBack]);
 
@@ -165,8 +173,9 @@ export default function Home() {
         setWords((prev) => [res.word, ...prev]);
         showToast(`${korean} added to your list`);
       }
-    } catch {
-      showToast('Failed to add word');
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.userMessage : "Couldn't add word. Please try again.";
+      showToast(msg);
     } finally {
       setAdding(false);
     }
@@ -235,9 +244,10 @@ export default function Home() {
 
         <AddInput
           value={inputValue}
-          onChange={setInputValue}
+          onChange={(v) => { setInputValue(v); setAddError(''); }}
           onSubmit={handleAddWord}
           disabled={adding}
+          error={addError}
         />
 
         <div className="content-wrap">
