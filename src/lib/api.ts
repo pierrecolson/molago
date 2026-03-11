@@ -80,17 +80,13 @@ export async function fetchWordById(id: string): Promise<Word | null> {
     };
   });
 
-  // Fetch examples
+  // Fetch examples (alias DB columns to match frontend Example interface)
   const { data: examplesData } = await supabase!
     .from('examples')
-    .select('korean_sentence, english_translation, context')
+    .select('korean:korean_sentence, english:english_translation, context')
     .eq('word_id', id);
 
-  const examples: Example[] = (examplesData ?? []).map((ex) => ({
-    korean: ex.korean_sentence,
-    english: ex.english_translation,
-    context: ex.context,
-  }));
+  const examples: Example[] = (examplesData ?? []) as Example[];
 
   // Extract family from raw_llm_response
   const rawResponse = word.raw_llm_response as Record<string, unknown> | null;
