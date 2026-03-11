@@ -23,31 +23,41 @@ export class ApiError extends Error {
 
 // ===================== READ OPERATIONS (Supabase) =====================
 
-export async function fetchWords(): Promise<Word[]> {
+export async function fetchWords(retries = 2): Promise<Word[]> {
   if (useMock) return mockWords;
 
-  const { data, error } = await supabase!
-    .from('words')
-    .select('*')
-    .order('created_at', { ascending: false });
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const { data, error } = await supabase!
+        .from('words')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-  if (error) throw error;
-  if (!data) return [];
+      if (error) throw error;
+      if (!data) return [];
 
-  return data.map((row) => ({
-    id: row.id,
-    korean: row.korean,
-    romanization: row.romanization,
-    definition: row.definition,
-    literal_meaning: row.literal_meaning,
-    part_of_speech: row.part_of_speech,
-    origin_type: row.origin_type,
-    usage: row.usage,
-    nuances: row.nuances,
-    morphemes: [],
-    family: [],
-    examples: [],
-  }));
+      return data.map((row) => ({
+        id: row.id,
+        korean: row.korean,
+        romanization: row.romanization,
+        definition: row.definition,
+        literal_meaning: row.literal_meaning,
+        part_of_speech: row.part_of_speech,
+        origin_type: row.origin_type,
+        usage: row.usage,
+        nuances: row.nuances,
+        morphemes: [],
+        family: [],
+        examples: [],
+      }));
+    } catch (err) {
+      if (attempt === retries) throw err;
+      // Wait before retrying (1s, 2s)
+      await new Promise((r) => setTimeout(r, (attempt + 1) * 1000));
+    }
+  }
+
+  return [];
 }
 
 export async function fetchWordById(id: string): Promise<Word | null> {
