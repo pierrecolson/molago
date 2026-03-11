@@ -37,6 +37,7 @@ export default function Home() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [addError, setAddError] = useState('');
+  const [loadError, setLoadError] = useState(false);
   const { message: toastMessage, visible: toastVisible, showToast } = useToast();
 
   // Set of Korean words in the list for family "in list" check
@@ -46,21 +47,24 @@ export default function Home() {
   );
 
   // ===================== LOAD WORDS =====================
-  useEffect(() => {
-    const timeout = setTimeout(() => setLoading(false), 7000);
+  const loadWords = useCallback(() => {
+    setLoading(true);
+    setLoadError(false);
     fetchWords()
       .then((data) => {
         setWords(data);
         setLoading(false);
-        clearTimeout(timeout);
       })
       .catch((err) => {
         console.error(err);
+        setLoadError(true);
         setLoading(false);
-        clearTimeout(timeout);
       });
-    return () => clearTimeout(timeout);
   }, []);
+
+  useEffect(() => {
+    loadWords();
+  }, [loadWords]);
 
   // ===================== BACK BUTTON SUPPORT =====================
   useEffect(() => {
@@ -253,8 +257,21 @@ export default function Home() {
               </div>
             )}
 
+            {/* Error state */}
+            {!loading && loadError && words.length === 0 && (
+              <div className={styles.emptyState}>
+                <div className={styles.emptyTitle}>Couldn&#39;t load words</div>
+                <div className={styles.emptyText}>
+                  Check your connection and try again.
+                </div>
+                <button className={styles.retryBtn} onClick={loadWords}>
+                  Try again
+                </button>
+              </div>
+            )}
+
             {/* Empty state */}
-            {!loading && words.length === 0 && shimmerCards.length === 0 && (
+            {!loading && !loadError && words.length === 0 && shimmerCards.length === 0 && (
               <div className={styles.emptyState}>
                 <div className={styles.emptyTitle}>No words yet</div>
                 <div className={styles.emptyText}>
