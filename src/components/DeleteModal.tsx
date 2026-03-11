@@ -10,6 +10,8 @@ interface DeleteModalProps {
 }
 
 export default function DeleteModal({ korean, visible, onCancel, onConfirm }: DeleteModalProps) {
+  if (!visible) return null;
+
   return (
     <div
       className={`${styles.overlay} ${visible ? styles.visible : ''}`}

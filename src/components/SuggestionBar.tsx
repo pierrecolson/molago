@@ -11,6 +11,8 @@ interface SuggestionBarProps {
 }
 
 export default function SuggestionBar({ suggestions, visible, onSelect, onDismiss }: SuggestionBarProps) {
+  if (!visible && suggestions.length === 0) return null;
+
   return (
     <div className={`${styles.bar} ${visible ? styles.visible : ''}`}>
       <div className={styles.label}>Did you mean?</div>
