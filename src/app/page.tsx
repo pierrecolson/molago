@@ -81,11 +81,15 @@ export default function Home() {
   // ===================== OPEN DETAIL =====================
   const openDetail = useCallback(async (word: Word) => {
     // Fetch full word data (morphemes, family, examples)
-    const full = await fetchWordById(word.id);
-    if (!full) return;
-    setSelectedWord(full);
-    setScreen('detail');
-    window.history.pushState({ screen: 'detail' }, '', `?word=${word.id}`);
+    try {
+      const full = await fetchWordById(word.id);
+      if (!full) return;
+      setSelectedWord(full);
+      setScreen('detail');
+      window.history.pushState({ screen: 'detail' }, '', `?word=${word.id}`);
+    } catch (err) {
+      console.error('Failed to load word details:', err);
+    }
   }, []);
 
   // ===================== BACK TO LIST =====================
@@ -202,10 +206,14 @@ export default function Home() {
   const handleFamilyNavigate = useCallback(async (korean: string) => {
     const target = words.find((w) => w.korean === korean);
     if (target) {
-      const full = await fetchWordById(target.id);
-      if (full) {
-        setSelectedWord(full);
-        window.history.replaceState({ screen: 'detail' }, '', `?word=${target.id}`);
+      try {
+        const full = await fetchWordById(target.id);
+        if (full) {
+          setSelectedWord(full);
+          window.history.replaceState({ screen: 'detail' }, '', `?word=${target.id}`);
+        }
+      } catch (err) {
+        console.error('Failed to navigate to word:', err);
       }
     }
   }, [words]);
