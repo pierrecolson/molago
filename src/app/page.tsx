@@ -8,6 +8,8 @@ import Logo from '@/components/Logo';
 import WordCard from '@/components/WordCard';
 import AddInput from '@/components/AddInput';
 import SuggestionBar from '@/components/SuggestionBar';
+import AddWordSheet from '@/components/AddWordSheet';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import DetailHero from '@/components/DetailHero';
 import MorphemePills from '@/components/MorphemePills';
 import WordFamily from '@/components/WordFamily';
@@ -38,7 +40,9 @@ export default function Home() {
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [addError, setAddError] = useState('');
   const [loadError, setLoadError] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const { message: toastMessage, visible: toastVisible, showToast } = useToast();
+  const isMobile = useIsMobile();
 
   // Set of Korean words in the list for family "in list" check
   const wordListKoreans = useMemo(
@@ -126,6 +130,7 @@ export default function Home() {
         setShimmerCards((prev) => prev.filter((s) => s.korean !== val));
         setWords((prev) => [res.word, ...prev]);
         showToast(`${res.word.korean} added`);
+        setSheetOpen(false);
       }
     } catch (err) {
       // Remove shimmer on error
@@ -154,6 +159,7 @@ export default function Home() {
       if (!isSuggestionResponse(res)) {
         setWords((prev) => [res.word, ...prev]);
         showToast(`${res.word.korean} added`);
+        setSheetOpen(false);
       }
     } catch (err) {
       setShimmerCards((prev) => prev.filter((s) => s.korean !== korean));
@@ -290,22 +296,41 @@ export default function Home() {
           </div>
         </div>
 
-        <AddInput
-          value={inputValue}
-          onChange={(v) => { setInputValue(v); setAddError(''); }}
-          onSubmit={handleAddWord}
-          disabled={adding}
-          error={addError}
-        />
-
-        <div className="content-wrap">
-          <SuggestionBar
+        {isMobile ? (
+          <AddWordSheet
+            open={sheetOpen}
+            onOpenChange={setSheetOpen}
+            value={inputValue}
+            onChange={(v) => { setInputValue(v); setAddError(''); }}
+            onSubmit={handleAddWord}
+            disabled={adding}
+            error={addError}
+            shimmerCards={shimmerCards}
             suggestions={suggestions}
-            visible={showSuggestions}
-            onSelect={handleSuggestionSelect}
-            onDismiss={handleSuggestionDismiss}
+            showSuggestions={showSuggestions}
+            onSuggestionSelect={handleSuggestionSelect}
+            onSuggestionDismiss={handleSuggestionDismiss}
           />
-        </div>
+        ) : (
+          <>
+            <AddInput
+              value={inputValue}
+              onChange={(v) => { setInputValue(v); setAddError(''); }}
+              onSubmit={handleAddWord}
+              disabled={adding}
+              error={addError}
+            />
+
+            <div className="content-wrap">
+              <SuggestionBar
+                suggestions={suggestions}
+                visible={showSuggestions}
+                onSelect={handleSuggestionSelect}
+                onDismiss={handleSuggestionDismiss}
+              />
+            </div>
+          </>
+        )}
       </div>
 
       {/* ============ DETAIL SCREEN ============ */}
