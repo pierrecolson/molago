@@ -27,6 +27,7 @@ interface ShimmerCard {
 export default function Home() {
   // ===================== STATE =====================
   const [words, setWords] = useState<Word[]>([]);
+  const [loading, setLoading] = useState(true);
   const [screen, setScreen] = useState<Screen>('list');
   const [selectedWord, setSelectedWord] = useState<Word | null>(null);
   const [inputValue, setInputValue] = useState('');
@@ -46,7 +47,19 @@ export default function Home() {
 
   // ===================== LOAD WORDS =====================
   useEffect(() => {
-    fetchWords().then(setWords).catch(console.error);
+    const timeout = setTimeout(() => setLoading(false), 7000);
+    fetchWords()
+      .then((data) => {
+        setWords(data);
+        setLoading(false);
+        clearTimeout(timeout);
+      })
+      .catch((err) => {
+        console.error(err);
+        setLoading(false);
+        clearTimeout(timeout);
+      });
+    return () => clearTimeout(timeout);
   }, []);
 
   // ===================== BACK BUTTON SUPPORT =====================
@@ -230,8 +243,18 @@ export default function Home() {
               />
             ))}
 
+            {/* Loading state */}
+            {loading && words.length === 0 && shimmerCards.length === 0 && (
+              <div className={styles.emptyState}>
+                <div className={styles.loadingDots}>
+                  <span /><span /><span />
+                </div>
+                <div className={styles.emptyText}>Loading your words...</div>
+              </div>
+            )}
+
             {/* Empty state */}
-            {words.length === 0 && shimmerCards.length === 0 && (
+            {!loading && words.length === 0 && shimmerCards.length === 0 && (
               <div className={styles.emptyState}>
                 <div className={styles.emptyTitle}>No words yet</div>
                 <div className={styles.emptyText}>

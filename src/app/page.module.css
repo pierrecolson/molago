@@ -88,6 +88,35 @@
   line-height: 1.5;
 }
 
+/* ===================== LOADING STATE ===================== */
+.loadingDots {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.loadingDots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--coral);
+  opacity: 0.4;
+  animation: loadPulse 1.2s ease-in-out infinite;
+}
+
+.loadingDots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.loadingDots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes loadPulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
 /* ===================== DETAIL SCREEN ===================== */
 .detailScreen {
   background: var(--cream);

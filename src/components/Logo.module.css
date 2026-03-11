@@ -7,30 +7,20 @@
 .mark {
   width: 30px;
   height: 30px;
-  border-radius: 8px;
-  background: var(--coral);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-family: var(--font-kr);
-  font-weight: 700;
-  font-size: 18px;
 }
 
 .text {
-  font-family: var(--font-kr);
+  font-family: var(--font-ui);
   font-size: 19px;
   font-weight: 700;
-  color: var(--charcoal);
-  letter-spacing: -0.5px;
+  color: var(--charcoal-muted);
+  letter-spacing: -0.3px;
 }
 
 @media (min-width: 640px) {
   .mark {
     width: 40px;
     height: 40px;
-    font-size: 20px;
   }
 
   .text {
