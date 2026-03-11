@@ -41,6 +41,8 @@ export default function Home() {
   const [addError, setAddError] = useState('');
   const [loadError, setLoadError] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [pendingWord, setPendingWord] = useState<Word | null>(null);
+  const [shimmerWord, setShimmerWord] = useState('');
   const { message: toastMessage, visible: toastVisible, showToast } = useToast();
   const isMobile = useIsMobile();
 
@@ -114,27 +116,34 @@ export default function Home() {
     setSuggestions([]);
     setAdding(true);
 
-    // Show shimmer card
-    setShimmerCards((prev) => [{ korean: val }, ...prev]);
+    // Mobile: show shimmer in sheet; Desktop: show shimmer card in list
+    if (isMobile) {
+      setShimmerWord(val);
+    } else {
+      setShimmerCards((prev) => [{ korean: val }, ...prev]);
+    }
 
     try {
       const res = await apiAddWord(val);
 
       if (isSuggestionResponse(res)) {
-        // Remove shimmer, show suggestions
         setShimmerCards((prev) => prev.filter((s) => s.korean !== val));
+        setShimmerWord('');
         setSuggestions(res.suggestions);
         setShowSuggestions(true);
+      } else if (isMobile) {
+        // Mobile: show result in sheet, wait for user to confirm
+        setShimmerWord('');
+        setPendingWord(res.word);
       } else {
-        // Success — add word to list, remove shimmer
+        // Desktop: add immediately
         setShimmerCards((prev) => prev.filter((s) => s.korean !== val));
         setWords((prev) => [res.word, ...prev]);
         showToast(`${res.word.korean} added`);
-        setSheetOpen(false);
       }
     } catch (err) {
-      // Remove shimmer on error
       setShimmerCards((prev) => prev.filter((s) => s.korean !== val));
+      setShimmerWord('');
       if (err instanceof ApiError) {
         setAddError(err.userMessage);
       } else {
@@ -143,37 +152,56 @@ export default function Home() {
     } finally {
       setAdding(false);
     }
-  }, [inputValue, adding, showToast]);
+  }, [inputValue, adding, showToast, isMobile]);
 
   // ===================== SUGGESTION SELECT =====================
   const handleSuggestionSelect = useCallback(async (korean: string) => {
     setShowSuggestions(false);
     setSuggestions([]);
     setAdding(true);
-    setShimmerCards((prev) => [{ korean }, ...prev]);
+
+    if (isMobile) {
+      setShimmerWord(korean);
+    } else {
+      setShimmerCards((prev) => [{ korean }, ...prev]);
+    }
 
     try {
       const res = await apiAddWord(korean);
       setShimmerCards((prev) => prev.filter((s) => s.korean !== korean));
 
       if (!isSuggestionResponse(res)) {
-        setWords((prev) => [res.word, ...prev]);
-        showToast(`${res.word.korean} added`);
-        setSheetOpen(false);
+        if (isMobile) {
+          setShimmerWord('');
+          setPendingWord(res.word);
+        } else {
+          setWords((prev) => [res.word, ...prev]);
+          showToast(`${res.word.korean} added`);
+        }
       }
     } catch (err) {
       setShimmerCards((prev) => prev.filter((s) => s.korean !== korean));
+      setShimmerWord('');
       const msg = err instanceof ApiError ? err.userMessage : "Couldn't get the definition. Please try again.";
       setAddError(msg);
     } finally {
       setAdding(false);
     }
-  }, [showToast]);
+  }, [showToast, isMobile]);
 
   const handleSuggestionDismiss = useCallback(() => {
     setShowSuggestions(false);
     setSuggestions([]);
   }, []);
+
+  // ===================== CONFIRM ADD (mobile sheet) =====================
+  const handleConfirmAdd = useCallback((word: Word) => {
+    setWords((prev) => [word, ...prev]);
+    showToast(`${word.korean} added`);
+    setSheetOpen(false);
+    setPendingWord(null);
+    setShimmerWord('');
+  }, [showToast]);
 
   // ===================== DELETE WORD =====================
   const handleDelete = useCallback(async () => {
@@ -299,13 +327,18 @@ export default function Home() {
         {isMobile ? (
           <AddWordSheet
             open={sheetOpen}
-            onOpenChange={setSheetOpen}
+            onOpenChange={(v) => {
+              setSheetOpen(v);
+              if (!v) { setPendingWord(null); setShimmerWord(''); setAddError(''); }
+            }}
             value={inputValue}
             onChange={(v) => { setInputValue(v); setAddError(''); }}
             onSubmit={handleAddWord}
+            onConfirm={handleConfirmAdd}
             disabled={adding}
             error={addError}
-            shimmerCards={shimmerCards}
+            shimmerWord={shimmerWord}
+            resultWord={pendingWord}
             suggestions={suggestions}
             showSuggestions={showSuggestions}
             onSuggestionSelect={handleSuggestionSelect}

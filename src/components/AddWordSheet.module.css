@@ -44,7 +44,7 @@
   transition: opacity 0.25s ease;
 }
 
-.backdrop.open {
+.backdropOpen {
   opacity: 1;
   pointer-events: auto;
 }
@@ -58,14 +58,12 @@
   z-index: 101;
   background: var(--white);
   border-radius: 20px 20px 0 0;
-  padding: 20px 20px calc(16px + var(--safe-bottom));
+  padding: 20px 20px calc(8px + var(--safe-bottom));
   transform: translateY(100%);
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  max-height: 70vh;
-  overflow-y: auto;
 }
 
-.sheet.open {
+.sheetOpen {
   transform: translateY(0);
 }
 
@@ -108,7 +106,7 @@
   background: var(--cream);
   border: 1.5px solid var(--border);
   border-radius: 12px;
-  padding: 2px 4px 2px 14px;
+  padding: 2px 14px;
   transition: border-color var(--transition);
 }
 
@@ -134,33 +132,29 @@
   font-size: 14px;
 }
 
-.submitBtn {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+/* ===================== SEARCH BUTTON ===================== */
+.searchBtn {
+  width: 100%;
+  padding: 12px 0;
+  margin-top: 12px;
+  border-radius: 12px;
   border: none;
   background: var(--coral);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  color: var(--white);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all var(--transition);
-  flex-shrink: 0;
+  transition: opacity var(--transition);
   -webkit-tap-highlight-color: transparent;
 }
 
-.submitBtn:disabled {
+.searchBtn:disabled {
   opacity: 0.4;
 }
 
-.submitBtn:active:not(:disabled) {
-  transform: scale(0.94);
-}
-
-.submitBtn svg {
-  width: 18px;
-  height: 18px;
+.searchBtn:active:not(:disabled) {
+  opacity: 0.85;
 }
 
 /* ===================== INPUT ERROR ROW ===================== */
@@ -184,8 +178,8 @@
 .shimmer {
   display: flex;
   align-items: center;
-  padding: 14px 0;
-  margin-top: 16px;
+  justify-content: center;
+  padding: 24px 0 8px;
   gap: 12px;
 }
 
@@ -214,9 +208,50 @@
   100% { background-position: 200px 0; }
 }
 
+/* ===================== RESULT CARD ===================== */
+.result {
+  padding: 20px 0 8px;
+  text-align: center;
+}
+
+.resultKorean {
+  font-family: var(--font-kr);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--charcoal);
+  margin-bottom: 6px;
+}
+
+.resultDef {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  color: var(--charcoal-light);
+  line-height: 1.5;
+}
+
+.confirmBtn {
+  width: 100%;
+  padding: 12px 0;
+  margin-top: 16px;
+  border-radius: 12px;
+  border: none;
+  background: var(--coral);
+  color: var(--white);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity var(--transition);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.confirmBtn:active {
+  opacity: 0.85;
+}
+
 /* ===================== SUGGESTIONS ===================== */
 .suggestions {
-  margin-top: 16px;
+  padding-top: 16px;
 }
 
 .suggestLabel {
