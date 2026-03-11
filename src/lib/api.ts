@@ -89,13 +89,14 @@ export async function fetchWordById(id: string): Promise<Word | null> {
   const examples: Example[] = (examplesData ?? []) as Example[];
 
   // Extract family from raw_llm_response
+  // LLM may return fields as word/definition/hanja_breakdown or korean/meaning/connection
   const rawResponse = word.raw_llm_response as Record<string, unknown> | null;
   const familyData = (rawResponse?.word_family ?? []) as Array<Record<string, string>>;
   const family: FamilyWord[] = familyData.map((f) => ({
-    korean: f.korean,
-    hanja: f.hanja,
-    meaning: f.meaning,
-    connection: f.connection,
+    korean: f.korean || f.word || '',
+    hanja: f.hanja || '',
+    meaning: f.meaning || f.definition || '',
+    connection: f.connection || f.hanja_breakdown || '',
   }));
 
   return {
