@@ -1,0 +1,16 @@
+.header {
+  padding: 16px 0 6px;
+}
+
+.header:first-child {
+  padding-top: 4px;
+}
+
+.label {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--charcoal-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}

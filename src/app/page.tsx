@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { CaretLeft, Trash, Plus, FunnelSimple } from '@phosphor-icons/react';
 import { Word, Suggestion, isSuggestionResponse } from '@/lib/types';
 import { fetchWords, fetchWordById, addWord as apiAddWord, deleteWord as apiDeleteWord, ApiError } from '@/lib/api';
-import { UsageLevel } from '@/lib/utils';
+import { UsageLevel, groupWordsByDate } from '@/lib/utils';
 import Logo from '@/components/Logo';
 import WordCard from '@/components/WordCard';
 import AddWordSheet from '@/components/AddWordSheet';
@@ -16,6 +16,7 @@ import WordFamily from '@/components/WordFamily';
 import ExampleCard from '@/components/ExampleCard';
 import NuancesCard from '@/components/NuancesCard';
 import DeleteModal from '@/components/DeleteModal';
+import DateGroupHeader from '@/components/DateGroupHeader';
 import Toast from '@/components/Toast';
 import { useToast } from '@/hooks/useToast';
 import styles from './page.module.css';
@@ -55,6 +56,11 @@ export default function Home() {
       return true;
     });
   }, [words, usageFilter, posFilter]);
+
+  const groupedWords = useMemo(
+    () => groupWordsByDate(filteredWords),
+    [filteredWords]
+  );
 
   const availablePos = useMemo(
     () => [...new Set(words.map((w) => w.part_of_speech))].filter(Boolean).sort(),
@@ -190,7 +196,8 @@ export default function Home() {
 
   // ===================== CONFIRM ADD (mobile sheet) =====================
   const handleConfirmAdd = useCallback((word: Word) => {
-    setWords((prev) => [word, ...prev]);
+    const wordWithDate = { ...word, created_at: word.created_at || new Date().toISOString() };
+    setWords((prev) => [wordWithDate, ...prev]);
     showToast(`${word.korean} added`);
     setSheetOpen(false);
     setPendingWord(null);
@@ -266,15 +273,20 @@ export default function Home() {
 
         <div className={styles.wordList}>
           <div className={`content-wrap ${styles.wordListInner}`}>
-            {/* Word cards */}
-            {filteredWords.map((w) => (
-              <WordCard
-                key={w.id}
-                korean={w.korean}
-                definition={w.definition}
-                usage={w.usage}
-                onClick={() => openDetail(w)}
-              />
+            {/* Word cards grouped by date */}
+            {groupedWords.map((group) => (
+              <div key={group.label}>
+                <DateGroupHeader label={group.label} />
+                {group.words.map((w) => (
+                  <WordCard
+                    key={w.id}
+                    korean={w.korean}
+                    definition={w.definition}
+                    usage={w.usage}
+                    onClick={() => openDetail(w)}
+                  />
+                ))}
+              </div>
             ))}
 
             {/* Loading state */}

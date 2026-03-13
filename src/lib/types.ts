@@ -69,6 +69,7 @@ export interface Word {
   origin_type: string;
   usage: 'high' | 'mid' | 'low';
   nuances: string;
+  created_at: string;
   morphemes: Morpheme[];
   family: FamilyWord[];
   examples: Example[];

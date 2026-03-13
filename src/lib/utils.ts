@@ -1,4 +1,4 @@
-import { Morpheme } from './types';
+import { Morpheme, Word } from './types';
 
 // ===================== USAGE CONFIG =====================
 
@@ -92,4 +92,41 @@ export function highlightWordInExample(
   }
 
   return parts.length > 0 ? parts : [{ text: exampleKr, highlighted: false }];
+}
+
+// ===================== DATE GROUPING =====================
+
+export interface DateGroup {
+  label: string;
+  words: Word[];
+}
+
+function getDateGroup(dateStr: string): string {
+  const now = new Date();
+  const date = new Date(dateStr);
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterdayStart = new Date(todayStart.getTime() - 86_400_000);
+  const weekStart = new Date(todayStart.getTime() - 6 * 86_400_000);
+  const monthStart = new Date(todayStart.getTime() - 29 * 86_400_000);
+
+  if (date >= todayStart) return 'Today';
+  if (date >= yesterdayStart) return 'Yesterday';
+  if (date >= weekStart) return 'This Week';
+  if (date >= monthStart) return 'This Month';
+  return 'Older';
+}
+
+export function groupWordsByDate(words: Word[]): DateGroup[] {
+  const order = ['Today', 'Yesterday', 'This Week', 'This Month', 'Older'];
+  const map = new Map<string, Word[]>();
+
+  for (const w of words) {
+    const label = getDateGroup(w.created_at);
+    if (!map.has(label)) map.set(label, []);
+    map.get(label)!.push(w);
+  }
+
+  return order
+    .filter((label) => map.has(label))
+    .map((label) => ({ label, words: map.get(label)! }));
 }
