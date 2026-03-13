@@ -1,5 +1,7 @@
 import { Word } from './types';
 
+const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+
 export const mockWords: Word[] = [
   {
     id: 'mock-1',
@@ -7,6 +9,7 @@ export const mockWords: Word[] = [
     romanization: 'gamgi',
     definition: 'Common cold',
     usage: 'high',
+    created_at: daysAgo(0),
     part_of_speech: 'Noun',
     origin_type: 'Sino-Korean',
     literal_meaning: 'To feel the bad air/energy',
@@ -34,6 +37,7 @@ export const mockWords: Word[] = [
     romanization: 'gamjeong',
     definition: 'Emotion, feeling',
     usage: 'high',
+    created_at: daysAgo(0),
     part_of_speech: 'Noun',
     origin_type: 'Sino-Korean',
     literal_meaning: 'That which is felt as emotion',
@@ -59,6 +63,7 @@ export const mockWords: Word[] = [
     romanization: 'haksaeng',
     definition: 'Student',
     usage: 'high',
+    created_at: daysAgo(1),
     part_of_speech: 'Noun',
     origin_type: 'Sino-Korean',
     literal_meaning: 'One who studies life/living',
@@ -84,6 +89,7 @@ export const mockWords: Word[] = [
     romanization: 'sigan',
     definition: 'Time, hour',
     usage: 'high',
+    created_at: daysAgo(1),
     part_of_speech: 'Noun',
     origin_type: 'Sino-Korean',
     literal_meaning: 'The space between moments',
@@ -108,6 +114,7 @@ export const mockWords: Word[] = [
     romanization: 'sarang',
     definition: 'Love',
     usage: 'high',
+    created_at: daysAgo(3),
     part_of_speech: 'Noun',
     origin_type: 'Native Korean',
     literal_meaning: 'Love (native word)',
@@ -127,6 +134,7 @@ export const mockWords: Word[] = [
     romanization: 'gyeongje',
     definition: 'Economy, economics',
     usage: 'mid',
+    created_at: daysAgo(5),
     part_of_speech: 'Noun',
     origin_type: 'Sino-Korean',
     literal_meaning: 'Managing the world / governing to save',
@@ -150,6 +158,7 @@ export const mockWords: Word[] = [
     romanization: 'doseogwan',
     definition: 'Library',
     usage: 'mid',
+    created_at: daysAgo(15),
     part_of_speech: 'Noun',
     origin_type: 'Sino-Korean',
     literal_meaning: 'Building of books and records',
@@ -175,6 +184,7 @@ export const mockWords: Word[] = [
     romanization: 'keompyuteo',
     definition: 'Computer',
     usage: 'low',
+    created_at: daysAgo(25),
     part_of_speech: 'Noun',
     origin_type: 'Loanword',
     literal_meaning: 'Computer (from English)',
