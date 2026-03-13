@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useCallback, useState } from 'react';
-import { Plus, X } from '@phosphor-icons/react';
+import { X } from '@phosphor-icons/react';
 import { Word, Suggestion } from '@/lib/types';
 import styles from './AddWordSheet.module.css';
 
@@ -111,19 +111,6 @@ export default function AddWordSheet({
 
   return (
     <>
-      {/* Trigger button */}
-      {!open && (
-        <div className={styles.trigger}>
-          <button
-            className={styles.triggerBtn}
-            onClick={() => onOpenChange(true)}
-          >
-            <Plus weight="bold" />
-            Add word
-          </button>
-        </div>
-      )}
-
       {/* Backdrop */}
       <div
         className={`${styles.backdrop} ${open ? styles.backdropOpen : ''}`}
