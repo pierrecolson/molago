@@ -111,12 +111,12 @@ function getDateGroup(dateStr: string): string {
 
   if (date >= todayStart) return 'Today';
   if (date >= yesterdayStart) return 'Yesterday';
-  if (date >= weekStart) return 'Previous 7 Days';
-  return 'Previous 30 Days';
+  if (date >= weekStart) return 'This Week';
+  return 'This Month';
 }
 
 export function groupWordsByDate(words: Word[]): DateGroup[] {
-  const order = ['Today', 'Yesterday', 'Previous 7 Days', 'Previous 30 Days'];
+  const order = ['Today', 'Yesterday', 'This Week', 'This Month'];
   const map = new Map<string, Word[]>();
 
   for (const w of words) {
