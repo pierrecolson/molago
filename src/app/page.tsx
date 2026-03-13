@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { CaretLeft, Trash, Plus, FunnelSimple, X } from '@phosphor-icons/react';
+import { CaretLeft, Trash, Plus, FunnelSimple } from '@phosphor-icons/react';
 import { Word, Suggestion, isSuggestionResponse } from '@/lib/types';
 import { fetchWords, fetchWordById, addWord as apiAddWord, deleteWord as apiDeleteWord, ApiError } from '@/lib/api';
-import { usageConfig, UsageLevel } from '@/lib/utils';
+import { UsageLevel } from '@/lib/utils';
 import Logo from '@/components/Logo';
 import WordCard from '@/components/WordCard';
 import AddWordSheet from '@/components/AddWordSheet';
@@ -38,7 +38,6 @@ export default function Home() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [pendingWord, setPendingWord] = useState<Word | null>(null);
   const [shimmerWord, setShimmerWord] = useState('');
-  const [addExpanded, setAddExpanded] = useState(false);
   const { message: toastMessage, visible: toastVisible, showToast } = useToast();
 
   // ===================== FILTER STATE =====================
@@ -46,7 +45,8 @@ export default function Home() {
   const [usageFilter, setUsageFilter] = useState<Set<UsageLevel>>(new Set());
   const [posFilter, setPosFilter] = useState<Set<string>>(new Set());
 
-  const hasActiveFilters = usageFilter.size > 0 || posFilter.size > 0;
+  const filterCount = usageFilter.size + posFilter.size;
+  const hasActiveFilters = filterCount > 0;
 
   const filteredWords = useMemo(() => {
     return words.filter((w) => {
@@ -264,34 +264,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Active filter chips */}
-        {hasActiveFilters && (
-          <div className={styles.activeFilters}>
-            <div className={`content-wrap ${styles.activeFiltersInner}`}>
-              {[...usageFilter].map((u) => (
-                <button key={u} className={styles.activeChip} onClick={() => {
-                  const next = new Set(usageFilter);
-                  next.delete(u);
-                  setUsageFilter(next);
-                }}>
-                  {usageConfig[u].label}
-                  <X size={12} weight="bold" />
-                </button>
-              ))}
-              {[...posFilter].map((p) => (
-                <button key={p} className={styles.activeChip} onClick={() => {
-                  const next = new Set(posFilter);
-                  next.delete(p);
-                  setPosFilter(next);
-                }}>
-                  {p}
-                  <X size={12} weight="bold" />
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         <div className={styles.wordList}>
           <div className={`content-wrap ${styles.wordListInner}`}>
             {/* Word cards */}
@@ -354,29 +326,21 @@ export default function Home() {
         </div>
 
         {/* FAB container */}
-        <div className={`${styles.fabContainer} ${addExpanded ? styles.fabContainerExpanded : ''}`}>
+        <div className={styles.fabContainer}>
           <button
-            className={`${styles.fab} ${styles.fabFilter} ${addExpanded ? styles.fabHidden : ''}`}
+            className={`${styles.fab} ${styles.fabFilter} ${hasActiveFilters ? styles.fabFilterActive : ''}`}
             onClick={() => setFilterSheetOpen(true)}
             aria-label="Filter words"
           >
             <FunnelSimple size={24} weight={hasActiveFilters ? 'fill' : 'bold'} />
-            {hasActiveFilters && <span className={styles.fabDot} />}
+            {hasActiveFilters && <span className={styles.fabCount}>{filterCount}</span>}
           </button>
           <button
-            className={`${styles.fab} ${styles.fabAdd} ${addExpanded ? styles.fabAddExpanded : ''}`}
-            onClick={() => {
-              if (!addExpanded) {
-                setAddExpanded(true);
-                setTimeout(() => {
-                  setSheetOpen(true);
-                }, 300);
-              }
-            }}
+            className={`${styles.fab} ${styles.fabAdd}`}
+            onClick={() => setSheetOpen(true)}
             aria-label="Add word"
           >
             <Plus size={24} weight="bold" />
-            {addExpanded && <span className={styles.fabAddLabel}>Add word</span>}
           </button>
         </div>
 
@@ -388,7 +352,6 @@ export default function Home() {
               setPendingWord(null);
               setShimmerWord('');
               setAddError('');
-              setAddExpanded(false);
             }
           }}
           value={inputValue}

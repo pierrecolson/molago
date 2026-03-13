@@ -215,46 +215,6 @@
   padding-top: 8px;
 }
 
-/* ===================== ACTIVE FILTER CHIPS ===================== */
-.activeFilters {
-  padding-bottom: 8px;
-}
-
-.activeFiltersInner {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-
-.activeFiltersInner::-webkit-scrollbar {
-  display: none;
-}
-
-.activeChip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 5px 10px;
-  border-radius: 16px;
-  border: 1.5px solid var(--coral);
-  background: var(--coral-light);
-  font-family: var(--font-ui);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--coral);
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-  transition: all var(--transition);
-  -webkit-tap-highlight-color: transparent;
-}
-
-.activeChip:active {
-  transform: scale(0.95);
-}
-
 /* ===================== FLOATING ACTION BUTTONS ===================== */
 .fabContainer {
   position: fixed;
@@ -301,49 +261,24 @@
   color: var(--white);
 }
 
-.fabAddExpanded {
-  width: 100%;
-  border-radius: 14px;
-  height: 50px;
-  gap: 8px;
-}
-
-.fabAddLabel {
-  font-family: var(--font-ui);
-  font-size: 15px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
 .fabFilter {
   background: var(--white);
   color: var(--charcoal);
   border: 1.5px solid var(--border);
 }
 
-.fabHidden {
-  opacity: 0;
-  pointer-events: none;
-  width: 0;
-  overflow: hidden;
-  border: none;
-  padding: 0;
-  box-shadow: none;
-}
-
-.fabDot {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--coral);
-  border: 2px solid var(--white);
-}
-
-.fabContainerExpanded {
+.fabFilterActive {
+  width: auto;
+  border-radius: 28px;
   padding: 0 16px;
+  gap: 6px;
+}
+
+.fabCount {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--charcoal);
 }
 
 /* ===================== RESPONSIVE ===================== */
