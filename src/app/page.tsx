@@ -1,15 +1,14 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { CaretLeft, Trash } from '@phosphor-icons/react';
+import { CaretLeft, Trash, Plus, FunnelSimple, X } from '@phosphor-icons/react';
 import { Word, Suggestion, isSuggestionResponse } from '@/lib/types';
 import { fetchWords, fetchWordById, addWord as apiAddWord, deleteWord as apiDeleteWord, ApiError } from '@/lib/api';
+import { usageConfig, UsageLevel } from '@/lib/utils';
 import Logo from '@/components/Logo';
 import WordCard from '@/components/WordCard';
-import AddInput from '@/components/AddInput';
-import SuggestionBar from '@/components/SuggestionBar';
 import AddWordSheet from '@/components/AddWordSheet';
-import { useIsMobile } from '@/hooks/useIsMobile';
+import FilterSheet from '@/components/FilterSheet';
 import { fixMorphemeKorean } from '@/lib/utils';
 import DetailHero from '@/components/DetailHero';
 import MorphemePills from '@/components/MorphemePills';
@@ -23,10 +22,6 @@ import styles from './page.module.css';
 
 type Screen = 'list' | 'detail';
 
-interface ShimmerCard {
-  korean: string;
-}
-
 export default function Home() {
   // ===================== STATE =====================
   const [words, setWords] = useState<Word[]>([]);
@@ -35,7 +30,6 @@ export default function Home() {
   const [selectedWord, setSelectedWord] = useState<Word | null>(null);
   const [inputValue, setInputValue] = useState('');
   const [adding, setAdding] = useState(false);
-  const [shimmerCards, setShimmerCards] = useState<ShimmerCard[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
@@ -44,8 +38,33 @@ export default function Home() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [pendingWord, setPendingWord] = useState<Word | null>(null);
   const [shimmerWord, setShimmerWord] = useState('');
+  const [addExpanded, setAddExpanded] = useState(false);
   const { message: toastMessage, visible: toastVisible, showToast } = useToast();
-  const isMobile = useIsMobile();
+
+  // ===================== FILTER STATE =====================
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+  const [usageFilter, setUsageFilter] = useState<Set<UsageLevel>>(new Set());
+  const [posFilter, setPosFilter] = useState<Set<string>>(new Set());
+
+  const hasActiveFilters = usageFilter.size > 0 || posFilter.size > 0;
+
+  const filteredWords = useMemo(() => {
+    return words.filter((w) => {
+      if (usageFilter.size > 0 && !usageFilter.has(w.usage)) return false;
+      if (posFilter.size > 0 && !posFilter.has(w.part_of_speech)) return false;
+      return true;
+    });
+  }, [words, usageFilter, posFilter]);
+
+  const availablePos = useMemo(
+    () => [...new Set(words.map((w) => w.part_of_speech))].filter(Boolean).sort(),
+    [words]
+  );
+
+  const clearFilters = useCallback(() => {
+    setUsageFilter(new Set());
+    setPosFilter(new Set());
+  }, []);
 
   // Set of Korean words in the list for family "in list" check
   const wordListKoreans = useMemo(
@@ -116,34 +135,20 @@ export default function Home() {
     setShowSuggestions(false);
     setSuggestions([]);
     setAdding(true);
-
-    // Mobile: show shimmer in sheet; Desktop: show shimmer card in list
-    if (isMobile) {
-      setShimmerWord(val);
-    } else {
-      setShimmerCards((prev) => [{ korean: val }, ...prev]);
-    }
+    setShimmerWord(val);
 
     try {
       const res = await apiAddWord(val);
 
       if (isSuggestionResponse(res)) {
-        setShimmerCards((prev) => prev.filter((s) => s.korean !== val));
         setShimmerWord('');
         setSuggestions(res.suggestions);
         setShowSuggestions(true);
-      } else if (isMobile) {
-        // Mobile: show result in sheet, wait for user to confirm
+      } else {
         setShimmerWord('');
         setPendingWord(res.word);
-      } else {
-        // Desktop: add immediately
-        setShimmerCards((prev) => prev.filter((s) => s.korean !== val));
-        setWords((prev) => [res.word, ...prev]);
-        showToast(`${res.word.korean} added`);
       }
     } catch (err) {
-      setShimmerCards((prev) => prev.filter((s) => s.korean !== val));
       setShimmerWord('');
       if (err instanceof ApiError) {
         setAddError(err.userMessage);
@@ -153,42 +158,30 @@ export default function Home() {
     } finally {
       setAdding(false);
     }
-  }, [inputValue, adding, showToast, isMobile]);
+  }, [inputValue, adding]);
 
   // ===================== SUGGESTION SELECT =====================
   const handleSuggestionSelect = useCallback(async (korean: string) => {
     setShowSuggestions(false);
     setSuggestions([]);
     setAdding(true);
-
-    if (isMobile) {
-      setShimmerWord(korean);
-    } else {
-      setShimmerCards((prev) => [{ korean }, ...prev]);
-    }
+    setShimmerWord(korean);
 
     try {
       const res = await apiAddWord(korean);
-      setShimmerCards((prev) => prev.filter((s) => s.korean !== korean));
 
       if (!isSuggestionResponse(res)) {
-        if (isMobile) {
-          setShimmerWord('');
-          setPendingWord(res.word);
-        } else {
-          setWords((prev) => [res.word, ...prev]);
-          showToast(`${res.word.korean} added`);
-        }
+        setShimmerWord('');
+        setPendingWord(res.word);
       }
     } catch (err) {
-      setShimmerCards((prev) => prev.filter((s) => s.korean !== korean));
       setShimmerWord('');
       const msg = err instanceof ApiError ? err.userMessage : "Couldn't get the definition. Please try again.";
       setAddError(msg);
     } finally {
       setAdding(false);
     }
-  }, [showToast, isMobile]);
+  }, []);
 
   const handleSuggestionDismiss = useCallback(() => {
     setShowSuggestions(false);
@@ -264,23 +257,45 @@ export default function Home() {
           <div className={`content-wrap ${styles.listHeaderInner}`}>
             <Logo />
             <div className={styles.wordCount}>
-              {words.length} {words.length === 1 ? 'word' : 'words'}
+              {hasActiveFilters
+                ? `${filteredWords.length} of ${words.length} words`
+                : `${words.length} ${words.length === 1 ? 'word' : 'words'}`}
             </div>
           </div>
         </div>
 
+        {/* Active filter chips */}
+        {hasActiveFilters && (
+          <div className={styles.activeFilters}>
+            <div className={`content-wrap ${styles.activeFiltersInner}`}>
+              {[...usageFilter].map((u) => (
+                <button key={u} className={styles.activeChip} onClick={() => {
+                  const next = new Set(usageFilter);
+                  next.delete(u);
+                  setUsageFilter(next);
+                }}>
+                  {usageConfig[u].label}
+                  <X size={12} weight="bold" />
+                </button>
+              ))}
+              {[...posFilter].map((p) => (
+                <button key={p} className={styles.activeChip} onClick={() => {
+                  const next = new Set(posFilter);
+                  next.delete(p);
+                  setPosFilter(next);
+                }}>
+                  {p}
+                  <X size={12} weight="bold" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className={styles.wordList}>
           <div className={`content-wrap ${styles.wordListInner}`}>
-            {/* Shimmer cards */}
-            {shimmerCards.map((s) => (
-              <div key={s.korean} className={styles.shimmerCard}>
-                <span className={styles.shimmerKorean}>{s.korean}</span>
-                <span className={styles.shimmerText}>Analyzing...</span>
-              </div>
-            ))}
-
             {/* Word cards */}
-            {words.map((w) => (
+            {filteredWords.map((w) => (
               <WordCard
                 key={w.id}
                 korean={w.korean}
@@ -291,7 +306,7 @@ export default function Home() {
             ))}
 
             {/* Loading state */}
-            {loading && words.length === 0 && shimmerCards.length === 0 && (
+            {loading && words.length === 0 && (
               <div className={styles.emptyState}>
                 <div className={styles.loadingDots}>
                   <span /><span /><span />
@@ -314,7 +329,7 @@ export default function Home() {
             )}
 
             {/* Empty state */}
-            {!loading && !loadError && words.length === 0 && shimmerCards.length === 0 && (
+            {!loading && !loadError && words.length === 0 && (
               <div className={styles.emptyState}>
                 <div className={styles.emptyTitle}>No words yet</div>
                 <div className={styles.emptyText}>
@@ -322,49 +337,73 @@ export default function Home() {
                 </div>
               </div>
             )}
+
+            {/* No filter results */}
+            {!loading && hasActiveFilters && words.length > 0 && filteredWords.length === 0 && (
+              <div className={styles.emptyState}>
+                <div className={styles.emptyTitle}>No matches</div>
+                <div className={styles.emptyText}>
+                  No words match the current filters.
+                </div>
+                <button className={styles.retryBtn} onClick={clearFilters}>
+                  Clear filters
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
-        {isMobile ? (
-          <AddWordSheet
-            open={sheetOpen}
-            onOpenChange={(v) => {
-              setSheetOpen(v);
-              if (!v) { setPendingWord(null); setShimmerWord(''); setAddError(''); }
+        {/* FAB container */}
+        <div className={`${styles.fabContainer} ${addExpanded ? styles.fabContainerExpanded : ''}`}>
+          <button
+            className={`${styles.fab} ${styles.fabFilter} ${addExpanded ? styles.fabHidden : ''}`}
+            onClick={() => setFilterSheetOpen(true)}
+            aria-label="Filter words"
+          >
+            <FunnelSimple size={24} weight={hasActiveFilters ? 'fill' : 'bold'} />
+            {hasActiveFilters && <span className={styles.fabDot} />}
+          </button>
+          <button
+            className={`${styles.fab} ${styles.fabAdd} ${addExpanded ? styles.fabAddExpanded : ''}`}
+            onClick={() => {
+              if (!addExpanded) {
+                setAddExpanded(true);
+                setTimeout(() => {
+                  setSheetOpen(true);
+                }, 300);
+              }
             }}
-            value={inputValue}
-            onChange={(v) => { setInputValue(v); setAddError(''); }}
-            onSubmit={handleAddWord}
-            onConfirm={handleConfirmAdd}
-            disabled={adding}
-            error={addError}
-            shimmerWord={shimmerWord}
-            resultWord={pendingWord}
-            suggestions={suggestions}
-            showSuggestions={showSuggestions}
-            onSuggestionSelect={handleSuggestionSelect}
-            onSuggestionDismiss={handleSuggestionDismiss}
-          />
-        ) : (
-          <>
-            <AddInput
-              value={inputValue}
-              onChange={(v) => { setInputValue(v); setAddError(''); }}
-              onSubmit={handleAddWord}
-              disabled={adding}
-              error={addError}
-            />
+            aria-label="Add word"
+          >
+            <Plus size={24} weight="bold" />
+            {addExpanded && <span className={styles.fabAddLabel}>Add word</span>}
+          </button>
+        </div>
 
-            <div className="content-wrap">
-              <SuggestionBar
-                suggestions={suggestions}
-                visible={showSuggestions}
-                onSelect={handleSuggestionSelect}
-                onDismiss={handleSuggestionDismiss}
-              />
-            </div>
-          </>
-        )}
+        <AddWordSheet
+          open={sheetOpen}
+          onOpenChange={(v) => {
+            setSheetOpen(v);
+            if (!v) {
+              setPendingWord(null);
+              setShimmerWord('');
+              setAddError('');
+              setAddExpanded(false);
+            }
+          }}
+          value={inputValue}
+          onChange={(v) => { setInputValue(v); setAddError(''); }}
+          onSubmit={handleAddWord}
+          onConfirm={handleConfirmAdd}
+          disabled={adding}
+          error={addError}
+          shimmerWord={shimmerWord}
+          resultWord={pendingWord}
+          suggestions={suggestions}
+          showSuggestions={showSuggestions}
+          onSuggestionSelect={handleSuggestionSelect}
+          onSuggestionDismiss={handleSuggestionDismiss}
+        />
       </div>
 
       {/* ============ DETAIL SCREEN ============ */}
@@ -423,6 +462,17 @@ export default function Home() {
       </div>
 
       {/* ============ MODALS & OVERLAYS ============ */}
+      <FilterSheet
+        open={filterSheetOpen}
+        onOpenChange={setFilterSheetOpen}
+        usageFilter={usageFilter}
+        onUsageFilterChange={setUsageFilter}
+        posFilter={posFilter}
+        onPosFilterChange={setPosFilter}
+        availablePos={availablePos}
+        onClear={clearFilters}
+      />
+
       <DeleteModal
         korean={selectedWord?.korean ?? ''}
         visible={deleteModalVisible}
