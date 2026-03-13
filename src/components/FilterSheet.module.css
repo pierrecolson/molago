@@ -108,10 +108,16 @@
   border-color: var(--coral);
 }
 
-/* ===================== CLEAR BUTTON ===================== */
+/* ===================== ACTIONS ===================== */
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  gap: 12px;
+}
+
 .clearBtn {
-  display: block;
-  margin: 8px auto 0;
   padding: 10px 20px;
   background: none;
   border: none;
@@ -130,4 +136,22 @@
 .clearBtn:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+.okBtn {
+  padding: 10px 28px;
+  border-radius: 12px;
+  border: none;
+  background: var(--coral);
+  color: var(--white);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity var(--transition);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.okBtn:active {
+  opacity: 0.85;
 }

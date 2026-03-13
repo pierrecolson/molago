@@ -137,14 +137,22 @@ export default function FilterSheet({
           </div>
         )}
 
-        {/* Clear all */}
-        <button
-          className={styles.clearBtn}
-          onClick={handleClear}
-          disabled={!hasActiveFilters}
-        >
-          Clear all
-        </button>
+        {/* Actions */}
+        <div className={styles.actions}>
+          <button
+            className={styles.clearBtn}
+            onClick={handleClear}
+            disabled={!hasActiveFilters}
+          >
+            Clear all
+          </button>
+          <button
+            className={styles.okBtn}
+            onClick={handleClose}
+          >
+            OK
+          </button>
+        </div>
       </div>
     </>
   );

@@ -332,7 +332,7 @@ export default function Home() {
             onClick={() => setFilterSheetOpen(true)}
             aria-label="Filter words"
           >
-            <FunnelSimple size={24} weight={hasActiveFilters ? 'fill' : 'bold'} />
+            <FunnelSimple size={24} weight="regular" />
             {hasActiveFilters && <span className={styles.fabCount}>{filterCount}</span>}
           </button>
           <button
