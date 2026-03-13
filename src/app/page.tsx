@@ -10,6 +10,7 @@ import AddInput from '@/components/AddInput';
 import SuggestionBar from '@/components/SuggestionBar';
 import AddWordSheet from '@/components/AddWordSheet';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { fixMorphemeKorean } from '@/lib/utils';
 import DetailHero from '@/components/DetailHero';
 import MorphemePills from '@/components/MorphemePills';
 import WordFamily from '@/components/WordFamily';
@@ -388,7 +389,9 @@ export default function Home() {
 
         <div className={styles.detailContent}>
           <div className={`content-wrap ${styles.detailContentInner}`}>
-            {selectedWord && (
+            {selectedWord && (() => {
+              const morphemes = fixMorphemeKorean(selectedWord.morphemes, selectedWord.korean);
+              return (
               <>
                 <DetailHero
                   korean={selectedWord.korean}
@@ -399,10 +402,10 @@ export default function Home() {
                   originType={selectedWord.origin_type}
                   usage={selectedWord.usage}
                 />
-                <MorphemePills morphemes={selectedWord.morphemes} />
+                <MorphemePills morphemes={morphemes} />
                 <WordFamily
                   family={selectedWord.family}
-                  morphemes={selectedWord.morphemes}
+                  morphemes={morphemes}
                   wordListKoreans={wordListKoreans}
                   onAdd={handleFamilyAdd}
                   onNavigate={handleFamilyNavigate}
@@ -413,7 +416,8 @@ export default function Home() {
                 />
                 <NuancesCard nuances={selectedWord.nuances} />
               </>
-            )}
+              );
+            })()}
           </div>
         </div>
       </div>
