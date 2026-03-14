@@ -429,6 +429,11 @@ export default function Home() {
                   targetKorean={selectedWord.korean}
                 />
                 <NuancesCard nuances={selectedWord.nuances} />
+                <p className={styles.addedAt}>
+                  Added on {new Date(selectedWord.created_at).toLocaleDateString('en-US', {
+                    year: 'numeric', month: 'long', day: 'numeric'
+                  })}
+                </p>
               </>
               );
             })()}
