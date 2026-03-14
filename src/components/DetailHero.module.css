@@ -5,7 +5,7 @@
 
 .korean {
   font-family: var(--font-kr-display);
-  font-size: clamp(36px, 10vw, 52px);
+  font-size: clamp(54px, 15vw, 78px);
   font-weight: 700;
   color: var(--coral);
   line-height: 1.1;
@@ -73,7 +73,7 @@
 
 @media (min-width: 640px) {
   .korean {
-    font-size: 60px;
+    font-size: 90px;
   }
 
   .romanization {
@@ -87,6 +87,6 @@
 
 @media (min-width: 1024px) {
   .korean {
-    font-size: 64px;
+    font-size: 96px;
   }
 }
