@@ -12,26 +12,26 @@
 }
 
 .usageHigh {
-  background: rgba(52, 199, 89, 0.1);
+  background: transparent;
   color: var(--green);
 }
 
 .usageMid {
-  background: rgba(255, 149, 0, 0.1);
+  background: transparent;
   color: var(--yellow);
 }
 
 .usageLow {
-  background: rgba(221, 68, 37, 0.1);
+  background: transparent;
   color: var(--red);
 }
 
 /* Compact variant — icon only, used in word list */
 .compact {
-  margin-left: 5px;
-  padding: 4px;
-  border-radius: 6px;
+  padding: 0;
+  gap: 0;
   font-size: 0;
+  line-height: 0;
 }
 
 /* Detail variant — matches pill style in detail hero badges row */
@@ -41,4 +41,16 @@
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.3px;
+}
+
+.detailHigh {
+  background: rgba(52, 199, 89, 0.1);
+}
+
+.detailMid {
+  background: rgba(255, 149, 0, 0.1);
+}
+
+.detailLow {
+  background: rgba(221, 68, 37, 0.1);
 }

@@ -3,9 +3,7 @@
   align-items: center;
   padding: 16px;
   margin-bottom: 6px;
-  background: rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: #FBFAF9;
   border: 1px solid rgba(232, 223, 212, 0.5);
   border-radius: var(--radius);
   cursor: pointer;
@@ -14,7 +12,7 @@
 }
 
 .card:hover {
-  background: rgba(255, 255, 255, 0.8);
+  background: #FBFAF9;
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
@@ -42,7 +40,11 @@
 }
 
 .badge {
-  margin-left: 5px;
+  margin-left: 8px;
+  display: flex;
+  align-items: center;
+  line-height: 0;
+  font-size: 0;
 }
 
 .arrow {
@@ -50,6 +52,8 @@
   font-size: 20px;
   margin-left: 8px;
   opacity: 0.4;
+  display: flex;
+  align-items: center;
 }
 
 /* Loading / shimmer state */
