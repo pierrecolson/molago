@@ -24,6 +24,15 @@
   gap: 12px;
 }
 
+.itemInList {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.itemInList:hover {
+  background: var(--cream);
+}
+
 .info {
   flex: 1;
   min-width: 0;
@@ -81,15 +90,32 @@
   transform: scale(0.9);
 }
 
-.inList {
-  border-color: var(--border);
-  color: var(--charcoal-muted);
-  background: transparent;
-  opacity: 0.5;
+.actionBtn:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
-.inList:hover {
-  opacity: 0.8;
+.chevron {
+  color: var(--charcoal-muted);
+  opacity: 0.4;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--coral);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (min-width: 1024px) {
