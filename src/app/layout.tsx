@@ -1,18 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Noto_Sans_KR, Inter, Chiron_GoRound_TC } from "next/font/google";
+import { Noto_Sans_KR, Inter } from "next/font/google";
 import "./globals.css";
 
 const notoSansKR = Noto_Sans_KR({
   variable: "--noto-sans-kr",
   preload: false,
   weight: ["300", "400", "500", "600", "700"],
-  display: "swap",
-});
-
-const chironGoRound = Chiron_GoRound_TC({
-  variable: "--chiron-goround",
-  preload: false,
-  weight: "700",
   display: "swap",
 });
 
@@ -50,7 +43,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
-      <body className={`${notoSansKR.variable} ${notoSansKR.className} ${inter.variable} ${chironGoRound.variable}`}>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Chiron+GoRound+TC:wght@700&display=swap" rel="stylesheet" />
+      </head>
+      <body className={`${notoSansKR.variable} ${notoSansKR.className} ${inter.variable}`}>
         {children}
       </body>
     </html>
