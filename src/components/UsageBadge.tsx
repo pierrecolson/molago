@@ -1,6 +1,5 @@
 'use client';
 
-import { CellSignalFull, CellSignalMedium, CellSignalLow } from '@phosphor-icons/react';
 import { usageConfig, UsageLevel } from '@/lib/utils';
 import styles from './UsageBadge.module.css';
 
@@ -9,18 +8,17 @@ interface UsageBadgeProps {
   variant?: 'compact' | 'full' | 'detail';
 }
 
-const iconMap = {
-  high: CellSignalFull,
-  mid: CellSignalMedium,
-  low: CellSignalLow,
+const iconMap: Record<UsageLevel, string> = {
+  high: '/icons/common.svg',
+  mid: '/icons/uncommon.svg',
+  low: '/icons/rare.svg',
 };
 
 export default function UsageBadge({ usage, variant = 'compact' }: UsageBadgeProps) {
   const config = usageConfig[usage];
   if (!config) return null;
 
-  const Icon = iconMap[usage];
-  const iconSize = variant === 'compact' ? 16 : variant === 'detail' ? 13 : 15;
+  const iconSize = variant === 'compact' ? 20 : variant === 'detail' ? 13 : 15;
 
   return (
     <span
@@ -28,7 +26,7 @@ export default function UsageBadge({ usage, variant = 'compact' }: UsageBadgePro
         variant === 'compact' ? styles.compact : variant === 'detail' ? styles.detail : ''
       }`}
     >
-      <Icon size={iconSize} weight="bold" />
+      <img src={iconMap[usage]} alt={config.label} width={iconSize} height={iconSize} style={{ display: 'block' }} />
       {variant !== 'compact' && <span>{config.label}</span>}
     </span>
   );

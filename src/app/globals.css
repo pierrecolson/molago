@@ -14,7 +14,7 @@
   --green-light: #E5F8EB;
   --red: #DD4425;
   --yellow: #FF9500;
-  --dot-color: rgba(200, 185, 168, 0.25);
+  --dot-color: rgba(200, 185, 168, 0.35);
   --font-kr: var(--noto-sans-kr), 'Noto Sans KR', sans-serif;
   --font-ui: var(--inter), 'Inter', -apple-system, sans-serif;
   --radius: 14px;

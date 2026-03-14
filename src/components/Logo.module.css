@@ -4,12 +4,12 @@
 }
 
 .mark {
-  height: 30px;
+  height: 44px;
   width: auto;
 }
 
 @media (min-width: 640px) {
   .mark {
-    height: 38px;
+    height: 44px;
   }
 }
