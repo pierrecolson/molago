@@ -11,9 +11,8 @@
   line-height: 1.1;
   letter-spacing: -1px;
   text-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.4),
-    0 2px 4px rgba(0, 0, 0, 0.08),
-    0 4px 8px rgba(243, 93, 72, 0.12);
+    -1px 0 #C43A28, 0 1px #C43A28, 1px 0 #C43A28, 0 -1px #C43A28,
+    1px 1px #C43A28, 2px 2px #C43A28, 3px 3px #C43A28, 4px 4px #C43A28, 5px 5px #C43A28;
   overflow-wrap: break-word;
   word-break: keep-all;
   padding: 0 8px;
