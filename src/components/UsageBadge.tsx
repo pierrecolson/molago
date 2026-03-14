@@ -14,6 +14,12 @@ const iconMap: Record<UsageLevel, string> = {
   low: '/icons/rare.svg',
 };
 
+const detailColorMap: Record<UsageLevel, string> = {
+  high: 'detailHigh',
+  mid: 'detailMid',
+  low: 'detailLow',
+};
+
 export default function UsageBadge({ usage, variant = 'compact' }: UsageBadgeProps) {
   const config = usageConfig[usage];
   if (!config) return null;
@@ -23,7 +29,7 @@ export default function UsageBadge({ usage, variant = 'compact' }: UsageBadgePro
   return (
     <span
       className={`${styles.badge} ${styles[config.colorClass]} ${
-        variant === 'compact' ? styles.compact : variant === 'detail' ? styles.detail : ''
+        variant === 'compact' ? styles.compact : variant === 'detail' ? `${styles.detail} ${styles[detailColorMap[usage]]}` : ''
       }`}
     >
       <img src={iconMap[usage]} alt={config.label} width={iconSize} height={iconSize} style={{ display: 'block' }} />

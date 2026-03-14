@@ -145,6 +145,21 @@
   background: var(--cream);
 }
 
+.detailScreen::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 350px;
+  background-image: radial-gradient(circle, rgba(200, 185, 168, 0.8) 1px, transparent 1px);
+  background-size: 24px 24px;
+  mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
 .detailNav {
   position: relative;
   z-index: 10;
@@ -201,6 +216,8 @@
 }
 
 .detailContent {
+  position: relative;
+  z-index: 2;
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;

@@ -4,12 +4,16 @@
 }
 
 .korean {
-  font-family: var(--font-kr);
+  font-family: var(--font-kr-display);
   font-size: clamp(36px, 10vw, 52px);
   font-weight: 700;
   color: var(--coral);
   line-height: 1.1;
   letter-spacing: -1px;
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.4),
+    0 2px 4px rgba(0, 0, 0, 0.08),
+    0 4px 8px rgba(243, 93, 72, 0.12);
   overflow-wrap: break-word;
   word-break: keep-all;
   padding: 0 8px;
@@ -18,7 +22,7 @@
 .romanization {
   font-size: 16px;
   color: var(--charcoal-muted);
-  margin-top: 6px;
+  margin-top: 16px;
   font-weight: 400;
   letter-spacing: 0.5px;
 }
@@ -27,7 +31,7 @@
   display: flex;
   justify-content: center;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: 8px;
 }
 
 .badge {
@@ -55,7 +59,8 @@
   font-size: 17px;
   color: var(--charcoal);
   line-height: 1.5;
-  padding: 0 8px 24px;
+  margin-top: 16px;
+  padding: 0 8px 64px;
   font-weight: 400;
 }
 

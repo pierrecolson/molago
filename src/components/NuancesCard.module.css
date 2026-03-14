@@ -5,7 +5,7 @@
   text-transform: uppercase;
   letter-spacing: 1.2px;
   margin-bottom: 10px;
-  margin-top: 4px;
+  margin-top: 0;
   font-family: var(--font-ui);
 }
 
@@ -14,7 +14,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 14px 16px;
-  margin-bottom: 24px;
+  margin-bottom: 32px;
 }
 
 .text {
