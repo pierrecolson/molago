@@ -37,16 +37,44 @@
 
 .listHeaderInner {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
+}
+
+.logoGroup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .wordCount {
   font-size: 13px;
   color: var(--charcoal-muted);
   font-weight: 400;
-  padding-bottom: 2px;
   font-family: var(--font-ui);
+}
+
+.settingsBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 6px;
+  cursor: pointer;
+  color: var(--charcoal-muted);
+  border-radius: var(--radius-sm);
+  transition: color var(--transition), background var(--transition);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.settingsBtn:hover {
+  color: var(--charcoal);
+  background: var(--cream-dark);
+}
+
+.settingsBtn:active {
+  opacity: 0.7;
 }
 
 .wordList {
@@ -62,6 +90,10 @@
 
 .wordListInner {
   padding-top: 4px;
+}
+
+.groupBlock {
+  margin-bottom: 20px;
 }
 
 /* ===================== EMPTY STATE ===================== */

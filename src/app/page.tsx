@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { CaretLeft, Trash, Plus, FunnelSimple } from '@phosphor-icons/react';
+import { CaretLeft, Trash, Plus, FunnelSimple, GearSix } from '@phosphor-icons/react';
 import { Word, Suggestion, isSuggestionResponse } from '@/lib/types';
 import { fetchWords, fetchWordById, addWord as apiAddWord, deleteWord as apiDeleteWord, ApiError } from '@/lib/api';
 import { UsageLevel, groupWordsByDate } from '@/lib/utils';
@@ -18,6 +18,7 @@ import NuancesCard from '@/components/NuancesCard';
 import DeleteModal from '@/components/DeleteModal';
 import DateGroupHeader from '@/components/DateGroupHeader';
 import Toast from '@/components/Toast';
+import SettingsSheet from '@/components/SettingsSheet';
 import { useToast } from '@/hooks/useToast';
 import styles from './page.module.css';
 
@@ -40,6 +41,19 @@ export default function Home() {
   const [pendingWord, setPendingWord] = useState<Word | null>(null);
   const [shimmerWord, setShimmerWord] = useState('');
   const { message: toastMessage, visible: toastVisible, showToast } = useToast();
+
+  // ===================== SETTINGS STATE =====================
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [showFrequency, setShowFrequency] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const stored = localStorage.getItem('molago_showFrequency');
+    return stored === null ? true : stored === 'true';
+  });
+
+  const handleShowFrequencyChange = useCallback((value: boolean) => {
+    setShowFrequency(value);
+    localStorage.setItem('molago_showFrequency', String(value));
+  }, []);
 
   // ===================== FILTER STATE =====================
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
@@ -262,12 +276,21 @@ export default function Home() {
       >
         <div className={styles.listHeader}>
           <div className={`content-wrap ${styles.listHeaderInner}`}>
-            <Logo />
-            <div className={styles.wordCount}>
-              {hasActiveFilters
-                ? `${filteredWords.length} of ${words.length} words`
-                : `${words.length} ${words.length === 1 ? 'word' : 'words'}`}
+            <div className={styles.logoGroup}>
+              <Logo />
+              <div className={styles.wordCount}>
+                {hasActiveFilters
+                  ? `${filteredWords.length} of ${words.length}`
+                  : `${words.length} ${words.length === 1 ? 'word' : 'words'}`}
+              </div>
             </div>
+            <button
+              className={styles.settingsBtn}
+              onClick={() => setSettingsOpen(true)}
+              aria-label="Open settings"
+            >
+              <GearSix size={22} weight="regular" />
+            </button>
           </div>
         </div>
 
@@ -275,7 +298,7 @@ export default function Home() {
           <div className={`content-wrap ${styles.wordListInner}`}>
             {/* Word cards grouped by date */}
             {groupedWords.map((group) => (
-              <div key={group.label}>
+              <div key={group.label} className={styles.groupBlock}>
                 <DateGroupHeader label={group.label} />
                 {group.words.map((w) => (
                   <WordCard
@@ -283,6 +306,7 @@ export default function Home() {
                     korean={w.korean}
                     definition={w.definition}
                     usage={w.usage}
+                    showUsage={showFrequency}
                     onClick={() => openDetail(w)}
                   />
                 ))}
@@ -442,6 +466,13 @@ export default function Home() {
       </div>
 
       {/* ============ MODALS & OVERLAYS ============ */}
+      <SettingsSheet
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        showFrequency={showFrequency}
+        onShowFrequencyChange={handleShowFrequencyChange}
+      />
+
       <FilterSheet
         open={filterSheetOpen}
         onOpenChange={setFilterSheetOpen}
