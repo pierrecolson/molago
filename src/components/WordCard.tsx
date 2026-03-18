@@ -9,10 +9,11 @@ interface WordCardProps {
   definition: string;
   usage: 'high' | 'mid' | 'low';
   loading?: boolean;
+  showUsage?: boolean;
   onClick: () => void;
 }
 
-export default function WordCard({ korean, definition, usage, loading, onClick }: WordCardProps) {
+export default function WordCard({ korean, definition, usage, loading, showUsage = true, onClick }: WordCardProps) {
   return (
     <div
       className={`${styles.card} ${loading ? styles.loading : ''}`}
@@ -20,9 +21,11 @@ export default function WordCard({ korean, definition, usage, loading, onClick }
     >
       <span className={styles.korean}>{korean}</span>
       <span className={styles.definition}>{definition}</span>
-      <span className={styles.badge}>
-        <UsageBadge usage={usage} variant="compact" />
-      </span>
+      {showUsage && (
+        <span className={styles.badge}>
+          <UsageBadge usage={usage} variant="compact" />
+        </span>
+      )}
       <span className={styles.arrow}>
         <CaretRight size={20} />
       </span>
