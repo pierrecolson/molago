@@ -325,6 +325,17 @@
   border: 1.5px solid var(--border);
 }
 
+.fabQuiz {
+  background: var(--white);
+  color: var(--coral);
+  border: 1.5px solid var(--coral);
+}
+
+.fabQuiz:disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
 .fabFilterActive {
   width: auto;
   border-radius: 28px;

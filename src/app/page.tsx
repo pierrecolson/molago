@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { CaretLeft, Trash, Plus, FunnelSimple, GearSix } from '@phosphor-icons/react';
+import { CaretLeft, Trash, Plus, FunnelSimple, GearSix, Lightning } from '@phosphor-icons/react';
 import { Word, Suggestion, isSuggestionResponse } from '@/lib/types';
 import { fetchWords, fetchWordById, addWord as apiAddWord, deleteWord as apiDeleteWord, ApiError } from '@/lib/api';
 import { UsageLevel, groupWordsByDate } from '@/lib/utils';
@@ -19,6 +19,7 @@ import DeleteModal from '@/components/DeleteModal';
 import DateGroupHeader from '@/components/DateGroupHeader';
 import Toast from '@/components/Toast';
 import SettingsSheet from '@/components/SettingsSheet';
+import QuizSheet from '@/components/QuizSheet';
 import { useToast } from '@/hooks/useToast';
 import styles from './page.module.css';
 
@@ -56,6 +57,7 @@ export default function Home() {
   }, []);
 
   // ===================== FILTER STATE =====================
+  const [quizOpen, setQuizOpen] = useState(false);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [usageFilter, setUsageFilter] = useState<Set<UsageLevel>>(new Set());
   const [posFilter, setPosFilter] = useState<Set<string>>(new Set());
@@ -372,6 +374,14 @@ export default function Home() {
             {hasActiveFilters && <span className={styles.fabCount}>{filterCount}</span>}
           </button>
           <button
+            className={`${styles.fab} ${styles.fabQuiz}`}
+            onClick={() => setQuizOpen(true)}
+            disabled={words.length < 4}
+            aria-label="Practice quiz"
+          >
+            <Lightning size={24} weight="fill" />
+          </button>
+          <button
             className={`${styles.fab} ${styles.fabAdd}`}
             onClick={() => setSheetOpen(true)}
             aria-label="Add word"
@@ -489,6 +499,12 @@ export default function Home() {
         visible={deleteModalVisible}
         onCancel={() => setDeleteModalVisible(false)}
         onConfirm={handleDelete}
+      />
+
+      <QuizSheet
+        words={words}
+        open={quizOpen}
+        onOpenChange={setQuizOpen}
       />
 
       <Toast message={toastMessage} visible={toastVisible} />

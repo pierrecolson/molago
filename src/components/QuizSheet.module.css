@@ -1,0 +1,239 @@
+/* ===================== BACKDROP ===================== */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.backdropOpen {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ===================== SHEET ===================== */
+.sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 101;
+  background: var(--white);
+  border-radius: 20px 20px 0 0;
+  padding: 20px 20px calc(20px + var(--safe-bottom));
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.sheetOpen {
+  transform: translateY(0);
+}
+
+/* ===================== SHEET HEADER ===================== */
+.sheetHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.sheetTitle {
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--charcoal);
+}
+
+.closeBtn {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--charcoal-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.closeBtn svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* ===================== BODY ===================== */
+.body {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===================== START VIEW ===================== */
+.startIcon {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+  color: var(--coral);
+}
+
+.startTitle {
+  font-family: var(--font-ui);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--charcoal);
+  text-align: center;
+  margin-bottom: 6px;
+}
+
+.startSubtitle {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  color: var(--charcoal-muted);
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+/* ===================== PROGRESS ===================== */
+.progressText {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--charcoal-muted);
+  margin-bottom: 8px;
+}
+
+.progressBar {
+  height: 4px;
+  background: var(--cream-dark);
+  border-radius: 2px;
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--coral);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* ===================== QUESTION ===================== */
+.koreanWord {
+  font-family: var(--font-kr-display);
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--charcoal);
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+.romanization {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  color: var(--charcoal-muted);
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+/* ===================== OPTIONS ===================== */
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.option {
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  background: var(--cream);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  color: var(--charcoal);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.option:active {
+  transform: scale(0.98);
+}
+
+.optionCorrect {
+  background: var(--green-light);
+  border-color: var(--green);
+}
+
+.optionWrong {
+  background: var(--coral-light);
+  border-color: var(--coral);
+}
+
+.optionDimmed {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* ===================== BUTTONS ===================== */
+.primaryBtn {
+  width: 100%;
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: var(--coral);
+  color: var(--white);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 20px;
+  transition: opacity var(--transition);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.primaryBtn:active {
+  opacity: 0.85;
+}
+
+.secondaryBtn {
+  width: 100%;
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--coral);
+  background: transparent;
+  color: var(--coral);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 10px;
+  transition: opacity var(--transition);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.secondaryBtn:active {
+  opacity: 0.85;
+}
+
+/* ===================== RESULTS ===================== */
+.scoreDisplay {
+  font-family: var(--font-kr-display);
+  font-size: 48px;
+  font-weight: 700;
+  color: var(--coral);
+  text-align: center;
+  margin: 24px 0 8px;
+}
+
+.scoreMessage {
+  font-family: var(--font-ui);
+  font-size: 16px;
+  color: var(--charcoal-muted);
+  text-align: center;
+  margin-bottom: 24px;
+}
