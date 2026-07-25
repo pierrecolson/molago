@@ -1,0 +1,114 @@
+<!doctype html><meta charset="utf-8"><title>Molago — meta-line</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#F6F4F0;color:#14120F;margin:0;padding:32px 20px;max-width:1180px;margin:0 auto}
+h2{font-size:26px;letter-spacing:-.5px;margin:0 0 6px}.subtitle{color:#7A716A;font-size:14px;margin:0 0 28px;max-width:720px;line-height:1.5}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}
+.card{background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:14px;overflow:hidden}
+.card-body{padding:14px 16px 18px}.card-body h3{font-size:15px;margin:0 0 6px}
+.card-body p{font-size:12.5px;color:#6B635C;line-height:1.5;margin:0}</style>
+<style>
+  .phone2 { width: 268px; margin: 0 auto; background:#FBFAF8; border-radius:26px;
+    border:1px solid rgba(0,0,0,.16); overflow:hidden; color:#14120F;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    box-shadow:0 8px 30px rgba(0,0,0,.18); }
+  .p2-top { display:flex; justify-content:space-between; align-items:center; padding:12px 14px 8px; }
+  .p2-title { font-size:19px; font-weight:700; letter-spacing:-.3px; }
+  .p2-av { width:24px; height:24px; border-radius:50%; background:linear-gradient(135deg,#E8734A,#C4472A); }
+  .p2-date { padding:0 14px 8px; font-size:10px; font-weight:600; text-transform:uppercase;
+    letter-spacing:.7px; color:#9A9088; }
+  .p2-body { padding:0 14px 16px; }
+  .tag2 { display:inline-block; font-size:9px; font-weight:700; letter-spacing:.6px;
+    text-transform:uppercase; padding:2px 7px; border-radius:5px; margin-bottom:6px; }
+  .g-tech { background:#E4EDFB; color:#2C5FA8; }
+  .g-korea { background:#F7E5DE; color:#B0512F; }
+  .g-daily { background:#E2EFE6; color:#2E7048; }
+  .k { background:#fff; border:1px solid rgba(0,0,0,.09); border-radius:13px;
+    padding:11px 12px; margin-bottom:8px; }
+  .k-title { font-size:13px; font-weight:650; line-height:1.32; letter-spacing:-.2px; }
+  .k-meta { font-size:10.5px; color:#9A9088; margin-top:6px; }
+  .k-meta b { color:#6B635C; font-weight:600; }
+  .bar { height:3px; border-radius:2px; background:#E7E3DD; margin-top:8px; overflow:hidden; }
+  .bar i { display:block; height:100%; background:#2E7048; border-radius:2px; }
+  .barlab { font-size:9.5px; color:#A89F97; margin-top:5px; display:flex; justify-content:space-between; }
+</style>
+
+<h2>Comment annoncer un texte ?</h2>
+<p class="subtitle">Même carte, trois formulations de la ligne d'information. La question : est-ce que tu sais, d'un coup d'œil, ce que ce texte va te coûter et t'apporter ?</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:18px 0; background:#EFEDE9;">
+      <div class="phone2">
+        <div class="p2-top"><div class="p2-title">Library</div><div class="p2-av"></div></div>
+        <div class="p2-date">Saturday 25 July</div>
+        <div class="p2-body">
+          <div class="k"><span class="tag2 g-tech">Tech &amp; Science</span>
+            <div class="k-title">Why Korean chipmakers are betting everything on HBM4</div>
+            <div class="k-meta"><b>4 min</b> · 320 words · <b>5 new to you</b></div></div>
+          <div class="k"><span class="tag2 g-korea">Korea</span>
+            <div class="k-title">Seoul raises the ceiling on jeonse deposits</div>
+            <div class="k-meta"><b>4 min</b> · 340 words · <b>6 new to you</b></div></div>
+          <div class="k"><span class="tag2 g-daily">Daily life</span>
+            <div class="k-title">When the building manager raises the maintenance fee</div>
+            <div class="k-meta"><b>3 min</b> · 260 words · <b>4 new to you</b></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A · Les trois chiffres, en clair</h3>
+      <p>Durée, longueur, et « new to you » qui lève l'ambiguïté : ce sont les mots que tu ne connais pas encore. Tout est explicite, rien à interpréter.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:18px 0; background:#EFEDE9;">
+      <div class="phone2">
+        <div class="p2-top"><div class="p2-title">Library</div><div class="p2-av"></div></div>
+        <div class="p2-date">Saturday 25 July</div>
+        <div class="p2-body">
+          <div class="k"><span class="tag2 g-tech">Tech &amp; Science</span>
+            <div class="k-title">Why Korean chipmakers are betting everything on HBM4</div>
+            <div class="k-meta"><b>4 min</b> · 320 words · <b>98% you already know</b></div></div>
+          <div class="k"><span class="tag2 g-korea">Korea</span>
+            <div class="k-title">Seoul raises the ceiling on jeonse deposits</div>
+            <div class="k-meta"><b>4 min</b> · 340 words · <b>97% you already know</b></div></div>
+          <div class="k"><span class="tag2 g-daily">Daily life</span>
+            <div class="k-title">When the building manager raises the maintenance fee</div>
+            <div class="k-meta"><b>3 min</b> · 260 words · <b>98% you already know</b></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B · Le pourcentage de familiarité</h3>
+      <p>Dit la même chose par l'autre bout : ce que tu maîtrises déjà. Rassurant, et c'est la vraie mesure du confort de lecture — mais plus abstrait qu'un nombre de mots.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:18px 0; background:#EFEDE9;">
+      <div class="phone2">
+        <div class="p2-top"><div class="p2-title">Library</div><div class="p2-av"></div></div>
+        <div class="p2-date">Saturday 25 July</div>
+        <div class="p2-body">
+          <div class="k"><span class="tag2 g-tech">Tech &amp; Science</span>
+            <div class="k-title">Why Korean chipmakers are betting everything on HBM4</div>
+            <div class="bar"><i style="width:98%"></i></div>
+            <div class="barlab"><span>4 min · 320 words</span><span>5 new</span></div></div>
+          <div class="k"><span class="tag2 g-korea">Korea</span>
+            <div class="k-title">Seoul raises the ceiling on jeonse deposits</div>
+            <div class="bar"><i style="width:96.5%"></i></div>
+            <div class="barlab"><span>4 min · 340 words</span><span>6 new</span></div></div>
+          <div class="k"><span class="tag2 g-daily">Daily life</span>
+            <div class="k-title">When the building manager raises the maintenance fee</div>
+            <div class="bar"><i style="width:98.5%"></i></div>
+            <div class="barlab"><span>3 min · 260 words</span><span>4 new</span></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C · Une barre de familiarité</h3>
+      <p>La part que tu connais, vue d'un coup d'œil, sans lire un chiffre. Élégant — mais une barre presque pleine partout apporte peu d'information, et ça commence à ressembler à une jauge de progression.</p>
+    </div>
+  </div>
+
+</div>

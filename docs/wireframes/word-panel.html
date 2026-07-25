@@ -1,0 +1,122 @@
+<!doctype html><meta charset="utf-8"><title>Molago — word-panel</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#F6F4F0;color:#14120F;margin:0;padding:32px 20px;max-width:1180px;margin:0 auto}
+h2{font-size:26px;letter-spacing:-.5px;margin:0 0 6px}.subtitle{color:#7A716A;font-size:14px;margin:0 0 28px;max-width:720px;line-height:1.5}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}
+.card{background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:14px;overflow:hidden}
+.card-body{padding:14px 16px 18px}.card-body h3{font-size:15px;margin:0 0 6px}
+.card-body p{font-size:12.5px;color:#6B635C;line-height:1.5;margin:0}</style>
+<style>
+  .wp { width:284px; margin:0 auto; background:#F2EFE9; border-radius:26px;
+    border:1px solid rgba(0,0,0,.16); overflow:hidden;color:#14120F;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    box-shadow:0 8px 30px rgba(0,0,0,.18); }
+  .wp-dim { padding:16px 15px 8px; font-size:13.5px; line-height:1.95; opacity:.28; }
+  .wp-sheet { background:#fff; border-radius:18px 18px 0 0; padding:15px 16px 18px;
+    box-shadow:0 -6px 22px rgba(0,0,0,.12); }
+  .wp-grab { width:32px; height:4px; border-radius:2px; background:#DDD8D0;
+    margin:0 auto 12px; }
+  .wp-head { display:flex; justify-content:space-between; align-items:flex-start; }
+  .wp-word { font-size:23px; font-weight:700; letter-spacing:-.4px; }
+  .wp-pos { font-size:10.5px; color:#A89F97; margin-top:3px; }
+  .wp-save { font-size:16px; color:#C4472A; }
+  .wp-def { font-size:13px; margin-top:11px; line-height:1.45; }
+  .wp-col { font-size:11.5px; color:#6B635C; margin-top:9px; background:#F4F2EE;
+    padding:7px 9px; border-radius:8px; }
+  .wp-col b { color:#14120F; font-weight:600; }
+  .fam { margin-top:14px; border-top:1px solid rgba(0,0,0,.08); padding-top:11px; }
+  .fam-h { display:flex; justify-content:space-between; align-items:center;
+    font-size:9.5px; font-weight:700; letter-spacing:.7px; text-transform:uppercase;
+    color:#A89F97; margin-bottom:8px; }
+  .fam-hz { font-size:13px; color:#2C5FA8; font-weight:600; letter-spacing:0; text-transform:none; }
+  .fam-row { display:flex; justify-content:space-between; align-items:baseline; padding:5px 0; }
+  .fam-k { font-size:13px; font-weight:600; }
+  .fam-e { font-size:10.5px; color:#8A817A; text-align:right; max-width:56%; }
+  .fam-more { font-size:11px; color:#2C5FA8; font-weight:600; margin-top:7px; }
+  .chip { display:inline-block; font-size:12px; font-weight:600; background:#F1EEE8;
+    border:1px solid rgba(0,0,0,.07); border-radius:14px; padding:5px 10px; margin:0 5px 6px 0; }
+  .known { color:#2E7048; font-size:9px; margin-left:5px; }
+</style>
+
+<h2>Le panneau de mot</h2>
+<p class="subtitle">Ce qui s'ouvre quand tu tapes 관리비. Trois façons de traiter la famille de racine, en bas.</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px 0; background:#EFEDE9;">
+      <div class="wp">
+        <div class="wp-dim">이번 달 관리비 고지서를 받고 깜짝 놀랐어요. 지난달보다 삼만 원이나…</div>
+        <div class="wp-sheet">
+          <div class="wp-grab"></div>
+          <div class="wp-head">
+            <div><div class="wp-word">관리비</div><div class="wp-pos">gwan-ri-bi · noun</div></div>
+            <div class="wp-save">♡</div>
+          </div>
+          <div class="wp-def">maintenance fee — the monthly charge for a building's shared costs</div>
+          <div class="wp-col"><b>관리비가 오르다</b> — the maintenance fee goes up</div>
+          <div class="fam">
+            <div class="fam-h"><span>Same root</span><span class="fam-hz">管理 · to manage</span></div>
+            <div class="fam-row"><span class="fam-k">관리사무소</span><span class="fam-e">building management office</span></div>
+            <div class="fam-row"><span class="fam-k">관리자 <span class="known">known</span></span><span class="fam-e">manager, administrator</span></div>
+            <div class="fam-row"><span class="fam-k">관리하다 <span class="known">known</span></span><span class="fam-e">to manage, to look after</span></div>
+            <div class="fam-more">See all 8 words →</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A · Liste avec les sens</h3>
+      <p>Chaque mot de la famille avec sa traduction, et une marque sur ceux que tu connais déjà. Tu vois immédiatement le lien que tu n'avais jamais fait. « See all » ouvre la famille complète.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px 0; background:#EFEDE9;">
+      <div class="wp">
+        <div class="wp-dim">이번 달 관리비 고지서를 받고 깜짝 놀랐어요. 지난달보다 삼만 원이나…</div>
+        <div class="wp-sheet">
+          <div class="wp-grab"></div>
+          <div class="wp-head">
+            <div><div class="wp-word">관리비</div><div class="wp-pos">gwan-ri-bi · noun</div></div>
+            <div class="wp-save">♡</div>
+          </div>
+          <div class="wp-def">maintenance fee — the monthly charge for a building's shared costs</div>
+          <div class="wp-col"><b>관리비가 오르다</b> — the maintenance fee goes up</div>
+          <div class="fam">
+            <div class="fam-h"><span>Same root</span><span class="fam-hz">管理 · to manage</span></div>
+            <div><span class="chip">관리사무소</span><span class="chip">관리자</span><span class="chip">관리하다</span><span class="chip">관리비</span><span class="chip">+4</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B · Pastilles compactes</h3>
+      <p>La famille tient en deux lignes, on garde le panneau court. Mais sans les sens, il faut taper sur chaque mot pour comprendre — c'est exactement le défaut que tu as relevé.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px 0; background:#EFEDE9;">
+      <div class="wp">
+        <div class="wp-dim">이번 달 관리비 고지서를 받고 깜짝 놀랐어요. 지난달보다 삼만 원이나…</div>
+        <div class="wp-sheet">
+          <div class="wp-grab"></div>
+          <div class="wp-head">
+            <div><div class="wp-word">관리비</div><div class="wp-pos">gwan-ri-bi · noun</div></div>
+            <div class="wp-save">♡</div>
+          </div>
+          <div class="wp-def">maintenance fee — the monthly charge for a building's shared costs</div>
+          <div class="wp-col"><b>관리비가 오르다</b> — the maintenance fee goes up</div>
+          <div class="fam">
+            <div class="fam-row" style="padding:2px 0"><span class="fam-k" style="font-size:12px;color:#2C5FA8">管理 · 8 related words</span><span class="fam-e" style="color:#2C5FA8">→</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C · Une seule ligne, tout est derrière</h3>
+      <p>Le panneau reste minimal, la famille s'ouvre en plein écran si tu la veux. Le plus discret — mais tu ne vois jamais le lien sans faire la démarche, donc en pratique presque jamais.</p>
+    </div>
+  </div>
+
+</div>

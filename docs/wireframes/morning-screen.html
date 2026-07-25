@@ -1,0 +1,158 @@
+<!doctype html><meta charset="utf-8"><title>Molago — morning-screen</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#F6F4F0;color:#14120F;margin:0;padding:32px 20px;max-width:1180px;margin:0 auto}
+h2{font-size:26px;letter-spacing:-.5px;margin:0 0 6px}.subtitle{color:#7A716A;font-size:14px;margin:0 0 28px;max-width:720px;line-height:1.5}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}
+.card{background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:14px;overflow:hidden}
+.card-body{padding:14px 16px 18px}.card-body h3{font-size:15px;margin:0 0 6px}
+.card-body p{font-size:12.5px;color:#6B635C;line-height:1.5;margin:0}</style>
+<style>
+  .phone {
+    width: 260px; margin: 0 auto; background: #FBFAF8; border-radius: 26px;
+    border: 1px solid rgba(0,0,0,.16); overflow: hidden; color: #14120F;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    box-shadow: 0 8px 30px rgba(0,0,0,.18);
+  }
+  .ph-top { display:flex; justify-content:space-between; align-items:center;
+    padding: 12px 14px 8px; }
+  .ph-title { font-size: 19px; font-weight: 700; letter-spacing:-.3px; }
+  .ph-av { width: 24px; height: 24px; border-radius: 50%;
+    background: linear-gradient(135deg,#E8734A,#C4472A); }
+  .ph-date { padding: 0 14px 8px; font-size: 10px; font-weight: 600;
+    text-transform: uppercase; letter-spacing:.7px; color:#9A9088; }
+  .ph-body { padding: 0 14px 14px; }
+
+  .tag { display:inline-block; font-size: 9px; font-weight: 700; letter-spacing:.6px;
+    text-transform: uppercase; padding: 2px 7px; border-radius: 5px; margin-bottom:6px; }
+  .t-tech { background:#E4EDFB; color:#2C5FA8; }
+  .t-korea { background:#F7E5DE; color:#B0512F; }
+  .t-daily { background:#E2EFE6; color:#2E7048; }
+
+  .card-a { background:#fff; border:1px solid rgba(0,0,0,.09); border-radius:13px;
+    padding:11px 12px; margin-bottom:8px; }
+  .c-title { font-size:13px; font-weight:650; line-height:1.32; letter-spacing:-.2px; }
+  .c-meta { font-size:10.5px; color:#9A9088; margin-top:5px; }
+  .c-from { font-size:10px; color:#2E7048; margin-top:5px; font-weight:600; }
+
+  .hero { background:#fff; border:1px solid rgba(0,0,0,.09); border-radius:15px;
+    padding:14px; margin-bottom:9px; }
+  .hero .c-title { font-size:16px; line-height:1.28; }
+  .hero-ko { font-size:11px; color:#B5ADA5; margin-top:7px; }
+
+  .row { display:flex; justify-content:space-between; align-items:baseline;
+    padding:9px 0; border-bottom:1px solid rgba(0,0,0,.07); }
+  .row-t { font-size:12.5px; font-weight:600; letter-spacing:-.15px; }
+  .row-m { font-size:10px; color:#A89F97; }
+  .dotline { display:inline-block; width:5px; height:5px; border-radius:50%;
+    margin-right:6px; vertical-align:middle; }
+
+  .sep { font-size:9.5px; font-weight:700; letter-spacing:.8px; text-transform:uppercase;
+    color:#B5ADA5; margin:14px 0 7px; }
+  .past { font-size:11.5px; color:#8A817A; padding:5px 0; display:flex;
+    justify-content:space-between; }
+  .past b { font-weight:600; color:#6B635C; }
+  .check { color:#2E7048; font-size:10px; }
+  .tabbar { display:flex; border-top:1px solid rgba(0,0,0,.09); background:#fff; }
+  .tab { flex:1; text-align:center; padding:9px 0 12px; font-size:9.5px; font-weight:600;
+    color:#B5ADA5; }
+  .tab.on { color:#C4472A; }
+  .cards { gap: 18px; }
+</style>
+
+<h2>L'écran du matin</h2>
+<p class="subtitle">Trois textes t'attendent. Même contenu dans les trois maquettes — seule la mise en scène change. Regarde surtout combien d'effort il te faut pour décider.</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:18px 0; background:#EFEDE9;">
+      <div class="phone">
+        <div class="ph-top"><div class="ph-title">Library</div><div class="ph-av"></div></div>
+        <div class="ph-date">Saturday 25 July</div>
+        <div class="ph-body">
+          <div class="card-a">
+            <span class="tag t-tech">Tech &amp; Science</span>
+            <div class="c-title">Why Korean chipmakers are betting everything on HBM4</div>
+            <div class="c-meta">4 min · 5 new words</div>
+          </div>
+          <div class="card-a">
+            <span class="tag t-korea">Korea</span>
+            <div class="c-title">Seoul raises the ceiling on jeonse deposits</div>
+            <div class="c-meta">4 min · 6 new words</div>
+          </div>
+          <div class="card-a">
+            <span class="tag t-daily">Daily life</span>
+            <div class="c-title">When the building manager raises the maintenance fee</div>
+            <div class="c-meta">3 min · 4 new words</div>
+            <div class="c-from">↳ from your notebook: 관리비</div>
+          </div>
+          <div class="sep">Earlier</div>
+          <div class="past"><span><b>Friday</b> · The rice price debate</span><span class="check">✓</span></div>
+          <div class="past"><span><b>Thursday</b> · Robots in convenience stores</span><span class="check">✓</span></div>
+          <div class="past"><span><b>Thursday</b> · Calling the pharmacy</span><span></span></div>
+        </div>
+        <div class="tabbar"><div class="tab on">Library</div><div class="tab">Notebook</div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A · Trois cartes égales</h3>
+      <p>Les trois univers au même niveau, chacun avec sa couleur. Tu compares et tu choisis librement. Le slot « daily life » montre d'où il vient.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:18px 0; background:#EFEDE9;">
+      <div class="phone">
+        <div class="ph-top"><div class="ph-title">Library</div><div class="ph-av"></div></div>
+        <div class="ph-date">Saturday 25 July</div>
+        <div class="ph-body">
+          <div class="hero">
+            <span class="tag t-daily">Daily life · picked for you</span>
+            <div class="c-title">When the building manager raises the maintenance fee</div>
+            <div class="c-meta">3 min · 4 new words</div>
+            <div class="c-from">↳ from your notebook: 관리비</div>
+            <div class="hero-ko">관리비가 오르면 어떻게 해야 할까요…</div>
+          </div>
+          <div class="row"><span class="row-t"><span class="dotline" style="background:#2C5FA8"></span>Korean chipmakers bet on HBM4</span><span class="row-m">4 min</span></div>
+          <div class="row" style="border-bottom:none"><span class="row-t"><span class="dotline" style="background:#B0512F"></span>Seoul raises jeonse ceiling</span><span class="row-m">4 min</span></div>
+          <div class="sep">Earlier</div>
+          <div class="past"><span><b>Friday</b> · The rice price debate</span><span class="check">✓</span></div>
+          <div class="past"><span><b>Thursday</b> · Robots in convenience stores</span><span class="check">✓</span></div>
+          <div class="past"><span><b>Thursday</b> · Calling the pharmacy</span><span></span></div>
+        </div>
+        <div class="tabbar"><div class="tab on">Library</div><div class="tab">Notebook</div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B · Un mis en avant, deux en retrait</h3>
+      <p>Le système propose un choix par défaut — celui qui contient le plus de tes mots à revoir. Un tap suffit les matins sans énergie. Les deux autres restent à portée.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:18px 0; background:#EFEDE9;">
+      <div class="phone">
+        <div class="ph-top"><div class="ph-title">Library</div><div class="ph-av"></div></div>
+        <div class="ph-date">Saturday 25 July</div>
+        <div class="ph-body">
+          <div class="row"><span class="row-t"><span class="dotline" style="background:#2C5FA8"></span>Korean chipmakers bet on HBM4</span><span class="row-m">4 min</span></div>
+          <div class="row"><span class="row-t"><span class="dotline" style="background:#B0512F"></span>Seoul raises jeonse ceiling</span><span class="row-m">4 min</span></div>
+          <div class="row"><span class="row-t"><span class="dotline" style="background:#2E7048"></span>When the manager raises the fee</span><span class="row-m">3 min</span></div>
+          <div class="sep">Earlier</div>
+          <div class="past"><span><b>Friday</b> · The rice price debate</span><span class="check">✓</span></div>
+          <div class="past"><span><b>Friday</b> · Chip export controls</span><span></span></div>
+          <div class="past"><span><b>Friday</b> · At the post office</span><span></span></div>
+          <div class="past"><span><b>Thursday</b> · Robots in stores</span><span class="check">✓</span></div>
+          <div class="past"><span><b>Thursday</b> · Calling the pharmacy</span><span></span></div>
+          <div class="past"><span><b>Thursday</b> · Housing policy shift</span><span></span></div>
+          <div class="past"><span><b>Wednesday</b> · The AI textbook fight</span><span class="check">✓</span></div>
+        </div>
+        <div class="tabbar"><div class="tab on">Library</div><div class="tab">Notebook</div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C · Liste compacte</h3>
+      <p>Aujourd'hui et l'historique dans un flux continu, très discret. On voit beaucoup d'un coup — mais le choix du jour ne ressort plus et l'archive prend toute la place.</p>
+    </div>
+  </div>
+
+</div>

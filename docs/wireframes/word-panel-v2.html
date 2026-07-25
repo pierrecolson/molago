@@ -1,0 +1,123 @@
+<!doctype html><meta charset="utf-8"><title>Molago — word-panel-v2</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#F6F4F0;color:#14120F;margin:0;padding:32px 20px;max-width:1180px;margin:0 auto}
+h2{font-size:26px;letter-spacing:-.5px;margin:0 0 6px}.subtitle{color:#7A716A;font-size:14px;margin:0 0 28px;max-width:720px;line-height:1.5}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}
+.card{background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:14px;overflow:hidden}
+.card-body{padding:14px 16px 18px}.card-body h3{font-size:15px;margin:0 0 6px}
+.card-body p{font-size:12.5px;color:#6B635C;line-height:1.5;margin:0}</style>
+<style>
+  .wq { width:284px; margin:0 auto; background:#F2EFE9; border-radius:26px;
+    border:1px solid rgba(0,0,0,.16); overflow:hidden; color:#14120F;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    box-shadow:0 8px 30px rgba(0,0,0,.18); height:420px; position:relative; }
+  .wq-dim { padding:16px 15px 8px; font-size:13.5px; line-height:1.95; opacity:.26; }
+  .wq-sheet { position:absolute; left:0; right:0; bottom:0; background:#fff;
+    border-radius:18px 18px 0 0; padding:14px 16px 18px;
+    box-shadow:0 -6px 22px rgba(0,0,0,.12); }
+  .wq-grab { width:32px; height:4px; border-radius:2px; background:#DDD8D0; margin:0 auto 12px; }
+  .wq-head { display:flex; justify-content:space-between; align-items:flex-start; }
+  .wq-word { font-size:23px; font-weight:700; letter-spacing:-.4px; }
+  .wq-pos { font-size:10.5px; color:#A89F97; margin-top:3px; }
+  .wq-save { font-size:15px; color:#C4BCB4; }
+  .wq-def { font-size:13px; margin-top:11px; line-height:1.45; }
+  .more { display:flex; justify-content:space-between; align-items:center; margin-top:13px;
+    padding-top:11px; border-top:1px solid rgba(0,0,0,.08); font-size:11.5px;
+    font-weight:600; color:#2C5FA8; }
+  .ex { padding:8px 0; border-bottom:1px solid rgba(0,0,0,.055); }
+  .ex-k { font-size:12.5px; line-height:1.6; }
+  .ex-e { font-size:10.5px; color:#8A817A; margin-top:2px; }
+  .lab { font-size:9.5px; font-weight:700; letter-spacing:.7px; text-transform:uppercase;
+    color:#A89F97; margin:13px 0 3px; }
+  .btn-root { display:flex; justify-content:space-between; align-items:center;
+    margin-top:12px; background:#F4F2EE; border-radius:9px; padding:9px 11px;
+    font-size:11.5px; font-weight:600; }
+  .btn-root .hz { color:#2C5FA8; }
+  .frow { display:flex; justify-content:space-between; align-items:baseline; padding:6px 0;
+    border-bottom:1px solid rgba(0,0,0,.05); }
+  .fk { font-size:13px; font-weight:600; }
+  .fe { font-size:10.5px; color:#8A817A; text-align:right; max-width:56%; }
+  .kn { color:#2E7048; font-size:8.5px; margin-left:5px; font-weight:700; }
+  .cap { text-align:center; font-size:10px; font-weight:700; letter-spacing:.8px;
+    text-transform:uppercase; color:#A89F97; margin-bottom:9px; }
+</style>
+
+<h2>Le panneau, en trois étages</h2>
+<p class="subtitle">Un seul panneau qui grandit si tu le tires. Par défaut il ne montre que le sens — c'est ce que tu veux en pleine lecture.</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="step1" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px 0; background:#EFEDE9;">
+      <div class="cap">Étage 1 — par défaut</div>
+      <div class="wq">
+        <div class="wq-dim">이번 달 관리비 고지서를 받고 깜짝 놀랐어요. 지난달보다 삼만 원이나 올랐거든요. 관리사무소에 전화해서 물어봤더니…</div>
+        <div class="wq-sheet">
+          <div class="wq-grab"></div>
+          <div class="wq-head">
+            <div><div class="wq-word">관리비</div><div class="wq-pos">gwan-ri-bi · noun</div></div>
+            <div class="wq-save">♡</div>
+          </div>
+          <div class="wq-def">maintenance fee — the monthly charge for a building's shared costs</div>
+          <div class="more"><span>Examples &amp; word family</span><span>⌃</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>1 · Le sens, point</h3>
+      <p>Tu tapes, tu lis, tu refermes. Deux secondes, la lecture reprend. Une seule ligne discrète signale qu'il y a plus si tu veux.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="step2" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px 0; background:#EFEDE9;">
+      <div class="cap">Étage 2 — tu tires</div>
+      <div class="wq">
+        <div class="wq-dim" style="padding-bottom:0">이번 달 관리비 고지서를 받고…</div>
+        <div class="wq-sheet">
+          <div class="wq-grab"></div>
+          <div class="wq-head">
+            <div><div class="wq-word">관리비</div><div class="wq-pos">gwan-ri-bi · noun</div></div>
+            <div class="wq-save">♡</div>
+          </div>
+          <div class="wq-def">maintenance fee — the monthly charge for a building's shared costs</div>
+          <div class="lab">In use</div>
+          <div class="ex"><div class="ex-k">관리비가 또 올랐어요.</div><div class="ex-e">The maintenance fee went up again.</div></div>
+          <div class="ex"><div class="ex-k">관리비에 수도 요금도 포함돼요?</div><div class="ex-e">Does the fee include the water bill too?</div></div>
+          <div class="ex" style="border:none"><div class="ex-k">이번 달 관리비 고지서 받으셨어요?</div><div class="ex-e">Did you get this month's bill?</div></div>
+          <div class="btn-root"><span>Same root <span class="hz">管理</span> · 8 words</span><span>›</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>2 · Trois phrases pour t'en servir</h3>
+      <p>Le mot en situation réelle, pas une définition de dictionnaire. C'est ce qui te permet de le ressortir le soir. La famille reste derrière un bouton.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="step3" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px 0; background:#EFEDE9;">
+      <div class="cap">Étage 3 — tu ouvres la racine</div>
+      <div class="wq">
+        <div class="wq-sheet" style="top:0; border-radius:0; padding-top:16px; box-shadow:none;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+            <span style="font-size:11.5px;color:#A89F97">‹ 관리비</span>
+            <span style="font-size:11.5px;font-weight:700">管理 · to manage</span>
+            <span style="font-size:11.5px;color:transparent">‹</span>
+          </div>
+          <div class="frow"><span class="fk">관리하다 <span class="kn">KNOWN</span></span><span class="fe">to manage, look after</span></div>
+          <div class="frow"><span class="fk">관리자 <span class="kn">KNOWN</span></span><span class="fe">manager, administrator</span></div>
+          <div class="frow"><span class="fk">관리비</span><span class="fe">maintenance fee</span></div>
+          <div class="frow"><span class="fk">관리사무소</span><span class="fe">building management office</span></div>
+          <div class="frow"><span class="fk">관리직</span><span class="fe">managerial position</span></div>
+          <div class="frow"><span class="fk">품질관리 <span class="kn">KNOWN</span></span><span class="fe">quality control</span></div>
+          <div class="frow" style="border:none"><span class="fk">자기관리</span><span class="fe">self-discipline</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>3 · La famille en plein écran</h3>
+      <p>Seulement si tu la demandes. Les mots marqués <b>known</b> sont ceux que tu utilises déjà sans avoir fait le lien — c'est là que le rangement se fait.</p>
+    </div>
+  </div>
+
+</div>

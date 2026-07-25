@@ -1,0 +1,119 @@
+<!doctype html><meta charset="utf-8"><title>Molago — quiz</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#F6F4F0;color:#14120F;margin:0;padding:32px 20px;max-width:1180px;margin:0 auto}
+h2{font-size:26px;letter-spacing:-.5px;margin:0 0 6px}.subtitle{color:#7A716A;font-size:14px;margin:0 0 28px;max-width:720px;line-height:1.5}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}
+.card{background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:14px;overflow:hidden}
+.card-body{padding:14px 16px 18px}.card-body h3{font-size:15px;margin:0 0 6px}
+.card-body p{font-size:12.5px;color:#6B635C;line-height:1.5;margin:0}</style>
+<style>
+  .qp { width:282px; margin:0 auto; background:#FBFAF8; border-radius:26px;
+    border:1px solid rgba(0,0,0,.16); overflow:hidden; color:#14120F;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    box-shadow:0 8px 30px rgba(0,0,0,.18); height:400px; position:relative; }
+  .q-top { padding:14px 16px 0; display:flex; justify-content:space-between; align-items:center; }
+  .q-step { font-size:9.5px; font-weight:700; letter-spacing:.8px; text-transform:uppercase;
+    color:#A89F97; }
+  .q-x { font-size:14px; color:#C4BCB4; }
+  .q-dots { display:flex; gap:4px; padding:10px 16px 0; }
+  .q-dots i { flex:1; height:3px; border-radius:2px; background:#E7E3DD; }
+  .q-dots i.on { background:#C4472A; }
+  .q-lead { padding:20px 18px 0; font-size:10.5px; color:#A89F97; }
+  .q-sent { padding:8px 18px 0; font-size:16px; line-height:1.85; letter-spacing:-.2px; }
+  .gap { display:inline-block; min-width:56px; border-bottom:2px solid #C4472A;
+    vertical-align:-3px; height:20px; }
+  .gap.filled { border-color:#2E7048; color:#2E7048; font-weight:700; text-align:center;
+    height:auto; border-bottom:2px solid #2E7048; }
+  .opts { position:absolute; left:16px; right:16px; bottom:18px; }
+  .opt { background:#fff; border:1px solid rgba(0,0,0,.1); border-radius:11px;
+    padding:12px 14px; margin-bottom:8px; font-size:14px; font-weight:600; }
+  .opt.good { border-color:#2E7048; background:#EAF3ED; color:#2E7048; }
+  .opt.bad { border-color:#D8D3CB; color:#B5ADA5; }
+  .bank { position:absolute; left:16px; right:16px; bottom:18px; }
+  .bw { display:inline-block; background:#fff; border:1px solid rgba(0,0,0,.1);
+    border-radius:16px; padding:8px 13px; font-size:13.5px; font-weight:600;
+    margin:0 6px 8px 0; }
+  .kb { position:absolute; left:0; right:0; bottom:0; background:#D6D2CB; padding:7px 4px 14px; }
+  .kb-row { display:flex; justify-content:center; gap:3px; margin-bottom:4px; }
+  .kb-k { background:#fff; border-radius:4px; width:24px; height:28px; font-size:11px;
+    display:flex; align-items:center; justify-content:center; font-weight:500; }
+  .inputbox { margin:0 18px; border-bottom:2px solid #C4472A; padding-bottom:5px;
+    font-size:16px; color:#C4BCB4; }
+  .cap3 { text-align:center; font-size:10px; font-weight:700; letter-spacing:.8px;
+    text-transform:uppercase; color:#A89F97; margin-bottom:9px; }
+  .fb { position:absolute; left:16px; right:16px; bottom:18px; background:#EAF3ED;
+    border-radius:11px; padding:11px 13px; font-size:11.5px; color:#2E7048; }
+</style>
+
+<h2>Le micro-quiz</h2>
+<p class="subtitle">Trois phrases du texte que tu viens de lire, un mot retiré. Aucune note, aucun score. Trois façons de te faire retrouver le mot.</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px 0; background:#EFEDE9;">
+      <div class="cap3">A · Choix multiple</div>
+      <div class="qp">
+        <div class="q-top"><span class="q-step">Question 1 of 3</span><span class="q-x">✕</span></div>
+        <div class="q-dots"><i class="on"></i><i></i><i></i></div>
+        <div class="q-lead">From the text you just read</div>
+        <div class="q-sent">이번 달 <span class="gap"></span> 고지서를 받고 깜짝 놀랐어요.</div>
+        <div class="opts">
+          <div class="opt">관리비</div>
+          <div class="opt">전기세</div>
+          <div class="opt">사무소</div>
+          <div class="opt">고지서</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A · Choix multiple</h3>
+      <p>Quatre mots, un tap. Les distracteurs sont de même nature et de même niveau, donc il faut vraiment savoir. Les trois questions passent en 40 secondes.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px 0; background:#EFEDE9;">
+      <div class="cap3">B · Au clavier</div>
+      <div class="qp">
+        <div class="q-top"><span class="q-step">Question 1 of 3</span><span class="q-x">✕</span></div>
+        <div class="q-dots"><i class="on"></i><i></i><i></i></div>
+        <div class="q-lead">From the text you just read</div>
+        <div class="q-sent">이번 달 <span class="gap"></span> 고지서를 받고 깜짝 놀랐어요.</div>
+        <div style="margin-top:22px"><div class="inputbox">type the missing word…</div></div>
+        <div class="kb">
+          <div class="kb-row"><span class="kb-k">ㅂ</span><span class="kb-k">ㅈ</span><span class="kb-k">ㄷ</span><span class="kb-k">ㄱ</span><span class="kb-k">ㅅ</span><span class="kb-k">ㅛ</span><span class="kb-k">ㅕ</span><span class="kb-k">ㅑ</span><span class="kb-k">ㅐ</span><span class="kb-k">ㅔ</span></div>
+          <div class="kb-row"><span class="kb-k">ㅁ</span><span class="kb-k">ㄴ</span><span class="kb-k">ㅇ</span><span class="kb-k">ㄹ</span><span class="kb-k">ㅎ</span><span class="kb-k">ㅗ</span><span class="kb-k">ㅓ</span><span class="kb-k">ㅏ</span><span class="kb-k">ㅣ</span></div>
+          <div class="kb-row"><span class="kb-k">⇧</span><span class="kb-k">ㅋ</span><span class="kb-k">ㅌ</span><span class="kb-k">ㅊ</span><span class="kb-k">ㅍ</span><span class="kb-k">ㅠ</span><span class="kb-k">ㅜ</span><span class="kb-k">ㅡ</span><span class="kb-k">⌫</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B · Au clavier</h3>
+      <p>Retrouver le mot sans aucune aide : c'est de loin ce qui ancre le mieux. Mais c'est lent, le clavier mange l'écran, et une faute de frappe compte comme une erreur.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px 0; background:#EFEDE9;">
+      <div class="cap3">C · Réponse validée</div>
+      <div class="qp">
+        <div class="q-top"><span class="q-step">Question 1 of 3</span><span class="q-x">✕</span></div>
+        <div class="q-dots"><i class="on"></i><i></i><i></i></div>
+        <div class="q-lead">From the text you just read</div>
+        <div class="q-sent">이번 달 <span class="gap filled">관리비</span> 고지서를 받고 깜짝 놀랐어요.</div>
+        <div class="opts" style="bottom:86px">
+          <div class="opt good">관리비 ✓</div>
+          <div class="opt bad">전기세</div>
+          <div class="opt bad">사무소</div>
+          <div class="opt bad">고지서</div>
+        </div>
+        <div class="fb">The maintenance fee bill arrived and I was shocked.</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C · Ce qui se passe après</h3>
+      <p>Le mot se remet à sa place dans la phrase, la traduction apparaît, on enchaîne. Pas de « bravo », pas de points, pas de récapitulatif à la fin. Vrai ou faux, même traitement.</p>
+    </div>
+  </div>
+
+</div>

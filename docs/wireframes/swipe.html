@@ -1,0 +1,103 @@
+<!doctype html><meta charset="utf-8"><title>Molago — swipe</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#F6F4F0;color:#14120F;margin:0;padding:32px 20px;max-width:1180px;margin:0 auto}
+h2{font-size:26px;letter-spacing:-.5px;margin:0 0 6px}.subtitle{color:#7A716A;font-size:14px;margin:0 0 28px;max-width:720px;line-height:1.5}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}
+.card{background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:14px;overflow:hidden}
+.card-body{padding:14px 16px 18px}.card-body h3{font-size:15px;margin:0 0 6px}
+.card-body p{font-size:12.5px;color:#6B635C;line-height:1.5;margin:0}</style>
+<style>
+  .sw { width:284px; margin:0 auto; background:#F2EFE9; border-radius:26px;
+    border:1px solid rgba(0,0,0,.16); overflow:hidden; color:#14120F;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    box-shadow:0 8px 30px rgba(0,0,0,.18); height:320px; position:relative; }
+  .sw-dim { padding:16px 15px; font-size:13.5px; line-height:1.95; opacity:.26; }
+  .track { position:absolute; left:0; right:0; bottom:0; height:186px;
+    display:flex; align-items:center; }
+  .track.g { background:#2E7048; }
+  .track.n { background:#8A817A; }
+  .track-lab { font-size:11px; font-weight:700; letter-spacing:.6px; color:#fff;
+    text-transform:uppercase; padding:0 15px; white-space:nowrap; }
+  .panel { position:absolute; left:0; right:0; bottom:0; background:#fff;
+    border-radius:18px 18px 0 0; padding:14px 16px 20px;
+    box-shadow:0 -6px 22px rgba(0,0,0,.14); }
+  .grab { width:32px; height:4px; border-radius:2px; background:#DDD8D0; margin:0 auto 12px; }
+  .w { font-size:23px; font-weight:700; letter-spacing:-.4px; }
+  .p { font-size:10.5px; color:#A89F97; margin-top:3px; }
+  .d { font-size:13px; margin-top:11px; line-height:1.45; }
+  .hint { display:flex; justify-content:space-between; align-items:center; margin-top:14px;
+    padding-top:11px; border-top:1px solid rgba(0,0,0,.08); font-size:10px; color:#C4BCB4; }
+  .hint b { font-weight:600; color:#A89F97; }
+  .more2 { font-size:11.5px; font-weight:600; color:#2C5FA8; }
+  .cap2 { text-align:center; font-size:10px; font-weight:700; letter-spacing:.8px;
+    text-transform:uppercase; color:#A89F97; margin-bottom:9px; }
+  .toast { position:absolute; left:50%; transform:translateX(-50%); bottom:16px;
+    background:#14120F; color:#fff; font-size:11px; font-weight:600;
+    padding:8px 14px; border-radius:20px; white-space:nowrap; }
+</style>
+
+<h2>Le swipe sur le panneau de mot</h2>
+<p class="subtitle">Deux directions, deux sens différents. Le panneau glisse et la couleur dessous annonce ce qui va se passer avant que tu lâches.</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="neutral" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px 0; background:#EFEDE9;">
+      <div class="cap2">Au repos</div>
+      <div class="sw">
+        <div class="sw-dim">이번 달 관리비 고지서를 받고 깜짝 놀랐어요. 지난달보다 삼만 원이나 올랐거든요.</div>
+        <div class="panel">
+          <div class="grab"></div>
+          <div class="w">관리비</div>
+          <div class="p">gwan-ri-bi · noun</div>
+          <div class="d">maintenance fee — the monthly charge for a building's shared costs</div>
+          <div class="hint"><span>← <b>I knew this</b></span><span class="more2">Examples ⌃</span><span><b>Keep</b> →</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Au repos</h3>
+      <p>Une ligne discrète en bas rappelle les deux gestes. Elle peut disparaître au bout de quelques jours, une fois le réflexe pris.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="right" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px 0; background:#EFEDE9;">
+      <div class="cap2">Glissé à droite</div>
+      <div class="sw">
+        <div class="sw-dim">이번 달 관리비 고지서를 받고 깜짝 놀랐어요. 지난달보다 삼만 원이나 올랐거든요.</div>
+        <div class="track g"><span class="track-lab">♡ Keep in notebook</span></div>
+        <div class="panel" style="left:96px; right:-96px; border-radius:18px 0 0 0;">
+          <div class="grab"></div>
+          <div class="w">관리비</div>
+          <div class="p">gwan-ri-bi · noun</div>
+          <div class="d">maintenance fee — the monthly charge…</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Droite · <b>Keep</b></h3>
+      <p>Le mot entre dans ton Notebook, avec la phrase du texte comme contexte. C'est toi qui décides ce qui mérite d'être gardé — le moteur, lui, note déjà tout en silence.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="left" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px 0; background:#EFEDE9;">
+      <div class="cap2">Glissé à gauche</div>
+      <div class="sw">
+        <div class="sw-dim">이번 달 관리비 고지서를 받고 깜짝 놀랐어요. 지난달보다 삼만 원이나 올랐거든요.</div>
+        <div class="track n" style="justify-content:flex-end"><span class="track-lab">I knew this one ✓</span></div>
+        <div class="panel" style="left:-96px; right:96px; border-radius:0 18px 0 0;">
+          <div class="grab"></div>
+          <div class="w">관리비</div>
+          <div class="p">gwan-ri-bi · noun</div>
+          <div class="d">maintenance fee — the monthly charge…</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Gauche · <b>I knew this</b></h3>
+      <p>Corrige le moteur : tu avais tapé par curiosité, pas par ignorance. Sans ce geste, le système croit que tu ne connais pas un mot que tu maîtrises, et il te le resservira pendant des semaines.</p>
+    </div>
+  </div>
+
+</div>
