@@ -1,41 +1,45 @@
-# Molago 2.0
+# Molago
 
-Le brief coréen du matin : un texte quotidien en coréen gradué (300–400 mots, 8–12 minutes),
-généré la nuit, calibré sur le vocabulaire réellement connu — l'apprentissage vient tout seul.
+Apprendre le coréen avec du contenu qui m'intéresse vraiment — la vie de tous les
+jours en Corée, l'actualité, les sujets dont je parlerais de toute façon.
 
-- `docs/research/` — base de connaissances (7 rapports) et synthèse des 10 principes de design.
-- `archive/v1/` — l'ancienne application (flashcards / ajout de mots), conservée pour référence.
+**État : phase produit. Aucun code.** On définit d'abord ce que l'application fait,
+pour qui, et comment on s'en sert. Le code viendra après.
 
-## Architecture
+## Ce qu'il y a dans le repo
 
-| Pièce | Où | Quoi |
-|---|---|---|
-| App | `src/` | Next.js 16, mobile-first PWA : lecture karaoké, tap-to-gloss, quiz cloze, placement, /progres |
-| Pipeline nocturne | `pipeline/` | GitHub Actions (02:05 KST + rattrapage 05:30) : sélection FSRS → génération Claude → vérification de couverture ≥ 96 % (Kiwi) → réécriture → réviseur natif → glossaire krdict → TTS + timings |
-| Données | `supabase/migrations/` | lexemes, lexeme_state (FSRS + stealth assessment), series, episodes, sentences, events |
-| Lexique | `data/` | Liste « vie d'expat » commitée + listes NIKL à fournir (voir `data/README.md`) |
+| Dossier | Contenu |
+|---|---|
+| **`docs/product-spec.md`** | **La spécification produit — le point d'entrée.** Parcours, écrans, moteur de vocabulaire, chaîne de fabrication, modèle de données, coûts, risques. |
+| `docs/decisions.md` | Le journal des 31 décisions, avec leurs raisons. À lire quand on se demande « pourquoi ce choix ? ». |
+| `docs/wireframes/` | Maquettes fil de fer. Structure et comportement, pas direction visuelle. |
+| `docs/research/` | Base de recherche : science de l'acquisition du vocabulaire, spécificités du coréen, motivation, paysage concurrentiel, vocabulaire de la vie d'expat, contenu généré par IA. La synthèse (`00`) est le point d'entrée. |
+| `docs/archive/` | Anciens plans, conservés pour référence. Décisions techniques obsolètes. |
+| `data/expat-lexicon.json` | Liste manuelle de mots et expressions de la vie quotidienne en Corée, sous-représentés dans les listes officielles. |
+| `public/` | Logo et icônes. |
 
-## Mise en route
+## La prochaine étape
 
-1. **Supabase** : créer un projet, exécuter `supabase/migrations/001_init.sql` dans le SQL Editor.
-2. **Secrets** : copier `.env.example` → `.env` (app : Vercel env vars ; pipeline : GitHub Actions secrets).
-3. **Lexique** : déposer `data/nikl-vocab.csv` (+ `data/nikl-freq.csv` si possible), puis `npm run seed`.
-4. **Profil** : ouvrir l'app → test de placement (~10 min, une fois). Ou `npm run seed -- --prior` pour partir de l'hypothèse NIKL A+B.
-5. **Premier brief** : `npm run pipeline` en local, ou l'action « Brief nocturne » (workflow_dispatch).
+**Un essai comparatif à l'aveugle**, avant toute ligne de code : le même article réécrit
+en coréen par plusieurs modèles, le même paragraphe lu par plusieurs voix, présentés sans
+dire lequel est lequel. Ça tranche le choix du générateur et de la voix — et surtout, ça
+répond à la seule question qui décide de la viabilité : *est-ce que ce coréen sonne
+juste ?* Voir `docs/product-spec.md` §14.
 
-## Commandes
+Ensuite : la direction visuelle, puis le plan d'implémentation.
 
-```bash
-npm run dev        # app en local
-npm run pipeline   # générer le brief du jour (-- --date=YYYY-MM-DD --force)
-npm run seed       # seed du lexique (-- --prior pour initialiser le profil)
-npm test           # tests (vérificateur de couverture)
-```
+## Historique
 
-## Principes non négociables (résumé)
+- **v1** — dictionnaire personnel / fiches de vocabulaire. Abandonnée.
+- **v2 (premier essai)** — application web Next.js + Supabase, jamais exécutée.
+  Supprimée. Récupérable via le tag git `archive/pre-reset`.
+- **maintenant** — retour à la planification produit.
 
-Contenu captivant d'abord ; couverture lexicale 96–98 % vérifiée hors LLM ; répétition espacée
-invisible (tissée dans les textes, jamais en cartes) ; zéro dette, zéro streak, zéro gamification ;
-récupération active minimale mais présente (mots masqués 2 s, quiz cloze) ; chunks parlés en 해요체
-naturel ; mini-séries à cliffhanger ; stealth assessment ; glossaire ancré krdict ; rituel fini.
-Détails : `docs/research/00-synthese-principes-design.md`.
+## Direction technique pressentie
+
+Rien n'est arrêté, mais les contraintes connues :
+
+- **Front** : application native Apple (Swift).
+- **Backend** : VPS personnel — Postgres + API en Docker, sur le modèle du projet `to-day`.
+- **LLM** : OpenRouter.
+- **Voix** : à déterminer (ElevenLabs ou équivalent).

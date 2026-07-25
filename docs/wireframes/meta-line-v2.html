@@ -1,0 +1,110 @@
+<!doctype html><meta charset="utf-8"><title>Molago — meta-line-v2</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#F6F4F0;color:#14120F;margin:0;padding:32px 20px;max-width:1180px;margin:0 auto}
+h2{font-size:26px;letter-spacing:-.5px;margin:0 0 6px}.subtitle{color:#7A716A;font-size:14px;margin:0 0 28px;max-width:720px;line-height:1.5}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}
+.card{background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:14px;overflow:hidden}
+.card-body{padding:14px 16px 18px}.card-body h3{font-size:15px;margin:0 0 6px}
+.card-body p{font-size:12.5px;color:#6B635C;line-height:1.5;margin:0}</style>
+<style>
+  .ph3 { width:272px; margin:0 auto; background:#FBFAF8; border-radius:26px;
+    border:1px solid rgba(0,0,0,.16); overflow:hidden; color:#14120F;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    box-shadow:0 8px 30px rgba(0,0,0,.18); }
+  .p3-top { display:flex; justify-content:space-between; align-items:center; padding:12px 14px 8px; }
+  .p3-title { font-size:19px; font-weight:700; letter-spacing:-.3px; }
+  .p3-av { width:24px; height:24px; border-radius:50%; background:linear-gradient(135deg,#E8734A,#C4472A); }
+  .p3-date { padding:0 14px 8px; font-size:10px; font-weight:600; text-transform:uppercase;
+    letter-spacing:.7px; color:#9A9088; }
+  .p3-body { padding:0 14px 16px; }
+  .tg { display:inline-block; font-size:9px; font-weight:700; letter-spacing:.6px;
+    text-transform:uppercase; padding:2px 7px; border-radius:5px; margin-bottom:6px; }
+  .x-tech { background:#E4EDFB; color:#2C5FA8; }
+  .x-korea { background:#F7E5DE; color:#B0512F; }
+  .x-daily { background:#E2EFE6; color:#2E7048; }
+  .kk { background:#fff; border:1px solid rgba(0,0,0,.09); border-radius:13px;
+    padding:11px 12px; margin-bottom:9px; }
+  .kk-t { font-size:13px; font-weight:650; line-height:1.32; letter-spacing:-.2px; }
+  .kk-m { font-size:11px; color:#9A9088; margin-top:7px; }
+  .kk-m b { color:#5E564F; font-weight:600; }
+  .feel { color:#2E7048; font-weight:600; }
+  .feel.warm { color:#B0512F; }
+</style>
+
+<h2>Le seul chiffre qui bouge</h2>
+<p class="subtitle">Tous les textes font ~4 min et ~300 mots — c'est garanti par construction. Reste à décider ce qu'on affiche en plus, et si on l'affiche.</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:18px 0; background:#EFEDE9;">
+      <div class="ph3">
+        <div class="p3-top"><div class="p3-title">Library</div><div class="p3-av"></div></div>
+        <div class="p3-date">Saturday 25 July</div>
+        <div class="p3-body">
+          <div class="kk"><span class="tg x-tech">Tech &amp; Science</span>
+            <div class="kk-t">Why Korean chipmakers are betting everything on HBM4</div>
+            <div class="kk-m"><b>4 min</b> · <b>5 new words</b></div></div>
+          <div class="kk"><span class="tg x-korea">Korea</span>
+            <div class="kk-t">Seoul raises the ceiling on jeonse deposits</div>
+            <div class="kk-m"><b>4 min</b> · <b>9 new words</b></div></div>
+          <div class="kk"><span class="tg x-daily">Daily life</span>
+            <div class="kk-t">When the building manager raises the maintenance fee</div>
+            <div class="kk-m"><b>3 min</b> · <b>4 new words</b></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A · Durée + mots nouveaux</h3>
+      <p>Deux chiffres, aucun calcul, aucune ambiguïté. Tu vois d'un coup que le texte sur le jeonse te demandera un peu plus d'effort que les deux autres.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:18px 0; background:#EFEDE9;">
+      <div class="ph3">
+        <div class="p3-top"><div class="p3-title">Library</div><div class="p3-av"></div></div>
+        <div class="p3-date">Saturday 25 July</div>
+        <div class="p3-body">
+          <div class="kk"><span class="tg x-tech">Tech &amp; Science</span>
+            <div class="kk-t">Why Korean chipmakers are betting everything on HBM4</div>
+            <div class="kk-m"><b>4 min</b> · <span class="feel">easy going</span></div></div>
+          <div class="kk"><span class="tg x-korea">Korea</span>
+            <div class="kk-t">Seoul raises the ceiling on jeonse deposits</div>
+            <div class="kk-m"><b>4 min</b> · <span class="feel warm">a bit of a stretch</span></div></div>
+          <div class="kk"><span class="tg x-daily">Daily life</span>
+            <div class="kk-t">When the building manager raises the maintenance fee</div>
+            <div class="kk-m"><b>4 min</b> · <span class="feel">easy going</span></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B · Durée + la sensation</h3>
+      <p>On ne te donne pas un chiffre à interpréter, on te dit comment ça va se passer. Plus humain, plus proche de la vraie question du matin — mais tu perds la précision.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:18px 0; background:#EFEDE9;">
+      <div class="ph3">
+        <div class="p3-top"><div class="p3-title">Library</div><div class="p3-av"></div></div>
+        <div class="p3-date">Saturday 25 July</div>
+        <div class="p3-body">
+          <div class="kk"><span class="tg x-tech">Tech &amp; Science</span>
+            <div class="kk-t">Why Korean chipmakers are betting everything on HBM4</div>
+            <div class="kk-m"><b>4 min</b></div></div>
+          <div class="kk"><span class="tg x-korea">Korea</span>
+            <div class="kk-t">Seoul raises the ceiling on jeonse deposits</div>
+            <div class="kk-m"><b>4 min</b></div></div>
+          <div class="kk"><span class="tg x-daily">Daily life</span>
+            <div class="kk-t">When the building manager raises the maintenance fee</div>
+            <div class="kk-m"><b>4 min</b></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C · La durée seule</h3>
+      <p>Le système garantit déjà que tous les textes sont à ton niveau — alors pourquoi le dire ? Tu choisis sur le sujet, comme devant un journal. Le plus épuré, mais tu perds toute idée de l'effort.</p>
+    </div>
+  </div>
+
+</div>

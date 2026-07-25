@@ -1,0 +1,140 @@
+<!doctype html><meta charset="utf-8"><title>Molago — notebook</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#F6F4F0;color:#14120F;margin:0;padding:32px 20px;max-width:1180px;margin:0 auto}
+h2{font-size:26px;letter-spacing:-.5px;margin:0 0 6px}.subtitle{color:#7A716A;font-size:14px;margin:0 0 28px;max-width:720px;line-height:1.5}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}
+.card{background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:14px;overflow:hidden}
+.card-body{padding:14px 16px 18px}.card-body h3{font-size:15px;margin:0 0 6px}
+.card-body p{font-size:12.5px;color:#6B635C;line-height:1.5;margin:0}</style>
+<style>
+  .np { width:280px; margin:0 auto; background:#FBFAF8; border-radius:26px;
+    border:1px solid rgba(0,0,0,.16); overflow:hidden; color:#14120F;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    box-shadow:0 8px 30px rgba(0,0,0,.18); }
+  .n-top { display:flex; justify-content:space-between; align-items:center; padding:12px 14px 4px; }
+  .n-title { font-size:19px; font-weight:700; letter-spacing:-.3px; }
+  .n-av { width:24px; height:24px; border-radius:50%; background:linear-gradient(135deg,#E8734A,#C4472A); }
+  .n-sum { padding:0 14px 10px; font-size:10.5px; color:#A89F97; }
+  .n-search { margin:0 14px 12px; background:#F1EEE8; border-radius:9px; padding:7px 10px;
+    font-size:11.5px; color:#B5ADA5; }
+  .n-body { padding:0 14px 14px; }
+  .n-day { font-size:9.5px; font-weight:700; letter-spacing:.8px; text-transform:uppercase;
+    color:#B5ADA5; margin:12px 0 7px; }
+  .n-item { display:flex; gap:10px; padding:9px 0; border-bottom:1px solid rgba(0,0,0,.06); }
+  .n-thumb { width:38px; height:38px; border-radius:7px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; font-size:14px; }
+  .th-photo { background:linear-gradient(135deg,#D8CFC2,#BFB2A0); }
+  .th-text { background:#EDE9E1; color:#A89F97; }
+  .n-w { font-size:14.5px; font-weight:650; letter-spacing:-.2px; }
+  .n-d { font-size:10.5px; color:#8A817A; margin-top:2px; }
+  .n-ctx { font-size:9.5px; color:#B5ADA5; margin-top:3px; font-style:italic; }
+  .dot { display:inline-block; width:5px; height:5px; border-radius:50%; margin-left:6px;
+    vertical-align:middle; }
+  .d-new { background:#C4472A; } .d-learn { background:#D9A22B; } .d-known { background:#2E7048; }
+  .tb { display:flex; border-top:1px solid rgba(0,0,0,.09); background:#fff; }
+  .tb i { flex:1; text-align:center; padding:9px 0 12px; font-size:9.5px; font-weight:600;
+    color:#B5ADA5; font-style:normal; }
+  .tb i.on { color:#C4472A; }
+  .seg { display:flex; gap:6px; margin:0 14px 12px; }
+  .seg b { flex:1; text-align:center; font-size:10.5px; font-weight:600; padding:6px 0;
+    border-radius:7px; background:#F1EEE8; color:#8A817A; }
+  .seg b.on { background:#14120F; color:#fff; }
+  .grid { display:flex; flex-wrap:wrap; gap:6px; padding:0 14px; }
+  .gw { background:#fff; border:1px solid rgba(0,0,0,.09); border-radius:9px;
+    padding:8px 10px; font-size:13px; font-weight:600; }
+  .cap4 { text-align:center; font-size:10px; font-weight:700; letter-spacing:.8px;
+    text-transform:uppercase; color:#A89F97; margin-bottom:9px; }
+</style>
+
+<h2>Le Notebook</h2>
+<p class="subtitle">Décision 12 : un carnet de mémoire, pas une liste d'étude. Trois façons de l'organiser.</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px 0; background:#EFEDE9;">
+      <div class="cap4">A · Journal</div>
+      <div class="np">
+        <div class="n-top"><div class="n-title">Notebook</div><div class="n-av"></div></div>
+        <div class="n-sum">148 words kept · 1 240 words known</div>
+        <div class="n-search">Search your words…</div>
+        <div class="n-body" style="padding-top:0">
+          <div class="n-day">Yesterday · from a photo</div>
+          <div class="n-item"><div class="n-thumb th-photo">🧾</div><div>
+            <div class="n-w">관리비 <span class="dot d-new"></span></div>
+            <div class="n-d">maintenance fee</div>
+            <div class="n-ctx">"이번 달 관리비 고지서를…"</div></div></div>
+          <div class="n-item"><div class="n-thumb th-photo">🧾</div><div>
+            <div class="n-w">연체료 <span class="dot d-new"></span></div>
+            <div class="n-d">late payment fee</div>
+            <div class="n-ctx">same bill</div></div></div>
+          <div class="n-day">3 days ago · while reading</div>
+          <div class="n-item"><div class="n-thumb th-text">가</div><div>
+            <div class="n-w">회식 <span class="dot d-learn"></span></div>
+            <div class="n-d">company dinner</div>
+            <div class="n-ctx">"금요일에 회식이 있어요"</div></div></div>
+          <div class="n-item" style="border:none"><div class="n-thumb th-photo">📮</div><div>
+            <div class="n-w">등기우편 <span class="dot d-known"></span></div>
+            <div class="n-d">registered mail</div>
+            <div class="n-ctx">post office counter</div></div></div>
+        </div>
+        <div class="tb"><i>Library</i><i class="on">Notebook</i></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A · Un journal, par date</h3>
+      <p>Chaque mot avec sa vignette — la photo de la facture, l'extrait du texte. Six mois plus tard, tu fais défiler et tu revois ta vie à Séoul. Le point coloré dit l'état, sans compteur.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px 0; background:#EFEDE9;">
+      <div class="cap4">B · Par état</div>
+      <div class="np">
+        <div class="n-top"><div class="n-title">Notebook</div><div class="n-av"></div></div>
+        <div class="n-sum">148 words kept · 1 240 words known</div>
+        <div class="n-search">Search your words…</div>
+        <div class="seg"><b class="on">New 12</b><b>Learning 43</b><b>Known 93</b></div>
+        <div class="n-body" style="padding-top:0">
+          <div class="n-item"><div class="n-thumb th-photo">🧾</div><div>
+            <div class="n-w">관리비</div><div class="n-d">maintenance fee</div></div></div>
+          <div class="n-item"><div class="n-thumb th-photo">🧾</div><div>
+            <div class="n-w">연체료</div><div class="n-d">late payment fee</div></div></div>
+          <div class="n-item"><div class="n-thumb th-text">가</div><div>
+            <div class="n-w">세대주</div><div class="n-d">head of household</div></div></div>
+          <div class="n-item" style="border:none"><div class="n-thumb th-photo">📮</div><div>
+            <div class="n-w">반송</div><div class="n-d">return to sender</div></div></div>
+        </div>
+        <div class="tb"><i>Library</i><i class="on">Notebook</i></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B · Trié par état d'apprentissage</h3>
+      <p>Trois piles : nouveaux, en cours, acquis. Pratique pour savoir où tu en es — mais « New 12 » est un compteur, et un compteur finit toujours par ressembler à une dette.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px 0; background:#EFEDE9;">
+      <div class="cap4">C · Mur de mots</div>
+      <div class="np">
+        <div class="n-top"><div class="n-title">Notebook</div><div class="n-av"></div></div>
+        <div class="n-sum">148 words kept · 1 240 words known</div>
+        <div class="n-search">Search your words…</div>
+        <div class="grid">
+          <span class="gw">관리비</span><span class="gw">연체료</span><span class="gw">회식</span>
+          <span class="gw">등기우편</span><span class="gw">세대주</span><span class="gw">반송</span>
+          <span class="gw">잔반</span><span class="gw">환불</span><span class="gw">택배</span>
+          <span class="gw">보증금</span><span class="gw">계약서</span><span class="gw">해지</span>
+          <span class="gw">수수료</span><span class="gw">입금</span><span class="gw">영수증</span>
+        </div>
+        <div style="height:14px"></div>
+        <div class="tb"><i>Library</i><i class="on">Notebook</i></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C · Un mur de mots</h3>
+      <p>Dense, on en voit beaucoup d'un coup, et l'accumulation est visuellement satisfaisante. Mais on perd le contexte et la photo — ça redevient une liste de vocabulaire.</p>
+    </div>
+  </div>
+
+</div>

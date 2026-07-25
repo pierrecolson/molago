@@ -1,0 +1,145 @@
+<!doctype html><meta charset="utf-8"><title>Molago — confidence</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#F6F4F0;color:#14120F;margin:0;padding:32px 20px;max-width:1180px;margin:0 auto}
+h2{font-size:26px;letter-spacing:-.5px;margin:0 0 6px}.subtitle{color:#7A716A;font-size:14px;margin:0 0 28px;max-width:720px;line-height:1.5}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}
+.card{background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:14px;overflow:hidden}
+.card-body{padding:14px 16px 18px}.card-body h3{font-size:15px;margin:0 0 6px}
+.card-body p{font-size:12.5px;color:#6B635C;line-height:1.5;margin:0}</style>
+<style>
+  .cp { width:286px; margin:0 auto; background:#14120F; border-radius:26px;
+    border:1px solid rgba(255,255,255,.1); overflow:hidden; color:#F5F2ED;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    box-shadow:0 8px 30px rgba(0,0,0,.3); height:430px; position:relative; }
+  .cp.lite { background:#FBFAF8; color:#14120F; border-color:rgba(0,0,0,.16); }
+  .c-nav { display:flex; justify-content:space-between; padding:13px 15px 0;
+    font-size:12px; color:#7A736C; }
+  .c-ico { width:56px; height:56px; margin:16px auto 12px; display:block; }
+  .c-w { text-align:center; font-size:26px; font-weight:700; letter-spacing:-.5px; }
+  .c-g { text-align:center; font-size:11.5px; color:#8A837C; margin-top:3px; }
+  .c-q { text-align:center; font-size:12px; color:#8A837C; margin-top:20px; }
+  .c-lab { text-align:center; font-size:19px; font-weight:700; margin-top:8px; letter-spacing:-.3px; }
+  .c-desc { text-align:center; font-size:11.5px; color:#8A837C; margin-top:5px; line-height:1.45;
+    padding:0 30px; }
+
+  .track { position:relative; margin:22px 22px 0; height:26px; }
+  .track-bg { position:absolute; inset:8px 0; border-radius:5px;
+    background:linear-gradient(90deg,#4A4540 0%,#6FA8D6 26%,#E8C04A 52%,#E8734A 76%,#2E7048 100%); }
+  .sysband { position:absolute; top:2px; bottom:2px; left:46%; width:22%;
+    border-radius:6px; border:1px dashed rgba(255,255,255,.32); }
+  .handle { position:absolute; top:0; left:58%; width:26px; height:26px; margin-left:-13px;
+    border-radius:50%; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,.4);
+    border:4px solid #E8734A; box-sizing:border-box; }
+  .ticks { display:flex; justify-content:space-between; margin:9px 22px 0;
+    font-size:8.5px; color:#6E6862; letter-spacing:.3px; }
+  .sysnote { text-align:center; font-size:9px; color:#6E6862; margin-top:11px;
+    letter-spacing:.4px; text-transform:uppercase; }
+
+  .steps { margin:24px 20px 0; }
+  .step { display:flex; align-items:center; gap:11px; background:rgba(255,255,255,.05);
+    border:1px solid rgba(255,255,255,.09); border-radius:11px; padding:11px 13px;
+    margin-bottom:8px; }
+  .step.on { background:rgba(232,115,74,.16); border-color:#E8734A; }
+  .step-n { width:8px; height:8px; border-radius:50%; background:#3E3A35; flex-shrink:0; }
+  .step.on .step-n { background:#E8734A; }
+  .step-t { font-size:13px; font-weight:600; }
+  .step-s { font-size:10px; color:#8A837C; margin-top:1px; }
+  .sysbadge { margin-left:auto; font-size:8px; font-weight:700; letter-spacing:.5px;
+    color:#6FA8D6; border:1px solid rgba(111,168,214,.4); border-radius:4px; padding:2px 5px; }
+
+  .qfoot { position:absolute; left:0; right:0; bottom:0; padding:14px 18px 20px;
+    border-top:1px solid rgba(0,0,0,.08); }
+  .qsent { font-size:14px; line-height:1.7; }
+  .qtr { font-size:10.5px; color:#A89F97; margin-top:5px; }
+  .feelrow { display:flex; gap:7px; margin-top:14px; }
+  .feel-b { flex:1; text-align:center; font-size:10.5px; font-weight:600; padding:9px 0;
+    border-radius:9px; background:#F1EEE8; color:#6B635C; }
+  .feel-b.on { background:#14120F; color:#fff; }
+  .cap5 { text-align:center; font-size:10px; font-weight:700; letter-spacing:.8px;
+    text-transform:uppercase; color:#A89F97; margin-bottom:9px; }
+</style>
+
+<h2>La confiance sur un mot</h2>
+<p class="subtitle">« Connu / pas connu » est trop grossier. Trois façons de nuancer — et dans les deux premières, le système montre aussi sa propre estimation, comme Strava montre ta zone cardiaque.</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px 0; background:#EFEDE9;">
+      <div class="cap5">A · La jauge</div>
+      <div class="cp">
+        <div class="c-nav"><span>‹ Notebook</span><span>···</span></div>
+        <img class="c-ico" src="data:image/png;base64,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" alt="">
+        <div class="c-w">관리비</div>
+        <div class="c-g">maintenance fee</div>
+        <div class="c-q">How well do you know it?</div>
+        <div class="c-lab">I recognise it</div>
+        <div class="c-desc">You get it when you read it, but it wouldn't come to you on its own.</div>
+        <div class="track">
+          <div class="track-bg"></div>
+          <div class="sysband"></div>
+          <div class="handle"></div>
+        </div>
+        <div class="ticks"><span>NOT YET</span><span>RECOGNISE</span><span>UNDERSTAND</span><span>USE IT</span></div>
+        <div class="sysnote">Molago's estimate — dashed</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A · Une jauge à quatre paliers</h3>
+      <p>Tu fais glisser, le libellé change. La zone en pointillés est ce que le système avait déduit tout seul de tes lectures. Tu vois d'un coup d'œil si tu te sous-estimes.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px 0; background:#EFEDE9;">
+      <div class="cap5">B · Quatre paliers listés</div>
+      <div class="cp">
+        <div class="c-nav"><span>‹ Notebook</span><span>···</span></div>
+        <img class="c-ico" src="data:image/png;base64,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" alt="">
+        <div class="c-w">관리비</div>
+        <div class="c-g">maintenance fee</div>
+        <div class="steps">
+          <div class="step"><span class="step-n"></span><div><div class="step-t">Not yet</div>
+            <div class="step-s">New to me</div></div></div>
+          <div class="step on"><span class="step-n"></span><div><div class="step-t">I recognise it</div>
+            <div class="step-s">Clear when I read it</div></div><span class="sysbadge">MOLAGO</span></div>
+          <div class="step"><span class="step-n"></span><div><div class="step-t">I understand it</div>
+            <div class="step-s">Also when I hear it</div></div></div>
+          <div class="step"><span class="step-n"></span><div><div class="step-t">I can use it</div>
+            <div class="step-s">It comes to me on its own</div></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B · Quatre paliers en liste</h3>
+      <p>Chaque niveau porte sa définition, aucune ambiguïté. Le badge indique où le système te situe. Plus explicite — mais plus long, et ça ressemble à un formulaire.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px 0; background:#EFEDE9;">
+      <div class="cap5">C · Après une réponse</div>
+      <div class="cp lite">
+        <div class="c-nav" style="color:#A89F97"><span>Question 2 of 3</span><span>✕</span></div>
+        <div style="text-align:center;margin-top:60px">
+          <img class="c-ico" src="data:image/png;base64,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" alt="" style="margin-bottom:8px">
+          <div class="c-w" style="color:#2E7048">관리비 ✓</div>
+        </div>
+        <div class="qfoot">
+          <div class="qsent">이번 달 <b style="color:#2E7048">관리비</b> 고지서를 받고 깜짝 놀랐어요.</div>
+          <div class="qtr">The maintenance fee bill arrived and I was shocked.</div>
+          <div style="font-size:10.5px;color:#A89F97;margin-top:15px">How did that feel?</div>
+          <div class="feelrow">
+            <span class="feel-b">A guess</span>
+            <span class="feel-b on">Came slowly</span>
+            <span class="feel-b">Instant</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C · La question posée après le quiz</h3>
+      <p>L'auto-évaluation au moment le plus juste : juste après avoir cherché le mot, tu sais exactement ce que ça t'a coûté. Mais ça rallonge les trois questions.</p>
+    </div>
+  </div>
+
+</div>
