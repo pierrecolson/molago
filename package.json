@@ -1,0 +1,35 @@
+{
+  "name": "molago",
+  "version": "2.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test": "vitest run",
+    "pipeline": "tsx pipeline/run.ts",
+    "seed": "tsx scripts/seed-lexicon.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
+    "@phosphor-icons/react": "^2.1.10",
+    "@supabase/supabase-js": "^2.98.0",
+    "kiwi-nlp": "^0.23.0",
+    "next": "16.1.6",
+    "openai": "^6.49.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "ts-fsrs": "^5.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "tsx": "^4.19.0",
+    "typescript": "5.9.3",
+    "vitest": "^3.0.0"
+  }
+}
