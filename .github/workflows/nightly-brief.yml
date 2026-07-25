@@ -1,0 +1,50 @@
+name: Brief nocturne
+
+on:
+  schedule:
+    # 02:05 KST (17:05 UTC la veille) + rattrapage 05:30 KST (20:30 UTC).
+    # Le pipeline est idempotent : le rattrapage ne fait rien si l'épisode est prêt.
+    - cron: '5 17 * * *'
+    - cron: '30 20 * * *'
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Date du brief (YYYY-MM-DD, défaut : aujourd’hui KST)'
+        required: false
+      force:
+        description: 'Régénérer même si l’épisode est prêt'
+        type: boolean
+        default: false
+
+jobs:
+  brief:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Cache du modèle Kiwi
+        uses: actions/cache@v4
+        with:
+          path: .kiwi-model
+          key: kiwi-model-v0.21.0
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Générer le brief
+        run: |
+          ARGS=""
+          if [ -n "${{ inputs.date }}" ]; then ARGS="$ARGS --date=${{ inputs.date }}"; fi
+          if [ "${{ inputs.force }}" = "true" ]; then ARGS="$ARGS --force"; fi
+          npm run pipeline -- $ARGS
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          KRDICT_API_KEY: ${{ secrets.KRDICT_API_KEY }}

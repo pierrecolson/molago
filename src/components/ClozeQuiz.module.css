@@ -1,0 +1,95 @@
+.quiz {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 20px;
+  animation: fadeUp 0.4s ease;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.counter {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--charcoal-muted);
+}
+
+.sentence {
+  font-size: 19px;
+  line-height: 1.75;
+  color: var(--charcoal);
+}
+
+.blank {
+  display: inline-block;
+  min-width: 64px;
+  text-align: center;
+  border-bottom: 2px solid var(--coral);
+  color: var(--charcoal-muted);
+  transition: color var(--transition);
+}
+
+.blankCorrect {
+  color: var(--green);
+  border-bottom-color: var(--green);
+  font-weight: 600;
+}
+
+.blankWrong {
+  color: var(--green);
+  border-bottom-color: var(--green);
+  font-weight: 600;
+}
+
+.choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.choice {
+  font-size: 17px;
+  padding: 14px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--cream);
+  color: var(--charcoal);
+  transition: background var(--transition), border-color var(--transition);
+}
+
+.choice:disabled {
+  opacity: 0.9;
+}
+
+.correct {
+  background: var(--green-light);
+  border-color: var(--green);
+  color: var(--green);
+  font-weight: 600;
+}
+
+.wrong {
+  background: var(--coral-light);
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.next {
+  align-self: flex-end;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--white);
+  background: var(--coral);
+  border-radius: var(--radius-sm);
+  padding: 10px 22px;
+}

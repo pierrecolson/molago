@@ -1,0 +1,111 @@
+.reader {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.textFlow {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sentence {
+  font-size: 19px;
+  line-height: 1.75;
+  color: var(--charcoal-light);
+  transition: color var(--transition), background var(--transition);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+.sentence.active {
+  color: var(--charcoal);
+  background: var(--coral-light);
+}
+
+/* Aucun marquage visuel des mots nouveaux : le flow est préservé.
+   Les tokens tappables ressemblent au texte. */
+.token {
+  font: inherit;
+  color: inherit;
+  padding: 0;
+  border-radius: 4px;
+  -webkit-tap-highlight-color: rgba(243, 93, 72, 0.18);
+}
+
+.token:active {
+  background: var(--coral-light);
+}
+
+/* Mot en révision masqué : flouté 2 s (micro-effort de génération). */
+.masked {
+  filter: blur(6px);
+  transition: filter 0.35s ease;
+}
+
+.controls {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 12px 24px calc(12px + var(--safe-bottom));
+  background: linear-gradient(to top, var(--cream) 65%, transparent);
+}
+
+.playButton {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--coral);
+  color: var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-md);
+  transition: background var(--transition), transform var(--transition);
+}
+
+.playButton:active {
+  background: var(--coral-hover);
+  transform: scale(0.96);
+}
+
+.speedButton {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--charcoal-light);
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 8px 14px;
+  width: 56px;
+}
+
+.spacer {
+  width: 56px;
+}
+
+.noAudio {
+  display: flex;
+  justify-content: center;
+  padding: 16px 0;
+}
+
+.doneButton {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--white);
+  background: var(--coral);
+  border-radius: var(--radius);
+  padding: 12px 24px;
+  box-shadow: var(--shadow-sm);
+}
