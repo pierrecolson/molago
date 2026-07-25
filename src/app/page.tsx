@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import { fetchBrief, lastReadyBrief, kstToday } from '@/lib/brief';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import BriefReader from '@/components/BriefReader';
@@ -6,6 +7,12 @@ import styles from './page.module.css';
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
+  // Profil vide → calibrage d'abord (une seule fois).
+  const { count: profileCount } = await supabaseAdmin()
+    .from('lexeme_state')
+    .select('lexeme_id', { count: 'exact', head: true });
+  if ((profileCount ?? 0) === 0) redirect('/placement');
+
   const today = kstToday();
   const brief = await fetchBrief(today);
 

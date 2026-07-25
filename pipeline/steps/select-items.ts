@@ -44,25 +44,42 @@ export async function selectItems(): Promise<SelectedItems> {
     };
   });
 
-  // Items nouveaux : sans état (jamais rencontrés), expat/intérêts d'abord puis fréquence.
+  // Items nouveaux : triple filtre (T3) —
+  // fenêtre de fréquence autour de la frontière de connaissance × pertinence
+  // situationnelle (tags) × rendement morphologique hanja.
   const { data: withState } = await db().from('lexeme_state').select('lexeme_id');
   const excluded = new Set((withState ?? []).map((r) => r.lexeme_id));
 
+  // Frontière de connaissance : rang p95 des lexèmes 'known' rangés.
+  const { data: knownRanked } = await db()
+    .from('lexeme_state')
+    .select('lexemes(freq_rank)')
+    .eq('state', 'known')
+    .not('lexemes.freq_rank', 'is', null);
+  const ranks = (knownRanked ?? [])
+    .map((r) => (r.lexemes as unknown as { freq_rank: number | null })?.freq_rank)
+    .filter((r): r is number => r !== null)
+    .sort((a, b) => a - b);
+  const frontier = ranks.length ? ranks[Math.floor(ranks.length * 0.95)] : 3000;
+
   const { data: candidates, error: candErr } = await db()
     .from('lexemes')
-    .select('id, lemma, gloss_fr, kind, freq_rank, tags')
+    .select('id, lemma, gloss_fr, kind, freq_rank, tags, hanja')
     .order('freq_rank', { ascending: true, nullsFirst: false })
-    .limit(400);
+    .limit(2000);
   if (candErr) throw new Error(`select new: ${candErr.message}`);
 
   const fresh = (candidates ?? []).filter((c) => !excluded.has(c.id));
-  // Priorité : tags d'intérêt (expat…) puis rang de fréquence.
-  const scored = fresh.sort((a, b) => {
-    const aTag = a.tags?.length ? 0 : 1;
-    const bTag = b.tags?.length ? 0 : 1;
-    if (aTag !== bTag) return aTag - bTag;
-    return (a.freq_rank ?? 999999) - (b.freq_rank ?? 999999);
-  });
+  const score = (c: { freq_rank: number | null; tags: string[] | null; hanja: string | null }) => {
+    // Proximité de la frontière (fenêtre utile : frontier ± 800).
+    const rank = c.freq_rank ?? frontier + 400; // sans rang (expat) : dans la fenêtre
+    const distance = Math.abs(rank - frontier);
+    const proximity = Math.max(0, 1 - distance / 800);
+    const situational = c.tags?.length ? 1 : 0; // liste expat/intérêts
+    const hanjaYield = c.hanja ? 0.5 : 0;
+    return proximity + situational + hanjaYield;
+  };
+  const scored = fresh.sort((a, b) => score(b) - score(a));
 
   const count = Math.min(NEW_MAX, Math.max(NEW_MIN, scored.length));
   const newItems = scored.slice(0, count).map((c) => ({
