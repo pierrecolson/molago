@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { fetchBrief, lastReadyBrief, kstToday } from '@/lib/brief';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import BriefReader from '@/components/BriefReader';
+import RegenerateButton from '@/components/RegenerateButton';
 import styles from './page.module.css';
 
 export const dynamic = 'force-dynamic';
@@ -31,13 +32,14 @@ export default async function Home() {
             ? 'La génération de cette nuit a échoué — le prochain brief reprendra le fil.'
             : "Le brief du jour n'est pas encore prêt."}
         </p>
+        <RegenerateButton />
         {lastReady ? (
           <a className={styles.fallbackLink} href={`/brief/${lastReady.brief_date}`}>
             Relire « {lastReady.title} » ({lastReady.brief_date})
           </a>
         ) : (
           <p className={styles.hint}>
-            Lance le pipeline : <code>npm run pipeline</code> (ou l&apos;action GitHub « Brief nocturne »).
+            Ou en local : <code>npm run pipeline</code>.
           </p>
         )}
       </main>

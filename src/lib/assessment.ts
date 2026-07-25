@@ -75,6 +75,12 @@ export async function applyEvent(db: SupabaseClient, event: AppEvent): Promise<v
   }
 
   if (event.type === 'episode_completed' && event.episode_id) {
+    await db
+      .from('episodes')
+      .update({ read_at: now.toISOString() })
+      .eq('id', event.episode_id)
+      .is('read_at', null);
+
     // Items du glossaire de l'épisode…
     const { data: glossRows } = await db
       .from('episode_lexemes')

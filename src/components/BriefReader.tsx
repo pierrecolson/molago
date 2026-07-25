@@ -58,7 +58,7 @@ function useEventQueue(episodeId: string) {
 
 export default function BriefReader({ episode, sentences, glossary, audioUrl, seriesTitle, totalPlanned }: Props) {
   const { push } = useEventQueue(episode.id);
-  const [gloss, setGloss] = useState<{ info: GlossInfo; surface: string } | null>(null);
+  const [gloss, setGloss] = useState<{ info: GlossInfo; surface: string; sentenceId: string } | null>(null);
   // reading → quiz (si quiz non vide) → exit
   const [phase, setPhase] = useState<'reading' | 'quiz' | 'exit'>('reading');
   const glossById = useRef(new Map(glossary.map((g) => [g.lexeme_id, g])));
@@ -70,9 +70,9 @@ export default function BriefReader({ episode, sentences, glossary, audioUrl, se
       const info = glossById.current.get(token.lexeme_id);
       push({ type: 'tap_gloss', sentence_id: sentence.id, lexeme_id: token.lexeme_id, payload: { surface: token.surface } });
       if (info) {
-        setGloss({ info, surface: token.surface });
+        setGloss({ info, surface: token.surface, sentenceId: sentence.id });
       } else {
-        // Token hors glossaire du jour : gloss minimal (lemme seul) — enrichi en J4.
+        // Token hors glossaire du jour : gloss minimal (lemme seul).
         setGloss({
           info: {
             lexeme_id: token.lexeme_id,
@@ -84,6 +84,7 @@ export default function BriefReader({ episode, sentences, glossary, audioUrl, se
             hanja: null,
           },
           surface: token.surface,
+          sentenceId: sentence.id,
         });
       }
     },
@@ -146,6 +147,7 @@ export default function BriefReader({ episode, sentences, glossary, audioUrl, se
           {episode.teaser_next && (
             <p className={styles.teaser}>À demain — {episode.teaser_next}</p>
           )}
+          <a href="/progres" className={styles.progressLink}>où j&apos;en suis</a>
         </section>
       )}
 
@@ -154,6 +156,14 @@ export default function BriefReader({ episode, sentences, glossary, audioUrl, se
         surface={gloss?.surface ?? ''}
         onClose={() => setGloss(null)}
         onHanjaOpen={(lexemeId) => push({ type: 'hanja_open', lexeme_id: lexemeId })}
+        onFlag={() =>
+          push({
+            type: 'flag_awkward',
+            sentence_id: gloss?.sentenceId,
+            lexeme_id: gloss?.info.lexeme_id,
+            payload: { surface: gloss?.surface },
+          })
+        }
       />
     </main>
   );

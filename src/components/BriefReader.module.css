@@ -93,3 +93,12 @@
   text-align: center;
   padding: 12px 0 4px;
 }
+
+.progressLink {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--charcoal-muted);
+  text-align: center;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
