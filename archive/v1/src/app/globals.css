@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Chiron+GoRound+TC:wght@700&display=swap');
 
-/* ===================== DESIGN TOKENS (repris de v1) ===================== */
+/* ===================== DESIGN TOKENS ===================== */
 :root {
   --cream: #F7F5F1;
   --cream-dark: #EEEBE6;
@@ -35,19 +35,21 @@
 
 html {
   height: 100%;
+  overflow: hidden;
 }
 
-/* v2 : les pages de lecture défilent (contrairement à la v1). */
 body {
   font-family: var(--font-kr);
   background: var(--cream);
   color: var(--charcoal);
-  min-height: 100dvh;
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overscroll-behavior-y: none;
 }
 
+/* ===================== DOT BACKGROUND ===================== */
 body::before {
   content: '';
   position: fixed;
@@ -58,19 +60,13 @@ body::before {
   z-index: 0;
 }
 
-a { color: inherit; text-decoration: none; }
-
-button {
-  font-family: inherit;
-  border: none;
-  background: none;
-  cursor: pointer;
+a {
   color: inherit;
+  text-decoration: none;
 }
 
+/* ===================== CONTENT WRAPPER ===================== */
 .content-wrap {
-  position: relative;
-  z-index: 1;
   width: 100%;
   max-width: var(--content-max);
   margin: 0 auto;
@@ -78,15 +74,45 @@ button {
   padding-right: 16px;
 }
 
-/* ===================== SHIMMER (états de chargement) ===================== */
+/* ===================== SHIMMER ANIMATION ===================== */
 @keyframes shimmer {
   0% { background-position: -200px 0; }
   100% { background-position: 200px 0; }
 }
 
-.shimmer {
-  background: linear-gradient(90deg, var(--cream-dark) 25%, #F3F0EB 50%, var(--cream-dark) 75%);
-  background-size: 400px 100%;
-  animation: shimmer 1.4s infinite linear;
-  border-radius: var(--radius-sm);
+/* ===================== ACCENT HIGHLIGHTS ===================== */
+.accent-text { color: var(--coral); }
+.morpheme-accent { color: var(--coral); }
+.word-accent { color: var(--coral); font-weight: inherit; }
+
+/* ===================== RESPONSIVE — TABLET ===================== */
+@media (min-width: 640px) {
+  :root {
+    --content-max: 540px;
+  }
+
+  .content-wrap {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+
+/* ===================== RESPONSIVE — DESKTOP ===================== */
+@media (min-width: 1024px) {
+  :root {
+    --content-max: 560px;
+  }
+}
+
+/* ===================== WIDE DESKTOP ===================== */
+@media (min-width: 1280px) {
+  :root {
+    --content-max: 60vw;
+  }
+}
+
+@media (min-width: 1600px) {
+  :root {
+    --content-max: 50vw;
+  }
 }

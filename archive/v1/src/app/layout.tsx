@@ -25,7 +25,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: "Molago",
-  description: "Le brief coréen du matin",
+  description: "Korean vocabulary through etymology and morpheme families",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -42,7 +42,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr">
+    <html lang="ko">
       <body className={`${notoSansKR.variable} ${notoSansKR.className} ${inter.variable}`}>
         {children}
       </body>

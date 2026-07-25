@@ -12,8 +12,6 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
-    // L'ancienne app est conservée pour référence, pas lintée.
-    "archive/**",
   ]),
 ]);
 
