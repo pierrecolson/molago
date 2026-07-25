@@ -1,15 +1,50 @@
+import { fetchBrief, lastReadyBrief, kstToday } from '@/lib/brief';
+import { supabaseAdmin } from '@/lib/supabase-server';
+import BriefReader from '@/components/BriefReader';
 import styles from './page.module.css';
 
-// Placeholder J0 : sera remplacé par le brief du jour (KaraokeReader…) au jalon J1.
-export default function Home() {
+export const dynamic = 'force-dynamic';
+
+export default async function Home() {
+  const today = kstToday();
+  const brief = await fetchBrief(today);
+
+  if (!brief) {
+    const { data: attempt } = await supabaseAdmin()
+      .from('episodes')
+      .select('status')
+      .eq('brief_date', today)
+      .maybeSingle();
+    const lastReady = await lastReadyBrief();
+    return (
+      <main className={`content-wrap ${styles.fallback}`}>
+        <h1 className={styles.logo}>몰라고</h1>
+        <p className={styles.subtitle}>
+          {attempt?.status === 'failed'
+            ? 'La génération de cette nuit a échoué — le prochain brief reprendra le fil.'
+            : "Le brief du jour n'est pas encore prêt."}
+        </p>
+        {lastReady ? (
+          <a className={styles.fallbackLink} href={`/brief/${lastReady.brief_date}`}>
+            Relire « {lastReady.title} » ({lastReady.brief_date})
+          </a>
+        ) : (
+          <p className={styles.hint}>
+            Lance le pipeline : <code>npm run pipeline</code> (ou l&apos;action GitHub « Brief nocturne »).
+          </p>
+        )}
+      </main>
+    );
+  }
+
   return (
-    <main className={`content-wrap ${styles.main}`}>
-      <h1 className={styles.logo}>몰라고</h1>
-      <p className={styles.subtitle}>Le brief coréen du matin — en construction (J0 : fondations posées).</p>
-      <p className={styles.hint}>
-        Schéma Supabase : <code>supabase/migrations/001_init.sql</code> · Seed : <code>npm run seed</code> ·
-        Pipeline : <code>npm run pipeline</code>
-      </p>
-    </main>
+    <BriefReader
+      episode={brief.episode}
+      sentences={brief.sentences}
+      glossary={brief.glossary}
+      audioUrl={brief.audioUrl}
+      seriesTitle={brief.seriesTitle}
+      totalPlanned={brief.totalPlanned}
+    />
   );
 }

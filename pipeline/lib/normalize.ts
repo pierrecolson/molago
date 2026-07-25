@@ -68,6 +68,8 @@ export const ALWAYS_KNOWN_LEMMAS = new Set([
   '하', '되', '있', '없', '이', '아니', '같', '보', '주', '받', '가', '오', '말', '것', '수', '때',
   '거', '저', '나', '너', '우리', '그', '이', '뭐', '왜', '어떻', '좀', '더', '안', '못', '잘', '다',
   '한', '두', '세', '네',
+  // contractions/déictiques parlés (Kiwi peut les rendre non décomposés)
+  '그게', '그거', '이게', '이거', '저거', '여기', '거기', '저기', '근데', '그냥', '진짜', '정말',
 ]);
 
 /** Clé de comparaison profil ↔ texte. On compare sur le lemme seul (pas le POS) :
