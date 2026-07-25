@@ -11,7 +11,9 @@ import { planSeries } from './steps/plan';
 import { selectItems } from './steps/select-items';
 import { generateEpisode, rewriteEpisode, GeneratedEpisode } from './steps/generate';
 import { verifyCoverage, VerifyResult } from './steps/verify';
+import { reviseEpisode } from './steps/revise';
 import { annotateSentences } from './steps/annotate';
+import { buildQuiz } from './steps/quiz';
 import { synthesizeEpisode } from './lib/tts';
 
 const MAX_REWRITES = 2;
@@ -134,6 +136,7 @@ async function main() {
         episode,
         intruders: verdict.intruders.slice(0, 12),
         missingTargets: verdict.missingTargets,
+        register: series.register,
       });
       episode = rw.episode;
       usages.push({ step: `rewrite#${regen}.${attempt}`, ...rw.usage });
@@ -155,16 +158,59 @@ async function main() {
     throw new Error(`pipeline: couverture insuffisante après réécritures (${verdict.coveragePct}%)`);
   }
 
-  // 6. Annotation + glossaire krdict
+  // 6. Révision « relecteur natif » (P9) puis re-vérification : si la révision
+  //    réintroduit des intrus, on garde la version pré-révision (déjà acceptée).
+  let collocations = new Map<string, string>();
+  try {
+    const revision = await reviseEpisode({
+      episode,
+      targetItems: [...newItems, ...reviewItems],
+    });
+    usages.push({ step: 'revise', ...revision.usage });
+    const reVerdict = await verifyCoverage(
+      {
+        sentences: revision.sentences.map((s) => s.ko),
+        knownLemmas,
+        targetLemmas,
+        properNouns,
+        thresholdPct: COVERAGE_THRESHOLD,
+        minTargetOccurrences: 2,
+      },
+      kiwi,
+    );
+    if (reVerdict.ok) {
+      episode = { ...episode, sentences: revision.sentences };
+      collocations = revision.collocations;
+      meta.coverage = reVerdict;
+      console.log(`[pipeline] révision acceptée (${reVerdict.coveragePct}%)`);
+    } else {
+      meta.revision_rejected = { coverage: reVerdict.coveragePct, intruders: reVerdict.intruders };
+      collocations = revision.collocations; // les collocations restent utilisables
+      console.log('[pipeline] révision rejetée (couverture) — version pré-révision conservée');
+    }
+  } catch (err) {
+    console.warn('[pipeline] révision échouée, on continue sans :', err);
+  }
+
+  // 7. Annotation + glossaire krdict
   const { annotated, glossary } = await annotateSentences({
     sentences: episode.sentences,
     newItems,
     reviewItems,
   });
+  for (const entry of glossary) {
+    const item = [...newItems, ...reviewItems].find((i) => i.lexeme_id === entry.lexeme_id);
+    if (item && collocations.has(item.lemma)) entry.collocation = collocations.get(item.lemma)!;
+  }
 
-  // 7. (J3 : quiz cloze déterministe)
+  // 8. Quiz cloze déterministe (récupération active, P5)
+  const quiz = await buildQuiz({
+    annotated,
+    targetLexemeIds: new Set([...newItems, ...reviewItems].map((i) => i.lexeme_id)),
+  });
+  console.log(`[pipeline] quiz : ${quiz.length} questions`);
 
-  // 8. TTS + timings
+  // 9. TTS + timings
   console.log('[pipeline] synthèse TTS…');
   const tts = await synthesizeEpisode(episode.sentences.map((s) => s.ko));
   const audioPath = `${briefDate}.mp3`;
@@ -173,7 +219,7 @@ async function main() {
     .upload(audioPath, tts.mp3, { contentType: 'audio/mpeg', upsert: true });
   if (upErr) throw new Error(`upload audio: ${upErr.message}`);
 
-  // 9. Commit
+  // 10. Commit
   const wordCount = episode.sentences.reduce((n, s) => n + s.ko.split(/\s+/).length, 0);
   const { data: epRow, error: epErr } = await db()
     .from('episodes')
@@ -189,6 +235,7 @@ async function main() {
       coverage_pct: verdict.coveragePct,
       audio_path: audioPath,
       audio_duration_ms: tts.durationMs,
+      quiz,
       try_today: episode.try_today,
       generation_meta: { ...meta, finished_at: new Date().toISOString() },
     })

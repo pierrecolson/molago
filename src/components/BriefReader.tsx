@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Episode, Sentence, TokenSpan, AppEvent } from '@/lib/types';
+import type { Episode, Sentence, TokenSpan, AppEvent, QuizItem } from '@/lib/types';
 import type { GlossInfo } from '@/lib/brief';
 import KaraokeReader from '@/components/KaraokeReader';
 import GlossSheet from '@/components/GlossSheet';
+import ClozeQuiz from '@/components/ClozeQuiz';
 import styles from './BriefReader.module.css';
 
 interface Props {
@@ -58,8 +59,10 @@ function useEventQueue(episodeId: string) {
 export default function BriefReader({ episode, sentences, glossary, audioUrl, seriesTitle, totalPlanned }: Props) {
   const { push } = useEventQueue(episode.id);
   const [gloss, setGloss] = useState<{ info: GlossInfo; surface: string } | null>(null);
-  const [completed, setCompleted] = useState(false);
+  // reading → quiz (si quiz non vide) → exit
+  const [phase, setPhase] = useState<'reading' | 'quiz' | 'exit'>('reading');
   const glossById = useRef(new Map(glossary.map((g) => [g.lexeme_id, g])));
+  const quiz = (episode.quiz ?? []) as QuizItem[];
 
   const onTapToken = useCallback(
     (token: TokenSpan, sentence: Sentence) => {
@@ -88,10 +91,12 @@ export default function BriefReader({ episode, sentences, glossary, audioUrl, se
   );
 
   const onCompleted = useCallback(() => {
-    if (completed) return;
-    setCompleted(true);
-    push({ type: 'episode_completed' });
-  }, [completed, push]);
+    setPhase((current) => {
+      if (current !== 'reading') return current;
+      push({ type: 'episode_completed' });
+      return quiz.length > 0 ? 'quiz' : 'exit';
+    });
+  }, [push, quiz.length]);
 
   return (
     <main className={`content-wrap ${styles.main}`}>
@@ -117,7 +122,18 @@ export default function BriefReader({ episode, sentences, glossary, audioUrl, se
         onReplay={() => push({ type: 'audio_replay' })}
       />
 
-      {completed && episode.try_today && episode.try_today.length > 0 && (
+      {phase === 'quiz' && (
+        <ClozeQuiz
+          quiz={quiz}
+          sentences={sentences}
+          onAnswer={(item, correct) =>
+            push({ type: 'quiz_answer', lexeme_id: item.answer_lexeme_id, payload: { correct } })
+          }
+          onDone={() => setPhase('exit')}
+        />
+      )}
+
+      {phase === 'exit' && episode.try_today && episode.try_today.length > 0 && (
         <section className={styles.exit}>
           <h2 className={styles.exitTitle}>À essayer aujourd&apos;hui</h2>
           {episode.try_today.map((t, i) => (

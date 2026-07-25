@@ -61,15 +61,7 @@ function fewshot(): string {
   return readFileSync(resolve(__dirname, '../assets/fewshot-haeyo.md'), 'utf8');
 }
 
-const SYSTEM = `Tu écris l'épisode du jour de Molago : un texte quotidien en coréen pour un Français
-qui vit à Séoul depuis 8 ans (niveau ~TOPIK 3, ~3000-5000 mots). Il lira ce texte demain matin
-avec son premier café, en 4-6 minutes.
-
-RÈGLES DE LANGUE ABSOLUES :
-- 해요체 tout du long, ton de conteur qui parle à un ami. JAMAIS 당신. JAMAIS de 합쇼체 hors dialogue rapporté.
-- Phrases COURTES qui finissent par le verbe. Style oral, pas style de rédaction.
-- TRÈS PEU de virgules (les LLM en mettent trop : c'est le marqueur n°1 du coréen artificiel).
-- Contractions réelles du coréen parlé : 근데, 그게, 이따가, -는 거예요, -잖아요.
+const COMMON_RULES = `- TRÈS PEU de virgules (les LLM en mettent trop : c'est le marqueur n°1 du coréen artificiel).
 - Vocabulaire courant uniquement. Si un mot n'est pas dans le vocabulaire des niveaux TOPIK 1-3,
   reformule avec un mot plus simple — SAUF pour les mots cibles imposés.
 - Pas de mots rares, littéraires ou datés (서적 → 책).
@@ -77,8 +69,29 @@ RÈGLES DE LANGUE ABSOLUES :
 STRUCTURE :
 - 300 à 400 mots au total, découpés en phrases (une phrase par élément du tableau).
 - Chaque mot cible imposé apparaît AU MOINS 3 FOIS, dans des contextes différents.
-- L'histoire doit être intéressante en soi — quelque chose qu'on lirait même en français.
+- Le texte doit être intéressant en soi — quelque chose qu'on lirait même en français.
 - Termine sur une note qui donne envie de connaître la suite.`;
+
+function systemFor(register: 'haeyo' | 'journalistique'): string {
+  const intro = `Tu écris l'épisode du jour de Molago : un texte quotidien en coréen pour un Français
+qui vit à Séoul depuis 8 ans (niveau ~TOPIK 3, ~3000-5000 mots). Il lira ce texte demain matin
+avec son premier café, en 4-6 minutes.
+
+RÈGLES DE LANGUE ABSOLUES :`;
+  if (register === 'journalistique') {
+    return `${intro}
+- Brève d'actualité en style journalistique LÉGER : phrases déclaratives en -다/-이다, claires et
+  courtes. Pas de jargon administratif, pas de nominalisations empilées.
+- Ton d'un chroniqueur qui explique l'actu à un ami curieux, pas d'une dépêche d'agence.
+- Le vocabulaire sino-coréen utile (경제, 정부, 발표…) est le bienvenu quand il est courant.
+${COMMON_RULES}`;
+  }
+  return `${intro}
+- 해요체 tout du long, ton de conteur qui parle à un ami. JAMAIS 당신. JAMAIS de 합쇼체 hors dialogue rapporté.
+- Phrases COURTES qui finissent par le verbe. Style oral, pas style de rédaction.
+- Contractions réelles du coréen parlé : 근데, 그게, 이따가, -는 거예요, -잖아요.
+${COMMON_RULES}`;
+}
 
 export async function generateEpisode(opts: {
   series: Series;
@@ -89,8 +102,9 @@ export async function generateEpisode(opts: {
 }): Promise<{ episode: GeneratedEpisode; usage: LlmUsage }> {
   const bible = opts.series.series_bible;
   const arc = bible?.arc?.find((a) => a.episode === opts.episodeNumber);
+  const system = systemFor(opts.series.register);
 
-  const user = `${fewshot()}
+  const user = `${opts.series.register === 'haeyo' ? fewshot() : ''}
 
 ---
 
@@ -112,7 +126,7 @@ ${opts.reviewItems.length ? opts.reviewItems.map((i) => `- ${i.lemma}${i.gloss_f
 Écris l'épisode maintenant.`;
 
   const { data, usage } = await llmJson<GeneratedEpisode>({
-    system: SYSTEM,
+    system,
     user,
     schema: EPISODE_SCHEMA as unknown as Record<string, unknown>,
     maxTokens: 8000,
@@ -125,6 +139,7 @@ export async function rewriteEpisode(opts: {
   episode: GeneratedEpisode;
   intruders: { lemma: string; count: number }[];
   missingTargets: string[];
+  register?: 'haeyo' | 'journalistique';
 }): Promise<{ episode: GeneratedEpisode; usage: LlmUsage }> {
   const user = `Voici un épisode déjà écrit :
 
@@ -136,11 +151,11 @@ ${opts.intruders.map((i) => `- ${i.lemma} (${i.count}×)`).join('\n')}` : ''}
 ${opts.missingTargets.length ? `Ces mots cibles n'apparaissent pas assez (minimum 3 fois chacun, contextes variés) :
 ${opts.missingTargets.map((l) => `- ${l}`).join('\n')}` : ''}
 
-Réécris l'épisode en corrigeant UNIQUEMENT ces problèmes. Garde l'histoire, le ton 해요체,
+Réécris l'épisode en corrigeant UNIQUEMENT ces problèmes. Garde l'histoire, le ton et le registre,
 les phrases courtes. Rends l'épisode complet corrigé (avec traductions FR, titre, teaser, try_today).`;
 
   const { data, usage } = await llmJson<GeneratedEpisode>({
-    system: SYSTEM,
+    system: systemFor(opts.register ?? 'haeyo'),
     user,
     schema: EPISODE_SCHEMA as unknown as Record<string, unknown>,
     maxTokens: 8000,

@@ -1,10 +1,13 @@
 /**
  * Choix/création de la série du jour.
- * J1 : feuilleton seul. J3 : alternance feuilleton / actu (RSS) selon l'arc hebdo.
+ * Alternance T4 : après un feuilleton (couche native, 해요체), une série « actu »
+ * (couche sino-coréenne, style journalistique léger) construite sur de vrais
+ * titres RSS — et inversement.
  */
 import { db } from '../lib/db';
 import { llmJson, LlmUsage } from '../lib/llm';
-import type { Series, SeriesBible } from '../../src/lib/types';
+import { fetchHeadlines } from '../lib/rss';
+import type { Series, SeriesBible, SeriesKind } from '../../src/lib/types';
 
 const SERIES_SCHEMA = {
   type: 'object',
@@ -49,15 +52,26 @@ interface PlannedSeries {
   arc: SeriesBible['arc'];
 }
 
-const PLANNER_SYSTEM = `Tu conçois des mini-séries pour Molago, le brief matinal en coréen d'un
+const PLANNER_BASE = `Tu conçois des mini-séries pour Molago, le brief matinal en coréen d'un
 Français qui vit à Séoul depuis 8 ans. Ses centres d'intérêt : la vie de quartier à Séoul,
 l'actualité coréenne et la société, la tech, l'histoire et la culture coréennes.
 Il est indifférent à la K-pop et aux dramas romantiques.
 
 Une mini-série = 4 épisodes de 300-400 mots, un par matin, avec un cliffhanger par épisode
-(effet Zeigarnik : la raison d'ouvrir l'app demain). Histoires de vie quotidienne crédibles,
-ancrées dans le Séoul réel (quartiers, situations, petites tensions du quotidien).
-Pas de mélodrame : de l'humour sec, de l'observation, des situations vraies.`;
+(effet Zeigarnik : la raison d'ouvrir l'app demain).`;
+
+const PLANNER_FEUILLETON = `${PLANNER_BASE}
+Feuilleton de vie quotidienne : histoires crédibles ancrées dans le Séoul réel (quartiers,
+situations, petites tensions du quotidien). Pas de mélodrame : de l'humour sec, de
+l'observation, des situations vraies.`;
+
+const PLANNER_ACTU = `${PLANNER_BASE}
+Série « fil d'actu » : choisis parmi les titres fournis UN sujet qui peut se suivre sur
+4 matins (une situation qui évolue, un dossier qu'on creuse, un phénomène qu'on explique
+sous 4 angles). Chaque épisode est une brève de chronique journalistique légère. Le
+« cliffhanger » est ici une vraie question ouverte (« que va décider X demain ? »).
+Pas de personnages fictifs : characters liste les acteurs réels du dossier (institutions,
+entreprises, personnes publiques) avec leur nom coréen exact.`;
 
 export async function planSeries(): Promise<{ series: Series; usage: LlmUsage | null }> {
   // Série active avec des épisodes restants ?
@@ -81,9 +95,28 @@ export async function planSeries(): Promise<{ series: Series; usage: LlmUsage | 
     await db().from('series').update({ status: 'terminee' }).eq('id', series.id);
   }
 
+  // Alternance : la nouvelle série prend l'autre registre que la précédente (T4).
+  const { data: lastSeries } = await db()
+    .from('series')
+    .select('kind')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const nextKind: SeriesKind = lastSeries?.kind === 'feuilleton' ? 'actu' : 'feuilleton';
+
+  let plannerUser = 'Conçois la prochaine mini-série (feuilleton de vie quotidienne à Séoul, 4 épisodes).';
+  if (nextKind === 'actu') {
+    const headlines = await fetchHeadlines();
+    plannerUser = headlines.length
+      ? `Titres d'actualité du moment :\n${headlines
+          .map((h) => `- [${h.source}] ${h.title}${h.description ? ` — ${h.description}` : ''}`)
+          .join('\n')}\n\nConçois la prochaine mini-série « fil d'actu » (4 épisodes) à partir d'UN de ces sujets.`
+      : 'Aucun flux disponible : conçois une série « fil d\'actu » sur un phénomène de société coréen durable (4 épisodes).';
+  }
+
   const { data: planned, usage } = await llmJson<PlannedSeries>({
-    system: PLANNER_SYSTEM,
-    user: 'Conçois la prochaine mini-série (feuilleton de vie quotidienne à Séoul, 4 épisodes).',
+    system: nextKind === 'actu' ? PLANNER_ACTU : PLANNER_FEUILLETON,
+    user: plannerUser,
     schema: SERIES_SCHEMA as unknown as Record<string, unknown>,
     maxTokens: 3000,
   });
@@ -103,8 +136,8 @@ export async function planSeries(): Promise<{ series: Series; usage: LlmUsage | 
     .from('series')
     .insert({
       title: planned.title,
-      kind: 'feuilleton',
-      register: 'haeyo',
+      kind: nextKind,
+      register: nextKind === 'actu' ? 'journalistique' : 'haeyo',
       status: 'active',
       synopsis: planned.synopsis,
       series_bible: bible,
