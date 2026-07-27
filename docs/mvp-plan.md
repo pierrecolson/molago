@@ -148,8 +148,9 @@ pas de couche « architecture » — cinq écrans et un modèle.
 | Persistance | **SwiftData** | Natif, zéro boilerplate Core Data. Sauvegarde par iCloud, gratuite. |
 | Audio | **`AVQueuePlayer`** | Une piste par phrase → on empile les phrases, et le surlignage suit `currentItem`. |
 | OCR | **Vision, `VNRecognizeTextRequest` en `ko-KR`** | Natif, hors ligne, instantané, aucune dépendance. |
-| Téléchargement | **`BGAppRefreshTask`** la nuit + repli à l'ouverture | Pas d'APNs, pas de certificat, pas de serveur de push. |
-| Notification | **`UNUserNotificationCenter`, locale** | Programmée par l'app. Si la tâche de fond a tourné, elle est réécrite avec le vrai titre du jour. |
+| Téléchargement | **À l'ouverture de l'app**, avec un état de chargement soigné | Les modes d'arrière-plan font partie des capacités restreintes sur compte gratuit (§7). On ne parie pas dessus : ~2 Mo se téléchargent en trois secondes, et il ouvre l'app le matin de toute façon. `BGAppRefreshTask` revient avec le compte payant, en bonus. |
+| Notification | **`UNUserNotificationCenter`, locale** | Les notifications locales ne demandent aucun *entitlement* — seul le push distant en exige un. Formulation générique en V1 (« trois textes vous attendent ») : sans APNs, l'app ne peut pas connaître le titre du jour avant de l'avoir téléchargé. |
+| Sauvegarde | **Le Notebook remonte au serveur chaque jour** | iCloud est bloqué sur compte gratuit, et une réinstallation peut emporter les données locales. Le JSON de profil qu'on envoyait déjà pour calibrer le niveau porte aussi les mots gardés. Vingt lignes de plus, et une réinstallation devient sans conséquence. |
 
 ### Le seul morceau techniquement délicat, et il est déjà résolu
 
@@ -211,9 +212,37 @@ Dans l'ordre où ça compte, une fois M4 en place et utilisé quinze jours :
 
 ---
 
-## 7. Les deux choses à régler avant M1
+## 7. Développer sans compte Apple Developer
 
-| Point | État |
-|---|---|
-| **Compte Apple Developer** | À vérifier. Sans compte payant, une build installée depuis Xcode expire **au bout de 7 jours** — rédhibitoire pour une app qu'on ouvre chaque matin. 99 €/an. |
-| **Clés d'API** | ✅ En place dans `.env` (non versionné). Deux suffisent désormais : `OPENROUTER_API_KEY` et `GOOGLE_TTS_API_KEY`. `ELEVENLABS_API_KEY` n'est plus nécessaire — gardée seulement pour rejouer l'essai M0. |
+**Décision : on commence sans payer les 99 €/an.** C'est tenable, à trois conditions.
+
+### Ce qui marche quand même
+
+Tout ce dont M1 à M4 ont besoin : SwiftUI, SwiftData en local, `AVQueuePlayer`, le
+framework Vision pour l'OCR, l'appareil photo, et les **notifications locales** — celles-ci
+ne demandent aucun *entitlement*, seul le push distant en exige un.
+
+### Les trois contraintes, et ce qu'on fait
+
+| Contrainte | Conséquence | Parade |
+|---|---|---|
+| **Le profil expire au bout de 7 jours** | L'app cesse de se lancer : on tape l'icône, rien ne se passe. | Rebrancher l'iPhone, ouvrir Xcode, appuyer sur ▶. Trente secondes, une fois par semaine. Pendant le développement c'est invisible — je reconstruis de toute façon. |
+| **iCloud est bloqué** | Aucune sauvegarde automatique du Notebook, et une réinstallation peut emporter les données locales. | **Le Notebook remonte au serveur chaque jour**, greffé sur le JSON de profil déjà prévu. Une réinstallation redevient sans conséquence — c'est la parade la plus importante des trois. |
+| **Les modes d'arrière-plan sont restreints** | `BGAppRefreshTask` peut ne pas se déclencher. | On ne parie pas dessus : le téléchargement se fait **à l'ouverture**, ~2 Mo en trois secondes. Plus simple à coder, et sans risque. |
+
+*Sont aussi bloqués : App Groups (donc l'extension de partage iOS), Sign in with Apple, et
+les domaines associés. Tous étaient déjà hors du MVP.*
+
+### Le moment où payer devient évident
+
+**À la fin de M1, après deux semaines d'usage quotidien.** Pas avant.
+
+Si tu ouvres l'app tous les matins pendant quinze jours, les 99 € se justifient tout seuls
+et débloquent d'un coup : plus d'expiration, **APNs** (la notification porte enfin le vrai
+titre du jour, comme la spec le décrit en §4.2), la sauvegarde iCloud, et l'extension de
+partage pour M4.
+
+Si tu ne l'ouvres pas, tu auras économisé 99 € et appris quelque chose de bien plus utile.
+
+C'est le bon ordre : **le compte payant récompense un produit qui a fait ses preuves, il ne
+finance pas un pari.**
