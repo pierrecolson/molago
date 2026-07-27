@@ -8,6 +8,9 @@ import SwiftUI
 struct LibraryView: View {
     let day: Day
 
+    @State private var morning = MorningCall()
+    @State private var showingMorning = false
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -32,8 +35,26 @@ struct LibraryView: View {
             }
             .background(Dancheong.ground)
             .navigationTitle("Library")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showingMorning = true } label: {
+                        Image(systemName: "bell")
+                    }
+                    .accessibilityLabel("Morning time")
+                }
+            }
+            .sheet(isPresented: $showingMorning) {
+                MorningSheet(morning: morning)
+                    .presentationDetents([.height(300)])
+            }
         }
         .tint(Dancheong.jangdan)
+        .task {
+            // Après que la journée s'est affichée, jamais avant : une app qui
+            // réclame une permission sans avoir montré à quoi elle sert se fait
+            // refuser, et iOS ne laisse pas redemander.
+            await morning.enable()
+        }
     }
 }
 
@@ -84,5 +105,55 @@ private struct UniverseCard: View {
         .background(universe.color)
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .dancheongKeyline(cornerRadius: 22)
+    }
+}
+
+/// Le seul réglage de l'app : à quelle heure elle vous dit qu'il y a à lire.
+private struct MorningSheet: View {
+    @Bindable var morning: MorningCall
+    @Environment(\.dismiss) private var dismiss
+
+    private var time: Binding<Date> {
+        Binding(
+            get: {
+                Calendar.current.date(
+                    from: DateComponents(hour: morning.hour, minute: morning.minute)
+                ) ?? Date()
+            },
+            set: { new in
+                let parts = Calendar.current.dateComponents([.hour, .minute], from: new)
+                morning.hour = parts.hour ?? 7
+                morning.minute = parts.minute ?? 0
+            }
+        )
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                DatePicker("", selection: time, displayedComponents: .hourAndMinute)
+                    .datePickerStyle(.wheel)
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity)
+
+                Text(morning.isAuthorized
+                     ? "One notification a day, and nothing else. It tells you the texts are there \u{2014} it never asks you for anything."
+                     : "Notifications are off. Turn them on in Settings if you want Molago to tell you when the morning texts arrive.")
+                    .font(.footnote)
+                    .foregroundStyle(Dancheong.inkSoft)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 22)
+            .padding(.top, 4)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .background(Dancheong.ground)
+            .navigationTitle("Every morning at " + morning.timeLabel)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
     }
 }
