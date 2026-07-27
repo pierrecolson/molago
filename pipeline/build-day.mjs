@@ -487,6 +487,60 @@ async function attachIcons(sentences) {
   return found.length
 }
 
+/// L'icône qui représente le texte entier, pour sa carte dans la Library.
+///
+/// Le caractère chinois qui l'occupait était décoratif : l'univers est déjà dit
+/// par la couleur de la carte et par son étiquette. Une image du sujet, elle,
+/// apprend quelque chose avant même d'avoir lu le titre.
+const COVER = (title, first) => `Voici un article. Nomme **l'objet unique** qui le représenterait le mieux sur une vignette.
+
+Titre : ${title}
+Début : ${first}
+
+Un ou deux mots anglais, comme on l'étiquetterait dans une bibliothèque d'icônes 3D d'objets du quotidien. Un procès → "gavel". Un dîner d'entreprise → "restaurant". Un compilateur → "code".
+
+Choisis quelque chose de **concret et photographiable**. Pas de concept, pas de symbole abstrait.
+
+Réponds en JSON : {"n":"the object"}`
+
+async function attachCover(text, sentences) {
+  if (!env.THIINGS_API_KEY) return
+  try {
+    const { n } = await llm(COVER(text.title, sentences.slice(0, 2).map((s) => s.en).join(' ')), { json: true })
+    const name = String(n || '').trim().toLowerCase()
+    if (name.length < 3) return
+
+    const r = await fetch(`${thiingsURL()}/icons?search=${encodeURIComponent(name)}&limit=20`, {
+      headers: { authorization: `Bearer ${env.THIINGS_API_KEY}` },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!r.ok) return
+    const body = await r.json()
+    const items = Array.isArray(body) ? body : (body.icons || body.data || [])
+    // Titre exact, ou titre dont le nom est un **mot entier**. La simple
+    // sous-chaîne ne suffit pas : elle a donné « Grillz » — des bijoux
+    // dentaires — pour un dîner au barbecue, parce que « grillz » contient
+    // « grill ». À défaut, la carte garde son hanja, ce qui n'est pas grave.
+    const words = (t) => String(t || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
+    const hit = items.find((i) => String(i.title || '').toLowerCase() === name)
+      ?? items.filter((i) => name.split(' ').every((n) => words(i.title).includes(n)))
+        .sort((a, b) => String(a.title).length - String(b.title).length)[0]
+    if (!hit) return
+
+    const dest = join(ICONS_OUT, `${hit.slug}.png`)
+    if (!existsSync(dest)) {
+      const img = await fetch(`${thiingsURL()}/icons/${hit.slug}/image?size=256`, {
+        headers: { authorization: `Bearer ${env.THIINGS_API_KEY}` },
+        signal: AbortSignal.timeout(15000),
+      })
+      if (!img.ok) return
+      writeFileSync(dest, Buffer.from(await img.arrayBuffer()))
+    }
+    text.icon = hit.slug
+    log(`    vignette  : ${hit.title}`)
+  } catch { /* la carte gardera son hanja */ }
+}
+
 // ── famille de racine ────────────────────────────────────────────────────────
 
 const ROOTS = (lemmas) => `Voici des mots coréens. Pour ceux qui sont **sino-coréens**, donne leurs hanja et la famille de mots qui partage la même racine.
@@ -519,8 +573,17 @@ async function attachRoots(sentences) {
     const byLemma = new Map()
     for (const r of out.r || []) {
       const lemma = lemmas[r.i]
-      if (lemma && r.h && Array.isArray(r.f) && r.f.length) {
-        byLemma.set(lemma, { hanja: r.h, rootMeaning: r.m || '', family: r.f.slice(0, 5) })
+      if (!lemma || typeof r.h !== 'string' || !Array.isArray(r.f)) continue
+      // On vérifie la forme de chaque entrée au lieu de la supposer : une seule
+      // famille rendue en tableau plutôt qu'en objet a suffi à rendre toute une
+      // journée indécodable côté app. Ce qui sort d'un modèle se contrôle.
+      const family = r.f.filter((x) =>
+        x && typeof x === 'object' && !Array.isArray(x)
+        && typeof x.k === 'string' && x.k.trim()
+        && typeof x.e === 'string' && x.e.trim(),
+      ).map((x) => ({ k: x.k.trim(), h: typeof x.h === 'string' ? x.h : undefined, e: x.e.trim() }))
+      if (family.length) {
+        byLemma.set(lemma, { hanja: r.h, rootMeaning: typeof r.m === 'string' ? r.m : '', family: family.slice(0, 5) })
       }
     }
     for (const s of sentences) {
@@ -653,7 +716,7 @@ async function buildText(slot, date, used, outDir) {
   if (marked > 0 && Math.abs(seconds - marked) / seconds > 0.25) {
     log(`    ⚠ durée douteuse : ${seconds}s par les octets, ${Math.round(marked)}s par les repères`)
   }
-  return {
+  const text = {
     slot: slot.id,
     universe: slot.universe,
     title: split.title || '(untitled)',
@@ -662,6 +725,8 @@ async function buildText(slot, date, used, outDir) {
     source,
     sentences,
   }
+  await attachCover(text, sentences)
+  return text
 }
 
 // ── main ─────────────────────────────────────────────────────────────────────

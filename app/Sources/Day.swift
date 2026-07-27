@@ -15,6 +15,10 @@ struct Day: Codable, Sendable {
         let universe: String
         let title: String
         let minutes: Int
+        /// L'icône qui représente le texte sur sa carte. Elle remplace le
+        /// caractère chinois de l'univers : celui-ci était décoratif, alors que
+        /// l'image du sujet apprend quelque chose avant même le titre.
+        let icon: String?
         let sentences: [Sentence]
 
         var id: String { slot }
@@ -64,6 +68,26 @@ struct Day: Codable, Sendable {
         /// Un mot sans sens n'est pas tappable : ouvrir une carte vide serait
         /// pire que de ne rien ouvrir.
         var isTappable: Bool { en?.isEmpty == false }
+
+        /// Décodage indulgent sur tout ce qui est facultatif.
+        ///
+        /// La forme stricte de `Codable` fait échouer **toute** la journée sur
+        /// un seul champ mal formé — c'est arrivé : une famille rendue en
+        /// tableau au lieu d'objets, sur un mot parmi trois cents, et l'écran
+        /// affichait « rien ce matin ». Ce qui vient d'un modèle doit pouvoir
+        /// être partiellement faux sans rien emporter.
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            w = try c.decode(String.self, forKey: .w)
+            t = try c.decode(Double.self, forKey: .t)
+            lemma = try? c.decodeIfPresent(String.self, forKey: .lemma)
+            pos = try? c.decodeIfPresent(String.self, forKey: .pos)
+            en = try? c.decodeIfPresent(String.self, forKey: .en)
+            icon = try? c.decodeIfPresent(String.self, forKey: .icon)
+            hanja = try? c.decodeIfPresent(String.self, forKey: .hanja)
+            root = try? c.decodeIfPresent(String.self, forKey: .root)
+            family = try? c.decodeIfPresent([Relative].self, forKey: .family)
+        }
     }
 }
 

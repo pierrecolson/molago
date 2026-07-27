@@ -76,11 +76,16 @@ final class DayStore {
 
         do {
             let day = try await Self.fetch(date: today)
-            try await Self.downloadAudio(for: day)
-            await Self.downloadIcons(for: day)
+            // La journée est écrite AVANT les médias. Un texte lisible mais
+            // muet vaut infiniment mieux qu'un écran vide : une piste qui
+            // manque se rattrape au prochain lancement, une journée perdue
+            // parce qu'un fichier sur cinquante a échoué, non.
             Self.writeCached(day)
             state = .ready(day)
+            await Self.downloadAudio(for: day)
+            await Self.downloadIcons(for: day)
         } catch {
+            print("[molago] chargement impossible : \(error)")
             // Rien de neuf ? Ce qu'on a déjà reste à l'écran. Sinon on le dit
             // franchement, sans reproche ni rattrapage à faire (spec §12).
             if case .ready = state { return }
@@ -108,30 +113,38 @@ final class DayStore {
         return try JSONDecoder().decode(Day.self, from: data)
     }
 
-    /// Télécharge les pistes manquantes, en parallèle.
+    /// Télécharge les pistes manquantes.
     ///
-    /// Une piste déjà là n'est jamais reprise : son nom porte la date, donc son
+    /// Sans `throws` : une piste qui échoue ne doit pas emporter la journée. Une
+    /// piste déjà là n'est jamais reprise — son nom porte la date, donc son
     /// contenu ne change jamais.
-    private static func downloadAudio(for day: Day) async throws {
+    private static func downloadAudio(for day: Day) async {
         let fm = FileManager.default
-        try? fm.createDirectory(at: Paths.audio, withIntermediateDirectories: true)
-
         let missing = day.texts.flatMap(\.sentences).filter { sentence in
             !fm.fileExists(atPath: Paths.audio.appending(path: sentence.fileName).path())
         }
         guard !missing.isEmpty else { return }
+        await fetchAll(missing.map { (Config.baseURL.appending(path: $0.audio), Paths.audio.appending(path: $0.fileName)) })
+    }
 
-        try await withThrowingTaskGroup(of: Void.self) { group in
-            for sentence in missing {
-                group.addTask {
-                    let from = Config.baseURL.appending(path: sentence.audio)
-                    let (temp, _) = try await URLSession.shared.download(from: from)
-                    let to = Paths.audio.appending(path: sentence.fileName)
-                    try? FileManager.default.removeItem(at: to)
-                    try FileManager.default.moveItem(at: temp, to: to)
+    /// Télécharge un lot, par paquets.
+    ///
+    /// Six à la fois : c'est ce qu'`URLSession` ouvre par hôte de toute façon, et
+    /// lancer cinquante tâches d'un coup ne fait qu'allonger la file en
+    /// multipliant les occasions d'expirer.
+    private static func fetchAll(_ jobs: [(from: URL, to: URL)]) async {
+        for chunk in stride(from: 0, to: jobs.count, by: 6).map({ Array(jobs[$0..<min($0 + 6, jobs.count)]) }) {
+            await withTaskGroup(of: Void.self) { group in
+                for job in chunk {
+                    group.addTask {
+                        guard let (temp, response) = try? await URLSession.shared.download(from: job.from),
+                              (response as? HTTPURLResponse)?.statusCode == 200
+                        else { return }
+                        try? FileManager.default.removeItem(at: job.to)
+                        try? FileManager.default.moveItem(at: temp, to: job.to)
+                    }
                 }
             }
-            try await group.waitForAll()
         }
     }
 
@@ -142,24 +155,14 @@ final class DayStore {
     /// journée pour ça.
     private static func downloadIcons(for day: Day) async {
         let fm = FileManager.default
-        let slugs = Set(day.texts
-            .flatMap(\.sentences)
-            .flatMap { $0.words ?? [] }
-            .compactMap(\.icon))
+        let slugs = Set(
+            day.texts.compactMap(\.icon)
+            + day.texts.flatMap(\.sentences).flatMap { $0.words ?? [] }.compactMap(\.icon))
             .filter { !fm.fileExists(atPath: Paths.icons.appending(path: "\($0).png").path()) }
         guard !slugs.isEmpty else { return }
-
-        await withTaskGroup(of: Void.self) { group in
-            for slug in slugs {
-                group.addTask {
-                    let from = Config.iconsURL.appending(path: "\(slug).png")
-                    guard let (temp, _) = try? await URLSession.shared.download(from: from) else { return }
-                    let to = Paths.icons.appending(path: "\(slug).png")
-                    try? FileManager.default.removeItem(at: to)
-                    try? FileManager.default.moveItem(at: temp, to: to)
-                }
-            }
-        }
+        await fetchAll(slugs.map {
+            (Config.iconsURL.appending(path: "\($0).png"), Paths.icons.appending(path: "\($0).png"))
+        })
     }
 
     // ── disque ───────────────────────────────────────────────────────────────

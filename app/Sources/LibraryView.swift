@@ -93,14 +93,12 @@ private struct UniverseCard: View {
         .frame(maxWidth: .infinity, minHeight: 138, alignment: .leading)
         .padding(17)
         .background(alignment: .bottomTrailing) {
-            // Le hanja de l'univers, très grand et à peine visible : c'est le
-            // sujet du texte écrit dans la langue de sa racine. Il déborde du
-            // coin, et le rognage de la carte fait le reste.
-            Text(universe.hanja)
-                .font(.system(size: 118, weight: .bold))
-                .foregroundStyle(.white.opacity(0.13))
-                .fixedSize()
-                .offset(x: 30, y: 30)
+            // L'objet du jour, débordant du coin. Le rognage de la carte fait
+            // le reste. À défaut, le caractère chinois de l'univers — mais il
+            // n'est qu'un repli : la couleur et l'étiquette disent déjà
+            // l'univers, alors qu'une image dit le sujet.
+            CoverMark(icon: text.icon, hanja: universe.hanja)
+                .offset(x: 22, y: 24)
         }
         .background(universe.color)
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -154,6 +152,38 @@ private struct MorningSheet: View {
                     Button("Done") { dismiss() }
                 }
             }
+        }
+    }
+}
+
+/// La marque au coin de la carte : l'objet du texte, ou son hanja à défaut.
+private struct CoverMark: View {
+    let icon: String?
+    let hanja: String
+
+    @State private var loaded: UIImage?
+
+    var body: some View {
+        Group {
+            if let loaded {
+                Image(uiImage: loaded)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 112, height: 112)
+                    // Une ombre douce sous l'objet : sans elle il flotte sur
+                    // l'aplat, avec elle il y est posé.
+                    .shadow(color: .black.opacity(0.25), radius: 12, x: 0, y: 6)
+            } else {
+                Text(hanja)
+                    .font(.system(size: 118, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.13))
+                    .fixedSize()
+            }
+        }
+        .task(id: icon) {
+            guard let icon else { loaded = nil; return }
+            let url = Paths.icons.appending(path: "\(icon).png")
+            loaded = (try? Data(contentsOf: url)).flatMap(UIImage.init(data:))
         }
     }
 }

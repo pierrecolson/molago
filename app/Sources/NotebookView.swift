@@ -64,7 +64,12 @@ struct NotebookView: View {
                             }
                         }
                     }
-                    .listStyle(.plain)
+                    // Le style groupé encarté d'iOS : des blocs blancs arrondis
+                    // sur le fond, séparés par des respirations. C'est la
+                    // grammaire de Réglages, et elle sépare les journées bien
+                    // mieux qu'un simple filet.
+                    .listStyle(.insetGrouped)
+                    .scrollContentBackground(.hidden)
                     .searchable(text: $search, prompt: "Search your words")
                 }
             }
@@ -111,6 +116,6 @@ private struct KeptRow: View {
             }
         }
         .padding(.vertical, 5)
-        .listRowBackground(Dancheong.ground)
+        .listRowBackground(Dancheong.paper)
     }
 }

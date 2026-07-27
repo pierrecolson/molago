@@ -12,6 +12,22 @@ struct ReaderView: View {
     @State private var player: SentencePlayer
     @State private var didStart = false
     @State private var tapped: (word: Day.Word, sentence: Day.Sentence)?
+    /// Bascule vers l'anglais, derrière une friction volontaire.
+    ///
+    /// La spec §4.4 veut la traduction *disponible* et jamais *proposée* : à un
+    /// tap elle devient un réflexe, et on finit par lire l'anglais plutôt que le
+    /// coréen. La friction est donc **asymétrique** — un appui long pour
+    /// l'allumer, un simple tap pour l'éteindre. Passer à l'anglais demande une
+    /// intention ; en revenir n'en demande aucune.
+    ///
+    /// Pas de compteur : le principe P4 interdit les compteurs parce qu'ils
+    /// créent une dette, et « tu as lu en anglais quatre fois » serait un
+    /// reproche déguisé. L'app n'a pas d'avis sur la façon dont on lit.
+    ///
+    /// Elle ne se souvient de rien d'un texte à l'autre : chaque lecture
+    /// recommence en coréen.
+    @State private var english = false
+    @State private var hinting = false
     @Environment(\.modelContext) private var context
 
     init(text: Day.Text) {
@@ -48,6 +64,7 @@ struct ReaderView: View {
                             ForEach(Array(text.sentences.enumerated()), id: \.offset) { i, sentence in
                                 SentenceLine(
                                     sentence: sentence,
+                                    english: english,
                                     isCurrent: i == player.index && player.isPlaying,
                                     wordIndex: i == player.index ? player.wordIndex : -1,
                                     tint: Dancheong.highlight(text.slot),
@@ -81,6 +98,34 @@ struct ReaderView: View {
         .background(Dancheong.paper)
         .navigationTitle(text.universe)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Text(english ? "한" : "EN")
+                    .font(.subheadline.weight(.bold))
+                    .monospaced()
+                    .foregroundStyle(english ? Dancheong.jangdan : Dancheong.inkSoft)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .contentShape(Rectangle())
+                    // Éteindre : un tap. Allumer : un appui long.
+                    .onTapGesture {
+                        if english {
+                            withAnimation(.easeOut(duration: 0.2)) { english = false }
+                        } else {
+                            // On ne laisse pas le tap sans réponse : sinon on
+                            // croit le bouton cassé plutôt que protégé.
+                            withAnimation(.easeOut(duration: 0.15)) { hinting = true }
+                        }
+                    }
+                    .onLongPressGesture(minimumDuration: 0.5) {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            english = true
+                            hinting = false
+                        }
+                    }
+                    .accessibilityLabel(english ? "Show Korean" : "Hold to show English")
+            }
+        }
         // On lit : la barre d'onglets n'a rien à faire là. Elle sert à changer
         // de section, pas à meubler le bas de l'écran pendant qu'on est dedans.
         .toolbar(.hidden, for: .tabBar)
@@ -93,6 +138,22 @@ struct ReaderView: View {
             player.play(from: 0)
         }
         .onDisappear { player.pause() }
+        .overlay(alignment: .top) {
+            if hinting && !english {
+                Text("Hold to read it in English")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(Dancheong.ink.opacity(0.9), in: Capsule())
+                    .padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .task {
+                        try? await Task.sleep(for: .seconds(2))
+                        withAnimation(.easeOut(duration: 0.25)) { hinting = false }
+                    }
+            }
+        }
         .overlay {
             if let tapped {
                 WordCard(
@@ -163,6 +224,7 @@ struct ReaderView: View {
 
 private struct SentenceLine: View {
     let sentence: Day.Sentence
+    let english: Bool
     let isCurrent: Bool
     let wordIndex: Int
     let tint: Color
@@ -172,7 +234,18 @@ private struct SentenceLine: View {
 
     var body: some View {
         Group {
-            if let words = sentence.words, !words.isEmpty {
+            if english {
+                // En anglais on ne peut plus viser un mot : les repères
+                // temporels portent sur les 어절 coréens. La phrase reste
+                // tapable, donc la voix se déplace toujours.
+                Text(sentence.en)
+                    .font(.body)
+                    .lineSpacing(6)
+                    .foregroundStyle(Dancheong.inkSoft)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .onTapGesture { onTapSentence() }
+            } else if let words = sentence.words, !words.isEmpty {
                 // Une vue par mot : c'est ce qui permet de viser un mot du doigt.
                 // La disposition les coule comme un paragraphe, donc le texte se
                 // lit toujours comme du texte.

@@ -57,39 +57,39 @@ struct WordDetailView: View {
                         .padding(.top, 12)
                 }
 
-                Text("WHERE YOU MET IT")
-                    .font(.caption2.weight(.bold))
-                    .kerning(1.3)
-                    .foregroundStyle(Dancheong.inkSoft)
-                    .padding(.top, 38)
+                sectionTitle("WHERE YOU MET IT")
 
-                Text(word.context)
-                    .font(.body)
-                    .lineSpacing(7)
-                    .padding(.top, 10)
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(word.context)
+                        .font(.body)
+                        .lineSpacing(7)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                // On teste seulement qu'une piste est référencée, pas qu'elle
-                // est trouvable à l'instant du rendu : la vérification de
-                // présence se fait au moment de jouer. Sinon le bouton
-                // disparaît sur un détail de chemin et on ne sait pas pourquoi.
-                if word.contextAudio != nil {
-                    Button {
-                        guard let name = word.contextAudio,
-                              let url = Paths.audioFile(name) else { return }
-                        let item = AVPlayer(url: url)
-                        player = item
-                        item.play()
-                    } label: {
-                        Label("Hear it again", systemImage: "speaker.wave.2.fill")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 18)
-                            .padding(.vertical, 11)
-                            .background(tint, in: Capsule())
+                    // On teste seulement qu'une piste est référencée, pas
+                    // qu'elle est trouvable à l'instant du rendu : la
+                    // vérification se fait au moment de jouer. Sinon le bouton
+                    // disparaît sur un détail de chemin, sans explication.
+                    if word.contextAudio != nil {
+                        Button {
+                            guard let name = word.contextAudio,
+                                  let url = Paths.audioFile(name) else { return }
+                            let item = AVPlayer(url: url)
+                            player = item
+                            item.play()
+                        } label: {
+                            Label("Hear it again", systemImage: "speaker.wave.2.fill")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 18)
+                                .padding(.vertical, 11)
+                                .background(tint, in: Capsule())
+                        }
+                        .padding(.top, 16)
                     }
-                    .padding(.top, 18)
                 }
+                .padding(18)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Dancheong.paper, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
                 if let family = word.family, !family.isEmpty {
                     familySection(family)
@@ -104,7 +104,9 @@ struct WordDetailView: View {
             .padding(.bottom, 40)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(Dancheong.paper)
+        // Fond gris, blocs clairs : c'est ce contraste qui fait exister les
+        // sections. Sur un fond clair uniforme, un bloc clair ne se voit pas.
+        .background(Dancheong.ground)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
@@ -143,26 +145,27 @@ struct WordDetailView: View {
     private func familySection(_ family: [Day.Relative]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text("SAME ROOT")
-                    .font(.caption2.weight(.bold))
-                    .kerning(1.3)
-                    .foregroundStyle(Dancheong.inkSoft)
+                sectionTitle("SAME ROOT")
                 if let hanja = word.hanja {
                     Text(hanja)
                         .font(.callout.weight(.medium))
                         .foregroundStyle(tint)
                 }
+                Spacer(minLength: 0)
             }
 
             if let root = word.root, !root.isEmpty {
                 Text(root)
                     .font(.subheadline)
                     .foregroundStyle(Dancheong.inkSoft)
-                    .padding(.top, 4)
+                    .padding(.bottom, 12)
             }
 
+            // Un bloc encarté, comme les groupes de Réglages : le filet ne va
+            // pas jusqu'au bord, et la famille se lit comme une liste tenue
+            // ensemble plutôt que comme des lignes empilées.
             VStack(spacing: 0) {
-                ForEach(Array(family.enumerated()), id: \.offset) { _, relative in
+                ForEach(Array(family.enumerated()), id: \.offset) { i, relative in
                     HStack(alignment: .firstTextBaseline, spacing: 12) {
                         Text(relative.k)
                             .font(.body.weight(.medium))
@@ -177,13 +180,26 @@ struct WordDetailView: View {
                             .foregroundStyle(Dancheong.inkSoft)
                             .multilineTextAlignment(.trailing)
                     }
-                    .padding(.vertical, 9)
-                    Divider().opacity(0.5)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+
+                    if i < family.count - 1 {
+                        Divider().padding(.leading, 18)
+                    }
                 }
             }
-            .padding(.top, 10)
+            .background(Dancheong.paper, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
-        .padding(.top, 38)
+        .padding(.top, 34)
+    }
+
+    /// Le titre d'une section, dans la graisse et l'espacement des groupes iOS.
+    private func sectionTitle(_ text: String) -> some View {
+        Text(text)
+            .font(.caption2.weight(.bold))
+            .kerning(1.3)
+            .foregroundStyle(Dancheong.inkSoft)
+            .padding(.bottom, 10)
     }
 
     private static func keptLabel(_ date: Date) -> String {
