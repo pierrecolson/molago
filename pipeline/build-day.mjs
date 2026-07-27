@@ -22,7 +22,19 @@ import { fileURLToPath } from 'node:url'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
 
-const MODEL = 'openai/gpt-5.1'                    // decisions.md §32
+// Écrire du coréen qui sonne juste est la seule tâche qui justifie le modèle
+// cher (decisions.md §32). Tout le reste est mécanique — donner la forme de
+// dictionnaire de 파일로, lister les mots qui partagent 酒, nommer l'objet d'un
+// texte — et se fait très bien à un cinquième du prix.
+//
+// Mesuré avant le partage : 0,28 $ par texte, dont 0,20 $ pour le glossaire et
+// les familles seuls.
+const WRITER = 'openai/gpt-5.1'                   // decisions.md §32
+const CLERK = 'openai/gpt-5-mini'
+
+// Ce que la nuit a coûté, en dollars. On mesure au lieu d'estimer : l'écart
+// entre les deux a été d'un facteur vingt.
+const spent = { writer: 0, clerk: 0 }
 // Neural2 B plutôt que Chirp3-HD : à l'écoute comparée elle tient, et surtout
 // c'est la seule famille qui renvoie les repères temporels des marqueurs SSML.
 // Chirp3-HD accepte le balisage mais rend une liste vide — donc pas de
@@ -125,7 +137,7 @@ async function get(url, headers = {}, tries = 3) {
   throw new Error(`${last?.message || 'échec'} — ${url}`)
 }
 
-async function llm(prompt, { json = false } = {}) {
+async function llm(prompt, { json = false, model = WRITER, maxTokens = 8000 } = {}) {
   const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -144,6 +156,9 @@ async function llm(prompt, { json = false } = {}) {
   })
   const j = await r.json()
   if (!r.ok || j.error) throw new Error(j.error?.message || `HTTP ${r.status}`)
+  if (typeof j.usage?.cost === 'number') {
+    spent[model === WRITER ? 'writer' : 'clerk'] += j.usage.cost
+  }
   let out = (j.choices?.[0]?.message?.content || '').trim()
   if (!out) throw new Error('réponse vide')
   if (json) {
@@ -201,7 +216,7 @@ Classe-les du meilleur au moins bon. Si moins de trois titres passent le critèr
 // autant.
 async function chooseFrom(slot, items) {
   const shortlist = items.slice(0, 30)
-  const pick = await llm(CHOOSE(slot, shortlist), { json: true })
+  const pick = await llm(CHOOSE(slot, shortlist), { json: true, model: CLERK, maxTokens: 1000 })
   const idx = (pick.indexes || []).filter((i) => Number.isInteger(i) && i >= 0 && i < shortlist.length)
   if (!idx.length) return []
   log(`    choix : ${pick.why || ''}`)
@@ -438,7 +453,7 @@ async function attachIcons(sentences) {
   let objects = []
   try {
     const rows = [...wanted].map(([lemma, meaning]) => ({ lemma, meaning }))
-    const out = await llm(OBJECTS(rows), { json: true })
+    const out = await llm(OBJECTS(rows), { json: true, model: CLERK, maxTokens: 3000 })
     objects = (out.o || [])
       .filter((x) => rows[x.i] && typeof x.n === 'string' && x.n.trim())
       .map((x) => ({ lemma: rows[x.i].lemma, name: x.n.trim().toLowerCase() }))
@@ -506,7 +521,10 @@ Réponds en JSON : {"n":"the object"}`
 async function attachCover(text, sentences) {
   if (!env.THIINGS_API_KEY) return
   try {
-    const { n } = await llm(COVER(text.title, sentences.slice(0, 2).map((s) => s.en).join(' ')), { json: true })
+    const { n } = await llm(
+      COVER(text.title, sentences.slice(0, 2).map((s) => s.en).join(' ')),
+      { json: true, model: CLERK, maxTokens: 300 },
+    )
     const name = String(n || '').trim().toLowerCase()
     if (name.length < 3) return
 
@@ -560,16 +578,20 @@ Réponds en JSON :
 /// les jours, sont le même bloc que le mot sur lequel on séchait. C'est là que
 /// le rangement mental se fait (spec §5.3).
 async function attachRoots(sentences) {
+  // Seulement les noms, et pas plus de quarante. On produisait cent cinquante
+  // familles par nuit pour que l'utilisateur en voie cinq — celles des mots
+  // qu'il garde. Les verbes sino-coréens sont presque tous des noms + 하다,
+  // donc la famille du nom les couvre déjà.
   const lemmas = [...new Set(
     sentences.flatMap((s) => s.words ?? [])
-      .filter((w) => (w.pos === 'noun' || w.pos === 'verb') && w.lemma)
+      .filter((w) => w.pos === 'noun' && w.lemma && w.lemma.length >= 2)
       .map((w) => w.lemma),
-  )]
+  )].slice(0, 40)
   if (!lemmas.length) return 0
 
   let found = 0
   try {
-    const out = await llm(ROOTS(lemmas), { json: true })
+    const out = await llm(ROOTS(lemmas), { json: true, model: CLERK, maxTokens: 12000 })
     const byLemma = new Map()
     for (const r of out.r || []) {
       const lemma = lemmas[r.i]
@@ -650,7 +672,7 @@ async function buildText(slot, date, used, outDir) {
     throw new Error(`trop long après resserrage (${count(korean)} 어절)`)
   }
 
-  const split = await llm(SPLIT(korean), { json: true })
+  const split = await llm(SPLIT(korean), { json: true, model: CLERK, maxTokens: 12000 })
   const sentences = (split.sentences || []).filter((s) => s?.ko?.trim() && s?.en?.trim())
   // Trop peu : le texte est tronqué. Trop : le modèle a écrit un script de
   // dialogue au lieu d'un récit, et chaque réplique deviendrait une piste audio.
@@ -677,7 +699,7 @@ async function buildText(slot, date, used, outDir) {
   const allWords = sentences.flatMap((s) => (s.words ?? []).map((w) => w.w))
   if (allWords.length) {
     try {
-      const g = await llm(GLOSS(allWords), { json: true })
+      const g = await llm(GLOSS(allWords), { json: true, model: CLERK, maxTokens: 24000 })
       const byIndex = new Map((g.g || []).map((x) => [x.i, x]))
       let matched = 0, cursor = 0
       for (const sentence of sentences) {
@@ -760,10 +782,12 @@ for (const slot of SLOTS) {
 if (!texts.length) { console.error('✕ aucun texte produit — rien n\'est publié.'); process.exit(1) }
 
 // Écriture atomique : l'app ne peut jamais lire un fichier à moitié écrit.
-const day = { date, generatedAt: new Date().toISOString(), model: MODEL, voice: VOICE, texts }
+const day = { date, generatedAt: new Date().toISOString(), model: WRITER, voice: VOICE, texts }
 const final = join(outDir, `${date}.json`)
 writeFileSync(`${final}.tmp`, JSON.stringify(day, null, 2))
 renameSync(`${final}.tmp`, final)
 
+const total = spent.writer + spent.clerk
 log(`✓ ${texts.length}/${SLOTS.length} textes · ${((Date.now() - t0) / 1000).toFixed(0)} s`)
+log(`  coût : ${total.toFixed(3)} $ (écriture ${spent.writer.toFixed(3)} · reste ${spent.clerk.toFixed(3)}) → ${(total * 30).toFixed(2)} $/mois`)
 log(`  ${final}\n`)
