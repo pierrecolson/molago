@@ -11,10 +11,9 @@
 // Sortie : <out>/<date>.json  ·  <out>/audio/<date>-<slot>-<nn>.mp3
 //
 // Ce qui n'est PAS encore là, et pourquoi :
-//   · contrôle de niveau (Kiwi)  → M2 : il n'y a pas encore de profil de
-//     vocabulaire à comparer, donc rien à contrôler.
-//   · glossaire et mots tappables → M2 : personne ne tape encore de mot.
-//   · quiz                        → M3.
+//   · contrôle de niveau (Kiwi)  → il n'y a pas encore de profil de vocabulaire
+//     à comparer, ni de liste de fréquence coréenne sous la main.
+//   · quiz                        → M4, dernier jalon.
 
 import { writeFileSync, mkdirSync, existsSync, readFileSync, renameSync } from 'node:fs'
 import { join, dirname } from 'node:path'
@@ -40,6 +39,15 @@ const MAX_EOJEOL = 380
 // valeur fausse ici fait mentir le contrat de durée — vérifiée à l'oreille et
 // recoupée plus bas avec les repères SSML.
 const MP3_KBPS = 64
+
+// L'API Thiings tourne sur la même machine : 9 000 icônes 3D, interrogeables en
+// local. On ne présélectionne donc rien — l'icône d'un mot est résolue le jour
+// où le mot apparaît, et copiée dans un dossier PARTAGÉ : le mot est global,
+// son icône aussi (decisions.md §37). Résolue une fois, servie à tout le monde.
+// Lu au moment de s'en servir, pas ici : `env` est construit plus bas, et une
+// constante qui l'utilise trop tôt fait planter le module au chargement.
+const thiingsURL = () => env.THIINGS_URL || 'http://host.docker.internal:3088'
+const ICONS_OUT = '/icons-out'
 
 // Trois univers, trois couches de langue. C'est l'écart entre ces couches qui
 // fait plafonner les résidents de longue durée (spec §8.2).
@@ -128,7 +136,9 @@ async function llm(prompt, { json = false } = {}) {
     body: JSON.stringify({
       model: MODEL,
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: 8000,
+      // Le glossaire rend une entrée par 어절, soit ~330 objets pour un texte :
+      // à 8000 la réponse était tronquée en plein tableau.
+      max_tokens: 32000,
       ...(json ? { response_format: { type: 'json_object' } } : {}),
     }),
   })
@@ -298,6 +308,25 @@ Garde les faits essentiels et abandonne franchement les détails secondaires —
 
 Réponds UNIQUEMENT avec le texte coréen réécrit.`
 
+// L'étape 7 de la spec : rendre chaque mot tappable.
+//
+// Le glossaire se greffe sur le découpage en 어절 que les repères SSML ont déjà
+// produit — une seule structure, deux usages. On demande le lemme parce que
+// c'est lui qu'on cherche dans un dictionnaire : taper 관리비를 doit donner
+// 관리비, pas la forme fléchie avec sa particule.
+const GLOSS = (words) => `Voici les 어절 d'un texte coréen, numérotés. Pour chacun, donne sa forme de dictionnaire et son sens.
+
+${words.map((w, i) => `${i}. ${w}`).join('\n')}
+
+Réponds en JSON strict :
+{"g":[{"i":0,"s":"le 어절 tel qu'il apparaît ci-dessus","l":"la forme de dictionnaire","p":"noun|verb|adjective|adverb|particle|number|name|other","e":"le sens en anglais, court"}]}
+
+Règles :
+- **Un objet par 어절, tous, dans l'ordre, sans en sauter.** Recopie \`s\` à l'identique : c'est ce qui permet de vérifier l'alignement.
+- \`l\` est la forme qu'on chercherait dans un dictionnaire : 관리비를 → 관리비, 올랐어요 → 오르다, 갔습니다 → 가다.
+- \`e\` fait deux à six mots. Le sens **dans cette phrase**, pas la liste des sens possibles.
+- Pour une particule ou un mot grammatical, \`e\` explique sa fonction : 를 → "object marker".`
+
 const SPLIT = (ko) => `Voici un texte coréen. Découpe-le en phrases, traduis chaque phrase en anglais, et propose un titre en anglais pour l'ensemble.
 
 TEXTE
@@ -358,6 +387,107 @@ async function speak(text) {
   }
 }
 
+// ── icônes ───────────────────────────────────────────────────────────────────
+
+/// Les icônes dont le titre correspond **exactement** à l'un des sens du mot.
+///
+/// Rien de plus souple : mesuré sur une journée réelle, une correspondance par
+/// tête de groupe nominal donne « sur la base de » → *Deck of Tarot Cards* et
+/// « ligne de commande » → *Bus Terminal*. La règle de la spec est nette —
+/// **pas d'icône plutôt qu'une icône fausse** — parce qu'une image approximative
+/// installe une association fausse, ce qui est pire que la tuile typographique
+/// affichée à défaut.
+async function iconCandidates(meaning) {
+  const alternatives = meaning.split(',')
+    .map((a) => a.trim().toLowerCase().replace(/^(a|an|the|to)\s+/, ''))
+    .filter((a) => a.length >= 3)
+
+  for (const alt of alternatives) {
+    const r = await fetch(`${thiingsURL()}/icons?search=${encodeURIComponent(alt)}&limit=20`, {
+      headers: { authorization: `Bearer ${env.THIINGS_API_KEY}` },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!r.ok) continue
+    const body = await r.json()
+    const items = Array.isArray(body) ? body : (body.icons || body.data || [])
+    const exact = items.find((i) => String(i.title || '').toLowerCase() === alt)
+    if (exact) return { slug: exact.slug, title: exact.title, matched: alt }
+  }
+  return null
+}
+
+const VET = (candidates) => `Voici des mots coréens et l'icône 3D qu'on envisage de leur associer dans un carnet de vocabulaire.
+
+${candidates.map((c, i) => `${i}. ${c.lemma} (« ${c.meaning} ») → icône intitulée « ${c.title} »`).join('\n')}
+
+Pour chacune, dis si l'icône représente bien la chose que le mot désigne **dans ce sens-là**.
+
+Le piège est l'homonymie anglaise : « running » l'exécution d'un programme n'est pas « running » quelqu'un qui court ; « level » un palier n'est pas un niveau à bulle. Dans le doute, refuse.
+
+Une icône fausse est pire que pas d'icône du tout : elle installe une association erronée dans la mémoire de quelqu'un qui apprend la langue.
+
+Réponds en JSON : {"ok":[les numéros des icônes justes]}`
+
+/// Résout les icônes des noms d'un texte et les dépose dans le dossier partagé.
+///
+/// Seuls les **noms** en reçoivent une : un verbe ou un adverbe n'a pas d'objet
+/// à montrer. La correspondance exacte réduit les candidats à une poignée, et un
+/// modèle tranche l'homonymie que la chaîne de caractères ne peut pas voir.
+async function attachIcons(sentences) {
+  if (!env.THIINGS_API_KEY) return 0
+
+  const wanted = new Map()
+  for (const s of sentences) {
+    for (const w of s.words ?? []) {
+      if (w.pos === 'noun' && w.en && w.lemma && !wanted.has(w.lemma)) wanted.set(w.lemma, w.en)
+    }
+  }
+
+  const candidates = []
+  for (const [lemma, meaning] of wanted) {
+    try {
+      const hit = await iconCandidates(meaning)
+      if (hit) candidates.push({ lemma, meaning: hit.matched, ...hit })
+    } catch { /* mot suivant */ }
+  }
+  if (!candidates.length) return 0
+
+  // Le tri par le modèle. Une poignée de candidats, donc un seul appel.
+  let keep = candidates
+  try {
+    const verdict = await llm(VET(candidates), { json: true })
+    const ok = new Set((verdict.ok || []).filter(Number.isInteger))
+    keep = candidates.filter((_, i) => ok.has(i))
+  } catch {
+    // Sans arbitrage, on ne pose rien : le doute profite à la tuile
+    // typographique, jamais à une image peut-être fausse.
+    return 0
+  }
+
+  for (const c of keep) {
+    // Déjà sur le disque partagé ? Une icône ne change jamais, et un autre texte
+    // — ou un autre utilisateur — l'a peut-être déjà fait venir.
+    const dest = join(ICONS_OUT, `${c.slug}.png`)
+    if (!existsSync(dest)) {
+      try {
+        const img = await fetch(`${thiingsURL()}/icons/${c.slug}/image?size=256`, {
+          headers: { authorization: `Bearer ${env.THIINGS_API_KEY}` },
+          signal: AbortSignal.timeout(15000),
+        })
+        if (img.ok) writeFileSync(dest, Buffer.from(await img.arrayBuffer()))
+        else continue
+      } catch { continue }
+    }
+    for (const s of sentences) {
+      for (const w of s.words ?? []) {
+        if (w.lemma === c.lemma) w.icon = c.slug
+      }
+    }
+  }
+  log(`    icônes    : ${keep.length} retenues sur ${candidates.length} candidates (${wanted.size} noms)`)
+  return keep.length
+}
+
 // ── un texte, de bout en bout ────────────────────────────────────────────────
 
 async function buildText(slot, date, used, outDir) {
@@ -413,6 +543,41 @@ async function buildText(slot, date, used, outDir) {
     s.audio = `audio/${file}`
     if (words) s.words = words
     bytes += buf.length
+  }
+
+  // Le glossaire : un appel pour tout le texte, aligné sur le découpage en
+  // 어절 déjà fait pour les repères. Un mot sans glose reste lisible, il n'est
+  // simplement pas tappable — mieux que de publier une traduction fausse.
+  const allWords = sentences.flatMap((s) => (s.words ?? []).map((w) => w.w))
+  if (allWords.length) {
+    try {
+      const g = await llm(GLOSS(allWords), { json: true })
+      const byIndex = new Map((g.g || []).map((x) => [x.i, x]))
+      let matched = 0, cursor = 0
+      for (const sentence of sentences) {
+        for (const word of sentence.words ?? []) {
+          const entry = byIndex.get(cursor)
+          // On ne fait confiance qu'aux entrées dont la forme correspond :
+          // un glossaire décalé d'un cran donnerait à chaque mot le sens du
+          // voisin, et l'utilisateur apprendrait faux sans jamais s'en douter.
+          if (entry && entry.s === word.w) {
+            word.lemma = entry.l
+            word.pos = entry.p
+            word.en = entry.e
+            matched++
+          }
+          cursor++
+        }
+      }
+      log(`    glossaire : ${matched}/${allWords.length} mots`)
+      try {
+        await attachIcons(sentences)
+      } catch (e) {
+        log(`    ⚠ icônes indisponibles (${e.message.slice(0, 40)})`)
+      }
+    } catch (e) {
+      log(`    ⚠ glossaire indisponible (${e.message.slice(0, 40)}) — les mots ne seront pas tappables`)
+    }
   }
 
   // La durée annoncée vient du son réel, pas d'une estimation au nombre de mots.

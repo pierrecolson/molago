@@ -57,7 +57,7 @@ Outillage réutilisable le jour où on changera de modèle ou de voix :
 | Extension de partage iOS · Centre de contrôle · bouton Action | ❌ | Trois cibles Xcode et du provisioning en plus. Le bouton central suffit d'abord. |
 | Analyse morphologique Kiwi | ✅ **Gardée** | C'est le mécanisme unique du produit (P2), et c'est `pip install kiwipiepy` plus trente lignes. On ne coupe pas ce qui est à la fois porteur et bon marché. |
 | Capture photo + OCR | ✅ **Gardée** | C'est la boucle qui rend le slot 3 vrai. Vision est natif : ~20 lignes. |
-| Quiz (3 questions) | ✅ **Gardé** | P5 : « lire seul ne suffit pas ». Sans quiz, le produit n'est plus qu'un lecteur. |
+| Quiz (3 questions) | ✅ **Gardé, en dernier (M4)** | P5 : « lire seul ne suffit pas ». Sans quiz, le produit n'est plus qu'un lecteur — mais il fonctionne déjà sans, donc il passe après la capture. |
 
 ---
 
@@ -187,12 +187,18 @@ Chaque jalon se termine par quelque chose à ouvrir sur le téléphone.
 
 | # | Jalon | Ce qu'on peut tester | Taille |
 |---|---|---|---|
-| ~~**M0**~~ | ~~**L'essai à l'aveugle**~~ | ✅ **Fait le 27/07/2026.** GPT-5.1 pour générer, Google Chirp3-HD pour la voix, étape 6 supprimée. Coût : 0,60 €. | ~~½ session~~ |
-| **M1** | **Trois textes, lus à voix haute** | Le matin, trois cartes ; on en tape une, le texte s'affiche, la voix démarre, la phrase se surligne. Pas de tap sur les mots, pas de quiz, pas de notebook. **C'est déjà le produit.** | 2–3 sessions |
-| **M2** | **Taper un mot** | Carte flottante, `Keep` / `I knew this`, le Notebook se remplit — **avec les icônes Thiings**. Le moteur commence à apprendre de tes taps. | 1–2 sessions |
-| **M2b** | **Les 240 icônes** | Le script de correspondance tourne sur les 9 000, sort une liste de candidats ; tu valides à l'œil (attention aux `$` et enseignes anglaises incrustés dans les modèles 3D), on embarque le catalogue. | ½ session + 2 h à toi |
-| **M3** | **Le quiz** | 90 secondes après la lecture, trois questions tirées du texte. P5 est satisfait. | 1 session |
-| **M4** | **La capture** | Photo d'une facture → mots inconnus surlignés → tri au swipe → le lendemain, le slot 3 parle de ça. **La boucle se ferme.** | 2 sessions |
+| ~~**M0**~~ | ~~**L'essai à l'aveugle**~~ | ✅ **Fait le 27/07/2026.** GPT-5.1 pour générer, Google Neural2 B pour la voix, étape 6 supprimée. | ~~½ session~~ |
+| ~~**M1**~~ | ~~**Trois textes, lus à voix haute**~~ | ✅ **Fait le 27/07/2026.** Fabrique nocturne sur le VPS, Library, lecteur, surlignage phrase **et** mot, notification du matin. | ~~2–3 sessions~~ |
+| **M2** | **Taper un mot** | Carte flottante, `Keep` / `I knew this`, le Notebook se remplit. Le moteur commence à apprendre de tes taps. | 2 sessions |
+| **M2b** | **Les 240 icônes** | Le script de correspondance tourne sur les 9 000, tu valides à l'œil, on embarque le catalogue. | ½ session + 2 h à toi |
+| **M3** | **La capture** | Photo d'une facture → mots inconnus surlignés → tri au swipe → le lendemain, le slot 3 parle de ça. **La boucle se ferme.** | 2 sessions |
+| **M4** | **Le quiz** | 90 secondes après la lecture, trois questions tirées du texte. P5 est satisfait. | 1 session |
+
+**Pourquoi la capture avant le quiz.** L'ordre a été inversé le 27 juillet 2026. La
+capture est ce qui rend le slot 3 *vrai* — sans elle il tourne indéfiniment sur un fonds
+de situations d'expat, et la boucle qui distingue Molago de n'importe quel lecteur reste
+ouverte. Le quiz, lui, ajoute de l'effort à un produit qui fonctionne déjà sans : il vient
+en dernier.
 
 **M1 est le vrai MVP.** Si après deux semaines de M1 tu n'ouvres pas l'app le matin, ni le
 quiz ni la capture n'y changeront rien — et on l'aura su avant de les construire.

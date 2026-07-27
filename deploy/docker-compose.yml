@@ -58,8 +58,15 @@ services:
       # qui c'est et n'a pas à le savoir : le jour où ils seront plusieurs, on
       # la lancera une fois par profil, sans rien changer à ce qu'elle fait.
       - ./data/u/${MOLAGO_USER_ID:-${MOLAGO_SECRET_PATH}}:/out
+      # Les icônes vivent hors du dossier de l'utilisateur : elles appartiennent
+      # aux mots, pas aux comptes (decisions.md §37).
+      - ./data/icons:/icons-out
     networks:
       - n8n_default
+    # L'API Thiings publie sur le port 3088 de l'hôte sans être sur ce réseau :
+    # on passe donc par la passerelle plutôt que de toucher à sa stack.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 networks:
   n8n_default:

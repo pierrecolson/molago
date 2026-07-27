@@ -45,9 +45,21 @@ rsync -az \
 step "Envoi de la configuration"
 # Les clés voyagent par stdin plutôt que par la ligne de commande : un argument
 # de commande se retrouve dans les logs et dans `ps`.
-grep -E '^(OPENROUTER_API_KEY|GOOGLE_TTS_API_KEY|MOLAGO_USER_ID|MOLAGO_SECRET_PATH)=' "$LOCAL/.env" \
+grep -E '^(OPENROUTER_API_KEY|GOOGLE_TTS_API_KEY|MOLAGO_USER_ID|MOLAGO_SECRET_PATH|THIINGS_API_KEY|THIINGS_URL)=' "$LOCAL/.env" \
   | ssh "$VPS" "cat > $REMOTE/.env && chmod 600 $REMOTE/.env"
 echo "  .env déposé (600)"
+
+# La clé de l'API Thiings est déjà sur le serveur, dans le conteneur qui tourne.
+# On l'y prend plutôt que de la faire transiter par une machine de développement
+# ou par le dépôt : elle ne quitte jamais le VPS.
+ssh "$VPS" '
+  KEY=$(docker inspect thiings-api --format "{{range .Config.Env}}{{println .}}{{end}}" 2>/dev/null | grep "^API_KEY=" | cut -d= -f2-)
+  if [ -n "$KEY" ] && ! grep -q "^THIINGS_API_KEY=" '"$REMOTE"'/.env; then
+    printf "THIINGS_API_KEY=%s\n" "$KEY" >> '"$REMOTE"'/.env
+    echo "  clé Thiings reprise du conteneur voisin"
+  fi
+  mkdir -p '"$REMOTE"'/data/icons
+'
 
 step "Serveur de fichiers"
 ssh "$VPS" "cd $REMOTE && docker compose up -d files"
