@@ -167,13 +167,21 @@ struct IconTile: View {
     let slot: String
     var size: CGFloat = 40
 
+    /// Chargée dans une tâche plutôt qu'au rendu.
+    ///
+    /// L'icône peut arriver après le premier affichage — le téléchargement suit
+    /// celui de la journée. Une lecture faite pendant le calcul de la vue ne
+    /// serait jamais refaite, et la tuile resterait typographique jusqu'au
+    /// prochain lancement.
+    @State private var loaded: UIImage?
+
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
-                .fill(icon == nil ? Dancheong.universe(slot).color : Dancheong.highlight(slot))
+                .fill(loaded == nil ? Dancheong.universe(slot).color : Dancheong.highlight(slot))
 
-            if let icon, let url = Paths.icon(icon), let image = UIImage(contentsOfFile: url.path()) {
-                Image(uiImage: image)
+            if let loaded {
+                Image(uiImage: loaded)
                     .resizable()
                     .scaledToFit()
                     .padding(size * 0.1)
@@ -184,5 +192,15 @@ struct IconTile: View {
             }
         }
         .frame(width: size, height: size)
+        .task(id: icon) {
+            guard let icon else { loaded = nil; return }
+            let url = Paths.icons.appending(path: "\(icon).png")
+            if let data = try? Data(contentsOf: url) {
+                loaded = UIImage(data: data)
+            } else {
+                print("[molago] icône introuvable : \(url.path())")
+                loaded = nil
+            }
+        }
     }
 }

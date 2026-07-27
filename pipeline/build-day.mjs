@@ -324,8 +324,9 @@ Réponds en JSON strict :
 Règles :
 - **Un objet par 어절, tous, dans l'ordre, sans en sauter.** Recopie \`s\` à l'identique : c'est ce qui permet de vérifier l'alignement.
 - \`l\` est la forme qu'on chercherait dans un dictionnaire : 관리비를 → 관리비, 올랐어요 → 오르다, 갔습니다 → 가다.
-- \`e\` fait deux à six mots. Le sens **dans cette phrase**, pas la liste des sens possibles.
-- Pour une particule ou un mot grammatical, \`e\` explique sa fonction : 를 → "object marker".`
+- \`e\` est le sens de **\`l\`**, la forme de dictionnaire — jamais celui de la forme fléchie. 소주랑 donne \`l\`: 소주, \`e\`: "soju" et non "soju and" ; 파일들과 donne "file" et non "files and" ; 버튼이 donne "button" et non "button as subject". La particule ne fait pas partie du mot et n'a rien à faire dans sa traduction.
+- Deux à cinq mots. Le sens qu'a ce mot **dans cette phrase** quand il en a plusieurs, mais le sens du mot, pas celui du groupe.
+- Quand le 어절 est lui-même une particule ou un mot grammatical isolé, \`e\` explique alors sa fonction : 를 → "object marker".`
 
 const SPLIT = (ko) => `Voici un texte coréen. Découpe-le en phrases, traduis chaque phrase en anglais, et propose un titre en anglais pour l'ensemble.
 
@@ -389,50 +390,40 @@ async function speak(text) {
 
 // ── icônes ───────────────────────────────────────────────────────────────────
 
-/// Les icônes plausibles pour un sens, sans trancher.
-///
-/// On cherche large et on ne décide rien ici : une correspondance de titre
-/// exacte ne rapportait qu'une poignée d'icônes par journée, et une
-/// correspondance souple donnait « sur la base de » → *Deck of Tarot Cards*.
-/// La chaîne de caractères propose, le modèle dispose (voir `PICK`).
-async function iconCandidates(meaning) {
-  const queries = meaning.split(',')
-    .map((a) => a.trim().toLowerCase().replace(/^(a|an|the|to)\s+/, ''))
-    .filter((a) => a.length >= 3)
-    .slice(0, 2)
+// La question n'est pas « quelle icône ressemble à ce sens ? » mais
+// « ce mot désigne-t-il un objet, et lequel ? ».
+//
+// L'ordre inverse a été essayé deux fois et échoue toujours de la même façon :
+// on cherche l'icône à partir du sens anglais, puis on demande au modèle de
+// valider. Il valide alors des homonymes — 목표 « objectif » devient un but de
+// football, 플랫폼 « plateforme logicielle » un quai de gare, 권력 « pouvoir »
+// une centrale nucléaire. Devant une liste de titres qui contiennent tous le
+// bon mot anglais, le réflexe de refus s'éteint.
+//
+// En demandant d'abord **quel objet le mot désigne**, l'homonymie disparaît :
+// un mot abstrait n'a pas d'objet, le modèle le dit, et rien n'est cherché.
+const OBJECTS = (lemmas) => `Voici des noms coréens avec leur sens. Pour chacun, dis s'il désigne un **objet physique qu'on pourrait poser sur une table ou photographier**.
 
-  const seen = new Map()
-  for (const q of queries) {
-    try {
-      const r = await fetch(`${thiingsURL()}/icons?search=${encodeURIComponent(q)}&limit=8`, {
-        headers: { authorization: `Bearer ${env.THIINGS_API_KEY}` },
-        signal: AbortSignal.timeout(8000),
-      })
-      if (!r.ok) continue
-      const body = await r.json()
-      const items = Array.isArray(body) ? body : (body.icons || body.data || [])
-      for (const i of items) if (i.slug && !seen.has(i.slug)) seen.set(i.slug, i.title)
-    } catch { /* requête suivante */ }
-  }
-  return [...seen].slice(0, 8).map(([slug, title]) => ({ slug, title }))
-}
+${lemmas.map((l, i) => `${i}. ${l.lemma} — ${l.meaning}`).join('\n')}
 
-const PICK = (rows) => `Pour chaque mot coréen, choisis parmi les icônes proposées **celle qui représente la chose que le mot désigne**, ou aucune.
+Si oui, nomme cet objet en un ou deux mots anglais, comme on l'étiquetterait dans une bibliothèque d'icônes 3D d'objets du quotidien.
 
-${rows.map((r, i) => `${i}. ${r.lemma} (« ${r.meaning} »)\n   ${r.candidates.map((c, j) => `${j}) ${c.title}`).join('  ')}`).join('\n')}
+Réponds « non » pour tout le reste, et le reste est la majorité :
+- les idées, relations, quantités, processus, qualités (objectif, pouvoir, échelle, exécution, ambiance)
+- les termes techniques abstraits (plateforme, type, ligne de traitement, version)
+- les actions, les états, les périodes
+- les institutions et les concepts juridiques ou administratifs
 
-Le piège est l'homonymie anglaise : « running » l'exécution d'un programme n'est pas « running » quelqu'un qui court ; « level » un palier n'est pas un niveau à bulle ; « terminal » une ligne de commande n'est pas une gare routière.
+Ne te laisse jamais guider par le mot anglais du sens : « platform » la plateforme logicielle n'est pas un quai, « goal » l'objectif n'est pas un but de football, « scale » l'échelle n'est pas une balance. Si l'objet ne se photographie pas, la réponse est non.
 
-Un mot abstrait — une idée, une relation, une quantité — n'a pas d'objet à montrer : réponds « aucune ». Une icône fausse installe une association erronée dans la mémoire de quelqu'un qui apprend, ce qui est pire que pas d'icône du tout. Dans le doute, refuse.
-
-Réponds en JSON : {"p":[{"i":<numéro du mot>,"c":<numéro de l'icône choisie>}]}
-N'inclus que les mots pour lesquels une icône convient vraiment.`
+Réponds en JSON : {"o":[{"i":<numéro>,"n":"the object in one or two words"}]}
+N'inclus que les mots qui désignent vraiment un objet.`
 
 /// Résout les icônes des noms d'un texte et les dépose dans le dossier partagé.
 ///
-/// Seuls les **noms** en reçoivent une : un verbe ou un adverbe n'a pas d'objet
-/// à montrer, et lui en coller un serait exactement l'association fausse qu'on
-/// veut éviter.
+/// Deux temps : le modèle nomme l'objet quand il y en a un, puis on vérifie que
+/// la bibliothèque a une icône **portant exactement ce nom**. La chaîne de
+/// caractères ne fait plus que confirmer, elle ne propose plus rien.
 async function attachIcons(sentences) {
   if (!env.THIINGS_API_KEY) return 0
 
@@ -442,35 +433,41 @@ async function attachIcons(sentences) {
       if (w.pos === 'noun' && w.en && w.lemma && !wanted.has(w.lemma)) wanted.set(w.lemma, w.en)
     }
   }
+  if (!wanted.size) return 0
 
-  // Par paquets plutôt qu'un par un : soixante-quinze noms qui interrogent
-  // l'API chacun leur tour ajoutaient plusieurs minutes à chaque texte. Huit à
-  // la fois, sur une API qui tourne sur la même machine, ne la gêne pas.
-  const entries = [...wanted]
-  const rows = []
-  for (let i = 0; i < entries.length; i += 8) {
-    const batch = await Promise.all(
-      entries.slice(i, i + 8).map(async ([lemma, meaning]) => ({
-        lemma, meaning, candidates: await iconCandidates(meaning).catch(() => []),
-      })),
-    )
-    rows.push(...batch.filter((r) => r.candidates.length))
-  }
-  if (!rows.length) return 0
-
-  let chosen = []
+  let objects = []
   try {
-    const verdict = await llm(PICK(rows), { json: true })
-    chosen = (verdict.p || [])
-      .filter((x) => rows[x.i] && rows[x.i].candidates[x.c])
-      .map((x) => ({ lemma: rows[x.i].lemma, ...rows[x.i].candidates[x.c] }))
+    const rows = [...wanted].map(([lemma, meaning]) => ({ lemma, meaning }))
+    const out = await llm(OBJECTS(rows), { json: true })
+    objects = (out.o || [])
+      .filter((x) => rows[x.i] && typeof x.n === 'string' && x.n.trim())
+      .map((x) => ({ lemma: rows[x.i].lemma, name: x.n.trim().toLowerCase() }))
   } catch {
-    // Sans arbitrage, on ne pose rien : le doute profite à la tuile
-    // typographique, jamais à une image peut-être fausse.
     return 0
   }
+  if (!objects.length) return 0
 
-  for (const c of chosen) {
+  const found = []
+  for (let i = 0; i < objects.length; i += 8) {
+    const batch = await Promise.all(objects.slice(i, i + 8).map(async (o) => {
+      try {
+        const r = await fetch(`${thiingsURL()}/icons?search=${encodeURIComponent(o.name)}&limit=20`, {
+          headers: { authorization: `Bearer ${env.THIINGS_API_KEY}` },
+          signal: AbortSignal.timeout(8000),
+        })
+        if (!r.ok) return null
+        const body = await r.json()
+        const items = Array.isArray(body) ? body : (body.icons || body.data || [])
+        // Titre identique, rien d'autre. « receipt » doit trouver « Receipt »,
+        // pas « Receipt Printer » et surtout pas « Shoebill ».
+        const exact = items.find((x) => String(x.title || '').toLowerCase() === o.name)
+        return exact ? { lemma: o.lemma, slug: exact.slug } : null
+      } catch { return null }
+    }))
+    found.push(...batch.filter(Boolean))
+  }
+
+  for (const c of found) {
     const dest = join(ICONS_OUT, `${c.slug}.png`)
     if (!existsSync(dest)) {
       try {
@@ -486,8 +483,8 @@ async function attachIcons(sentences) {
       for (const w of s.words ?? []) if (w.lemma === c.lemma) w.icon = c.slug
     }
   }
-  log(`    icônes    : ${chosen.length} retenues sur ${rows.length} proposées (${wanted.size} noms)`)
-  return chosen.length
+  log(`    icônes    : ${found.length} posées · ${objects.length} objets nommés sur ${wanted.size} noms`)
+  return found.length
 }
 
 // ── famille de racine ────────────────────────────────────────────────────────
@@ -544,6 +541,10 @@ async function attachRoots(sentences) {
 async function buildText(slot, date, used, outDir) {
   let korean
   let source = null
+  // L'article complet est gardé sous la main : le repli en cas de resserrage
+  // impossible réécrit depuis la source, et il lui faut le texte, pas
+  // seulement le titre et l'adresse.
+  let article = null
   if (slot.situations) {
     // Pas de hasard non reproductible : la situation dérive de la date, donc
     // relancer la même journée redonne la même scène (idempotence, spec §9).
@@ -554,6 +555,7 @@ async function buildText(slot, date, used, outDir) {
     const a = slot.hackerNews ? await pickHackerNews(slot, used) : await pickArticle(slot, used)
     if (!a) throw new Error('aucun sujet retenu')
     used.add(a.url)
+    article = a
     source = { title: a.title, url: a.url }
     log(`    source : ${a.title.slice(0, 58)}`)
     korean = await llm(FROM_ARTICLE(slot, a))
@@ -567,8 +569,18 @@ async function buildText(slot, date, used, outDir) {
   // Un modèle ne resserre que d'environ 10 % par passage : une seule tentative
   // ne suffit jamais quand il a débordé de moitié. On boucle, et on abandonne
   // le slot plutôt que de publier un texte qui ment sur sa durée (spec §12).
-  for (let i = 0; i < 3 && count(korean) > MAX_EOJEOL; i++) {
+  for (let i = 0; i < 2 && count(korean) > MAX_EOJEOL; i++) {
     korean = await llm(TRIM(korean))
+  }
+  // Le resserrage échoue parfois complètement — mesuré : 406 → 409 어절. Plutôt
+  // que de perdre un univers entier de la journée, on réécrit depuis la source
+  // avec une consigne plus serrée. Un créneau vide se voit ; un texte un peu
+  // plus court, non.
+  if (count(korean) > MAX_EOJEOL && article) {
+    log(`    resserrage sans effet (${count(korean)} 어절) — réécriture depuis la source`)
+    korean = await llm(
+      FROM_ARTICLE(slot, article).replace('en **16 à 20 phrases**', 'en **13 à 15 phrases**'),
+    )
   }
   if (count(korean) !== before) log(`    longueur : ${before} → ${count(korean)} 어절`)
   if (count(korean) > MAX_EOJEOL) {
