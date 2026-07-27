@@ -19,6 +19,29 @@ final class SentencePlayer {
     private(set) var wordIndex: Int = -1
     private(set) var isPlaying: Bool = false
 
+    /// La vitesse de lecture, gardée d'un texte à l'autre.
+    ///
+    /// C'est un réglage de confort, pas un réglage de session : celui qui a
+    /// besoin de 0,8× en a besoin tous les matins. Les repères des mots restent
+    /// justes quel que soit le débit — ils sont exprimés dans le temps du
+    /// média, pas dans le temps réel.
+    var rate: Float = UserDefaults.standard.object(forKey: "molago.rate") as? Float ?? 1.0 {
+        didSet {
+            UserDefaults.standard.set(rate, forKey: "molago.rate")
+            player?.defaultRate = rate
+            if isPlaying { player?.rate = rate }
+        }
+    }
+
+    /// Les vitesses proposées. Cinq crans, pas un curseur : on choisit un débit,
+    /// on ne l'ajuste pas au centième.
+    static let rates: [Float] = [0.7, 0.85, 1.0, 1.15, 1.3]
+
+    func cycleRate() {
+        let i = Self.rates.firstIndex(of: rate) ?? 2
+        rate = Self.rates[(i + 1) % Self.rates.count]
+    }
+
     /// Les pistes du texte, une par phrase.
     let urls: [URL]
     /// Les instants de départ de chaque mot, phrase par phrase.
@@ -44,7 +67,9 @@ final class SentencePlayer {
         guard urls.indices.contains(start) else { return }
 
         if start == index, let player, player.currentItem != nil {
+            player.defaultRate = rate
             player.play()
+            player.rate = rate
             isPlaying = true
             return
         }
@@ -85,7 +110,9 @@ final class SentencePlayer {
         }
 
         player = queue
+        queue.defaultRate = rate
         queue.play()
+        queue.rate = rate
         isPlaying = true
     }
 

@@ -131,11 +131,10 @@ struct ReaderView: View {
         .toolbar(.hidden, for: .tabBar)
         .task {
             openCardForScreenshotIfAsked()
-            // La voix démarre à l'ouverture : on tape une carte, ça se met à
-            // parler. Rien à déclencher (spec §4.4).
-            guard !didStart else { return }
-            didStart = true
-            player.play(from: 0)
+            // La voix ne démarre plus toute seule. La spec §4.4 la voulait
+            // automatique, mais à l'usage c'est une agression : on ouvre parfois
+            // un texte pour le parcourir des yeux, dans un endroit où on ne veut
+            // pas de son. Le bouton est là, il ne réclame rien.
         }
         .onDisappear { player.pause() }
         .overlay(alignment: .top) {
@@ -294,6 +293,11 @@ private struct PlayerBar: View {
     let player: SentencePlayer
     let tint: Color
 
+    /// « 1× » et non « 1.0× » : le zéro n'apprend rien et allonge l'étiquette.
+    static func label(_ rate: Float) -> String {
+        rate == 1.0 ? "1×" : String(format: "%.2g×", rate)
+    }
+
     var body: some View {
         HStack(spacing: 14) {
             Button {
@@ -316,10 +320,19 @@ private struct PlayerBar: View {
             .tint(.white)
             .background(.white.opacity(0.25))
 
-            Text("1.0×")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.9))
-                .monospacedDigit()
+            // La vitesse était affichée sans être cliquable, ce qui est pire
+            // que de ne pas l'afficher : on croit pouvoir la changer.
+            Button {
+                player.cycleRate()
+            } label: {
+                Text(Self.label(player.rate))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .monospacedDigit()
+                    .frame(minWidth: 44, minHeight: 36)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Playback speed")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
