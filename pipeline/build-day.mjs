@@ -30,7 +30,12 @@ const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
 // Mesuré avant le partage : 0,28 $ par texte, dont 0,20 $ pour le glossaire et
 // les familles seuls.
 const WRITER = 'openai/gpt-5.1'                   // decisions.md §32
-const CLERK = 'openai/gpt-5-mini'
+// Un modèle **sans raisonnement**, et c'est le point. Mesuré sur quatre mots :
+// gpt-5-mini consomme 1 283 tokens de réflexion pour 500 caractères de réponse,
+// ce qui vide le plafond avant d'écrire et rend des réponses vides ou tronquées.
+// Celui-ci en consomme 161 pour le même travail, à un sixième du prix. Le
+// glossaire et les familles n'ont rien à réfléchir : ils recopient et traduisent.
+const CLERK = 'google/gemini-3.5-flash-lite'
 
 // Ce que la nuit a coûté, en dollars. On mesure au lieu d'estimer : l'écart
 // entre les deux a été d'un facteur vingt.
@@ -146,11 +151,13 @@ async function llm(prompt, { json = false, model = WRITER, maxTokens = 8000 } = 
       'x-title': 'Molago pipeline',
     },
     body: JSON.stringify({
-      model: MODEL,
+      model,
       messages: [{ role: 'user', content: prompt }],
-      // Le glossaire rend une entrée par 어절, soit ~330 objets pour un texte :
-      // à 8000 la réponse était tronquée en plein tableau.
-      max_tokens: 32000,
+      // Un plafond propre à chaque appel plutôt qu'un plafond unique très haut.
+      // Il n'augmente pas la facture — on paie ce qui est produit — mais
+      // OpenRouter réserve le crédit dessus, et un 32 000 partout empêchait de
+      // lancer quoi que ce soit dès que le solde baissait.
+      max_tokens: maxTokens,
       ...(json ? { response_format: { type: 'json_object' } } : {}),
     }),
   })
@@ -166,6 +173,22 @@ async function llm(prompt, { json = false, model = WRITER, maxTokens = 8000 } = 
     return JSON.parse(out.slice(out.indexOf('{'), out.lastIndexOf('}') + 1))
   }
   return out
+}
+
+/// Comme `llm`, mais retente une fois quand le JSON revient malformé.
+///
+/// Le modèle bon marché glisse parfois un guillemet typographique là où il
+/// faudrait un guillemet droit — `"s": “미토스` — et tout l'appel est perdu.
+/// C'est rare et sans motif, donc une seconde tentative suffit : elle coûte
+/// deux centimes et évite de perdre le glossaire d'un texte entier.
+async function llmJSON(prompt, options = {}) {
+  try {
+    return await llm(prompt, { ...options, json: true })
+  } catch (e) {
+    if (!(e instanceof SyntaxError)) throw e
+    log(`    ↻ JSON malformé, seconde tentative`)
+    return await llm(prompt, { ...options, json: true })
+  }
 }
 
 // ── source : un article coréen du jour ───────────────────────────────────────
@@ -216,7 +239,7 @@ Classe-les du meilleur au moins bon. Si moins de trois titres passent le critèr
 // autant.
 async function chooseFrom(slot, items) {
   const shortlist = items.slice(0, 30)
-  const pick = await llm(CHOOSE(slot, shortlist), { json: true, model: CLERK, maxTokens: 1000 })
+  const pick = await llmJSON(CHOOSE(slot, shortlist), { model: CLERK, maxTokens: 1000 })
   const idx = (pick.indexes || []).filter((i) => Number.isInteger(i) && i >= 0 && i < shortlist.length)
   if (!idx.length) return []
   log(`    choix : ${pick.why || ''}`)
@@ -453,7 +476,7 @@ async function attachIcons(sentences) {
   let objects = []
   try {
     const rows = [...wanted].map(([lemma, meaning]) => ({ lemma, meaning }))
-    const out = await llm(OBJECTS(rows), { json: true, model: CLERK, maxTokens: 3000 })
+    const out = await llmJSON(OBJECTS(rows), { model: CLERK, maxTokens: 3000 })
     objects = (out.o || [])
       .filter((x) => rows[x.i] && typeof x.n === 'string' && x.n.trim())
       .map((x) => ({ lemma: rows[x.i].lemma, name: x.n.trim().toLowerCase() }))
@@ -521,9 +544,9 @@ Réponds en JSON : {"n":"the object"}`
 async function attachCover(text, sentences) {
   if (!env.THIINGS_API_KEY) return
   try {
-    const { n } = await llm(
+    const { n } = await llmJSON(
       COVER(text.title, sentences.slice(0, 2).map((s) => s.en).join(' ')),
-      { json: true, model: CLERK, maxTokens: 300 },
+      { model: CLERK, maxTokens: 300 },
     )
     const name = String(n || '').trim().toLowerCase()
     if (name.length < 3) return
@@ -591,7 +614,7 @@ async function attachRoots(sentences) {
 
   let found = 0
   try {
-    const out = await llm(ROOTS(lemmas), { json: true, model: CLERK, maxTokens: 12000 })
+    const out = await llmJSON(ROOTS(lemmas), { model: CLERK, maxTokens: 12000 })
     const byLemma = new Map()
     for (const r of out.r || []) {
       const lemma = lemmas[r.i]
@@ -625,6 +648,7 @@ async function attachRoots(sentences) {
 
 async function buildText(slot, date, used, outDir) {
   let korean
+  let situation = null
   let source = null
   // L'article complet est gardé sous la main : le repli en cas de resserrage
   // impossible réécrit depuis la source, et il lui faut le texte, pas
@@ -634,8 +658,9 @@ async function buildText(slot, date, used, outDir) {
     // Pas de hasard non reproductible : la situation dérive de la date, donc
     // relancer la même journée redonne la même scène (idempotence, spec §9).
     const i = [...date].reduce((a, c) => a + c.charCodeAt(0), 0) % SITUATIONS.length
-    log(`    situation : ${SITUATIONS[i].slice(0, 60)}…`)
-    korean = await llm(FROM_SITUATION(SITUATIONS[i]))
+    situation = SITUATIONS[i]
+    log(`    situation : ${situation.slice(0, 60)}…`)
+    korean = await llm(FROM_SITUATION(situation))
   } else {
     const a = slot.hackerNews ? await pickHackerNews(slot, used) : await pickArticle(slot, used)
     if (!a) throw new Error('aucun sujet retenu')
@@ -661,18 +686,25 @@ async function buildText(slot, date, used, outDir) {
   // que de perdre un univers entier de la journée, on réécrit depuis la source
   // avec une consigne plus serrée. Un créneau vide se voit ; un texte un peu
   // plus court, non.
-  if (count(korean) > MAX_EOJEOL && article) {
+  // Le resserrage échoue parfois complètement — mesuré : 406 → 409 어절. On
+  // réécrit alors depuis la source plutôt que d'abandonner l'univers. Le
+  // créneau « vie quotidienne » n'a pas d'article : c'est sa situation qu'on
+  // réécrit, sinon il tombait à chaque fois qu'un texte débordait.
+  if (count(korean) > MAX_EOJEOL) {
     log(`    resserrage sans effet (${count(korean)} 어절) — réécriture depuis la source`)
-    korean = await llm(
-      FROM_ARTICLE(slot, article).replace('en **16 à 20 phrases**', 'en **13 à 15 phrases**'),
-    )
+    const tighter = (p) => p
+      .replace('en **16 à 20 phrases**', 'en **13 à 15 phrases**')
+      .replace('**16 à 20 phrases**', '**13 à 15 phrases**')
+    korean = article
+      ? await llm(tighter(FROM_ARTICLE(slot, article)))
+      : await llm(tighter(FROM_SITUATION(situation)))
   }
   if (count(korean) !== before) log(`    longueur : ${before} → ${count(korean)} 어절`)
   if (count(korean) > MAX_EOJEOL) {
     throw new Error(`trop long après resserrage (${count(korean)} 어절)`)
   }
 
-  const split = await llm(SPLIT(korean), { json: true, model: CLERK, maxTokens: 12000 })
+  const split = await llmJSON(SPLIT(korean), { model: CLERK, maxTokens: 12000 })
   const sentences = (split.sentences || []).filter((s) => s?.ko?.trim() && s?.en?.trim())
   // Trop peu : le texte est tronqué. Trop : le modèle a écrit un script de
   // dialogue au lieu d'un récit, et chaque réplique deviendrait une piste audio.
@@ -699,7 +731,7 @@ async function buildText(slot, date, used, outDir) {
   const allWords = sentences.flatMap((s) => (s.words ?? []).map((w) => w.w))
   if (allWords.length) {
     try {
-      const g = await llm(GLOSS(allWords), { json: true, model: CLERK, maxTokens: 24000 })
+      const g = await llmJSON(GLOSS(allWords), { model: CLERK, maxTokens: 24000 })
       const byIndex = new Map((g.g || []).map((x) => [x.i, x]))
       let matched = 0, cursor = 0
       for (const sentence of sentences) {
