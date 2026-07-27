@@ -8,3 +8,6 @@ node_modules/
 
 # sortie de l'essai M0 (audio + page locale)
 docs/m0/
+
+# sortie du pipeline (JSON du jour + audio)
+pipeline/out/
