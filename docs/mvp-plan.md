@@ -246,3 +246,51 @@ Si tu ne l'ouvres pas, tu auras économisé 99 € et appris quelque chose de bi
 
 C'est le bon ordre : **le compte payant récompense un produit qui a fait ses preuves, il ne
 finance pas un pari.**
+
+---
+
+## 8. Qui fait quoi
+
+*Vérifié sur la machine le 27 juillet 2026, pas supposé.*
+
+### Ce que je fais seul, de bout en bout
+
+| | Comment |
+|---|---|
+| **Créer le projet Xcode** | `XcodeGen` — le projet est décrit dans un `project.yml` lisible et versionné, et le `.xcodeproj` se régénère à la commande. Pas de clic, et un diff Git compréhensible plutôt qu'un fichier binaire opaque. |
+| **Écrire toute l'app** | Swift, SwiftUI, SwiftData. |
+| **Compiler** | `xcodebuild` en ligne de commande. |
+| **La lancer et la voir** | `simctl` démarre un iPhone 17 Pro en iOS 26.5 et **`simctl io screenshot` me rend l'écran**. Je vois donc ma propre interface et je peux l'ajuster jusqu'à ce qu'elle soit juste, sans toi. |
+| **Tester** | Tests unitaires dans le simulateur, en ligne de commande. |
+| **Le pipeline nocturne** | Écrit, déployé et cron'é sur le VPS par SSH (`ai-experiments`). |
+
+### Les deux seuls moments où j'ai besoin de toi
+
+1. **Une fois, au début** — te connecter à ton compte Apple dans Xcode (*Settings → Accounts*).
+   C'est une fenêtre graphique avec ton mot de passe et une double authentification : je ne
+   peux pas, et je ne devrais pas.
+2. **À chaque passage sur ton vrai iPhone** — le brancher, autoriser « Faire confiance à cet
+   ordinateur », et approuver le développeur dans *Réglages → Général → VPN et gestion*.
+   Ensuite, à cause du profil de 7 jours (§7), c'est trente secondes à refaire chaque semaine.
+
+**Entre les deux, je travaille en autonomie complète.** Tout M1 se construit et se règle dans
+le simulateur ; ton iPhone n'intervient qu'au moment où tu veux lire dans le métro.
+
+### Le VPS
+
+Le VPS fait tourner d'autres stacks (`hr-knowledge`, n8n). **Tout conteneur porte un plafond
+mémoire explicite** : il ne s'agit pas d'économiser, mais d'empêcher qu'un emballement
+déclenche l'OOM killer et emporte les voisins.
+
+```yaml
+molago-pipeline:                 # Python + Kiwi, tourne une fois par nuit
+  mem_limit: 1g                  # plafond de départ : l'analyse morphologique charge
+                                 # un modèle de plusieurs centaines de Mo. À resserrer
+                                 # une fois le pic réel mesuré (docker stats).
+molago-files:                    # service de fichiers statiques
+  mem_limit: 64m                 # il ne fait que servir des fichiers.
+```
+
+Le motif Traefik (sous-domaine, TLS Let's Encrypt, réseau `n8n_default`) se reprend tel quel
+de `to-day`, commentaires de plafond compris.
+
