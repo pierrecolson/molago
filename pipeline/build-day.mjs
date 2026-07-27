@@ -18,6 +18,7 @@
 import { writeFileSync, mkdirSync, existsSync, readFileSync, renameSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { DOMAINS } from './domains.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
@@ -582,6 +583,83 @@ async function attachCover(text, sentences) {
   } catch { /* la carte gardera son hanja */ }
 }
 
+// ── domaines ─────────────────────────────────────────────────────────────────
+
+// Les 의존명사 et autres mots-outils : ils ont la forme d'un nom mais ne
+// désignent rien. 것 « chose, fait » recevait un cerveau parce qu'il avait été
+// rangé dans « pensée » — ce n'est pas faux, c'est vide de sens.
+//
+// C'est le seul cas où la tuile typographique vaut mieux qu'une image : elle
+// dit « ce mot ne montre rien », ce qui est l'information juste. Une liste fixe
+// plutôt qu'une consigne au modèle, parce qu'elle est courte, connue, et qu'un
+// filtre déterministe ne se trompe jamais deux fois de la même façon.
+const EMPTY_WORDS = new Set([
+  '것', '거', '수', '데', '바', '줄', '리', '터', '나름', '따름', '뿐', '채', '만큼',
+  '대로', '등', '및', '점', '중', '내', '간', '측', '쪽', '편', '경우', '자', '분',
+  '개', '명', '번', '차', '째', '여', '무렵', '즈음', '통', '탓', '덕분', '때문',
+])
+
+const CLASSIFY = (rows) => `Classe chaque mot coréen dans **un seul** domaine parmi cette liste.
+
+DOMAINES
+${DOMAINS.map((d, i) => `${i}. ${d.id} — ${d.label}`).join('\n')}
+
+MOTS
+${rows.map((r, i) => `${i}. ${r.lemma} — ${r.meaning}`).join('\n')}
+
+Choisis le domaine dont le mot **parle**, même quand il est abstrait : 분위기 « ambiance » va dans emotion, 확인 « vérification » dans rules, 규모 « échelle » dans quantity, 퇴근하다 « quitter le travail » dans work.
+
+Chaque mot doit recevoir un domaine — **sauf** ceux qui n'ont pas de sens propre : les mots grammaticaux, les noms dépendants, les unités de comptage, les mots qui ne servent qu'à construire la phrase. Pour ceux-là, ne renvoie rien du tout : une image leur prêterait un sens qu'ils n'ont pas.
+
+En cas d'hésitation entre deux domaines, prends le plus concret des deux.
+
+Réponds en JSON : {"c":[{"i":<numéro du mot>,"d":<numéro du domaine>}]}`
+
+/// Range chaque mot dans un domaine, et lui donne l'icône du domaine à défaut
+/// d'en avoir une propre.
+///
+/// Un mot concret garde la sienne : 소주 montre une bouteille, pas l'icône
+/// générique « boissons ». Le domaine ne sert qu'à ce qui n'a pas d'objet — et
+/// c'est la majorité du vocabulaire d'un texte d'actualité ou de technique.
+async function attachDomains(sentences) {
+  const wanted = new Map()
+  for (const s of sentences) {
+    for (const w of s.words ?? []) {
+      if (!w.en || !w.lemma || EMPTY_WORDS.has(w.lemma)) continue
+      if (!wanted.has(w.lemma)) wanted.set(w.lemma, w.en)
+    }
+  }
+  if (!wanted.size) return 0
+
+  const rows = [...wanted].map(([lemma, meaning]) => ({ lemma, meaning }))
+  let byLemma = new Map()
+  try {
+    const out = await llmJSON(CLASSIFY(rows), { model: CLERK, maxTokens: 16000 })
+    for (const c of out.c || []) {
+      const row = rows[c.i]
+      const domain = DOMAINS[c.d]
+      if (row && domain) byLemma.set(row.lemma, domain)
+    }
+  } catch (e) {
+    log(`    ⚠ domaines indisponibles (${e.message.slice(0, 40)})`)
+    return 0
+  }
+
+  let placed = 0
+  for (const s of sentences) {
+    for (const w of s.words ?? []) {
+      const d = byLemma.get(w.lemma)
+      if (!d) continue
+      // Le domaine sert aussi à la recherche du carnet : taper « housing »
+      // doit retrouver tous les mots du logement (spec §5.5).
+      w.domain = d.id
+      if (!w.icon) { w.icon = d.icon; placed++ }
+    }
+  }
+  log(`    domaines  : ${byLemma.size}/${rows.length} classés · ${placed} icônes de domaine`)
+  return placed
+}
+
 // ── famille de racine ────────────────────────────────────────────────────────
 
 const ROOTS = (lemmas) => `Voici des mots coréens. Pour ceux qui sont **sino-coréens**, donne leurs hanja et la famille de mots qui partage la même racine.
@@ -756,6 +834,7 @@ async function buildText(slot, date, used, outDir) {
         log(`    ⚠ icônes indisponibles (${e.message.slice(0, 40)})`)
       }
       await attachRoots(sentences)
+      await attachDomains(sentences)
     } catch (e) {
       log(`    ⚠ glossaire indisponible (${e.message.slice(0, 40)}) — les mots ne seront pas tappables`)
     }
