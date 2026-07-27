@@ -34,25 +34,34 @@ struct WordCard: View {
 
     private enum Decision { case keep, knew }
 
-    /// L'opacité du fond suit le geste au lieu de sauter à l'arrivée : on sent
-    /// qu'on approche de la décision, on n'apprend pas qu'on l'a franchie.
-    private var backdrop: Double {
-        min(abs(Double(drag.width)) / Double(threshold), 1) * 0.42
+    /// Où en est le geste, de 0 à 1. Le fond et l'annonce le suivent tous les
+    /// deux : on sent qu'on approche de la décision, on n'apprend pas qu'on l'a
+    /// franchie.
+    private var progress: Double {
+        min(abs(Double(drag.width)) / Double(threshold), 1)
+    }
+
+    /// Vers quoi on tire, même avant d'avoir franchi le seuil.
+    private var leaning: Decision? {
+        if drag.width > 12 { .keep }
+        else if drag.width < -12 { .knew }
+        else { nil }
     }
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            // Le fond répond au geste. Sans ça on ne sait ce qu'on décide qu'en
-            // regardant le petit tampon ; ici l'écran entier bascule dans la
-            // couleur de l'univers pour « Keep », vers le neutre pour
-            // « I knew this ». La décision se voit avant qu'on lâche.
+            // Le fond répond au geste, et c'est **lui** qui annonce la décision.
+            // L'annonce était d'abord tamponnée sur la carte : elle couvrait le
+            // mot coréen, c'est-à-dire la seule chose qu'on est venu lire.
             ZStack {
                 Color.black.opacity(0.18)
-                (decision == .keep ? tint : Dancheong.inkSoft)
-                    .opacity(backdrop)
+                (leaning == .keep ? tint : Dancheong.inkSoft)
+                    .opacity(progress * 0.42)
             }
             .ignoresSafeArea()
             .onTapGesture { onClose() }
+
+            announcement
 
             card
                 .padding(.horizontal, 14)
@@ -62,6 +71,28 @@ struct WordCard: View {
                 .gesture(swipe)
         }
         .animation(.spring(response: 0.32, dampingFraction: 0.8), value: drag)
+    }
+
+    /// Ce qu'on est en train de décider, écrit en grand dans le fond — au-dessus
+    /// de la carte, jamais dessus.
+    @ViewBuilder private var announcement: some View {
+        if let leaning {
+            VStack(spacing: 10) {
+                Image(systemName: leaning == .keep ? "bookmark.fill" : "checkmark")
+                    .font(.system(size: 34, weight: .semibold))
+                Text(leaning == .keep ? "KEEP" : "I KNEW THIS")
+                    .font(.system(size: 22, weight: .heavy))
+                    .kerning(2)
+            }
+            .foregroundStyle(.white)
+            // L'annonce n'apparaît qu'en approchant, et devient franche au
+            // moment où le seuil est atteint.
+            .opacity(progress)
+            .scaleEffect(0.9 + progress * 0.1)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .padding(.top, 90)
+            .allowsHitTesting(false)
+        }
     }
 
     private var card: some View {
@@ -119,28 +150,7 @@ struct WordCard: View {
         }
         .padding(20)
         .background(Dancheong.paper, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .overlay(alignment: .topLeading) { stamp }
         .shadow(color: .black.opacity(0.22), radius: 26, x: 0, y: 14)
-    }
-
-    /// Le tampon qui apparaît pendant le geste : on voit ce qu'on est en train
-    /// de décider avant de lâcher.
-    @ViewBuilder private var stamp: some View {
-        if let decision {
-            Text(decision == .keep ? "KEEP" : "I KNEW IT")
-                .font(.system(size: 15, weight: .heavy))
-                .kerning(1.4)
-                .foregroundStyle(decision == .keep ? tint : Dancheong.inkSoft)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 5)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(decision == .keep ? tint : Dancheong.inkSoft, lineWidth: 3)
-                )
-                .rotationEffect(.degrees(decision == .keep ? -12 : 12))
-                .padding(18)
-                .transition(.scale.combined(with: .opacity))
-        }
     }
 
     private var swipe: some Gesture {
