@@ -17,3 +17,5 @@ app/Molago.xcodeproj/
 app/build/
 app/Resources/
 app/shot-*.png
+
+app/Sources/Config.swift

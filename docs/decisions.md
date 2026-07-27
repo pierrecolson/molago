@@ -420,3 +420,28 @@ calculée depuis la taille du fichier, s'est mise à afficher le double. Les rep
 SSML servent désormais de contre-mesure indépendante : si les deux estimations
 divergent de plus d'un quart, la fabrique le signale plutôt que de laisser la carte
 mentir en silence.
+
+### 37 — Le mot est global, la relation au mot est personnelle
+
+**Confirmé le 27 juillet 2026.** Une seule base pour tout le monde : un mot coréen n'est
+stocké qu'une fois, jamais cinquante.
+
+C'est déjà la forme du modèle en §10 de la spec, mais elle méritait d'être dite
+explicitement, parce que la phrase « chaque table porte un `user_id` » pouvait laisser
+croire le contraire :
+
+| Table | Portée |
+|---|---|
+| `lexemes` | **Globale.** Forme, nature, fréquence, hanja et famille, traduction, tags de domaine, icône Thiings. Le mot 관리비 est le même pour tout le monde. |
+| `lexeme_state` | **Par utilisateur et par mot.** État, confiance, échéance, expositions. C'est *ma* relation à 관리비 qui m'appartient, pas le mot. |
+
+**Ce que ça économise, et ce n'est pas mince.** Tout ce qui coûte cher à établir pour un
+mot — la famille hanja, les trois exemples d'usage, la correspondance avec une icône
+Thiings, la traduction — est calculé **une fois pour toujours**, pas une fois par
+utilisateur. Le millième utilisateur qui croise 관리비 ne déclenche aucun appel de modèle.
+
+**La question ouverte, c'est celle des textes**, pas celle des mots. Un texte est
+aujourd'hui taillé sur un profil, donc personnel. S'il devient mutualisable par niveau
+(§13 de la spec, explicitement en suspens), les slots 1 et 2 se partagent et le coût de
+génération cesse de croître avec le nombre d'utilisateurs. Seul le slot 3, né des
+captures, reste irréductiblement personnel.

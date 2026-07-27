@@ -27,11 +27,6 @@ targets:
     platform: iOS
     sources:
       - path: Sources
-      # XcodeGen n'a pas de clé `resources:` — tout passe par `sources`, et ce
-      # qui ne se compile pas devient une ressource. La phase est déclarée
-      # explicitement pour que le dossier ne soit pas pris pour du code.
-      - path: Resources
-        buildPhase: resources
     info:
       path: Sources/Info.plist
       properties:
