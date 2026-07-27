@@ -33,6 +33,21 @@ enum Dancheong {
         default: (jangdan, "常")
         }
     }
+
+    /// Le surlignage de la phrase lue.
+    ///
+    /// Ce ne peut pas être la couleur de l'univers atténuée : les trois pigments
+    /// n'ont pas la même clarté, et le bleu comme le vert, déjà sombres, virent
+    /// au gris une fois délavés — le surlignage cessait de se lire comme une
+    /// couleur. Chaque univers a donc sa teinte claire propre, réglée pour être
+    /// aussi présente que les deux autres.
+    static func highlight(_ slot: String) -> Color {
+        switch slot {
+        case "tech": Color(red: 0.784, green: 0.867, blue: 0.933)
+        case "korea": Color(red: 0.796, green: 0.890, blue: 0.808)
+        default: Color(red: 0.973, green: 0.855, blue: 0.749)
+        }
+    }
 }
 
 extension View {

@@ -43,7 +43,7 @@ struct ReaderView: View {
                                 SentenceLine(
                                     korean: sentence.ko,
                                     isCurrent: i == player.index && player.isPlaying,
-                                    tint: universe.color
+                                    tint: Dancheong.highlight(text.slot)
                                 )
                                 .id(i)
                                 .onTapGesture { player.play(from: i) }
@@ -92,7 +92,7 @@ private struct SentenceLine: View {
             .padding(.horizontal, 6)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(tint.opacity(isCurrent ? 0.16 : 0))
+                    .fill(isCurrent ? tint : .clear)
             )
             .contentShape(Rectangle())
             .animation(.easeOut(duration: 0.25), value: isCurrent)
