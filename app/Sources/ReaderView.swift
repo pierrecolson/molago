@@ -13,7 +13,10 @@ struct ReaderView: View {
 
     init(text: Day.Text) {
         self.text = text
-        _player = State(initialValue: SentencePlayer(urls: text.audioURLs))
+        _player = State(initialValue: SentencePlayer(
+            urls: text.audioURLs,
+            wordStarts: text.sentences.map { ($0.words ?? []).map(\.t) }
+        ))
     }
 
     private var universe: (color: Color, hanja: String) {
@@ -43,7 +46,9 @@ struct ReaderView: View {
                                 SentenceLine(
                                     korean: sentence.ko,
                                     isCurrent: i == player.index && player.isPlaying,
-                                    tint: Dancheong.highlight(text.slot)
+                                    wordIndex: i == player.index ? player.wordIndex : -1,
+                                    tint: Dancheong.highlight(text.slot),
+                                    wordTint: Dancheong.wordHighlight(text.slot)
                                 )
                                 .id(i)
                                 .onTapGesture { player.play(from: i) }
@@ -80,10 +85,35 @@ struct ReaderView: View {
 private struct SentenceLine: View {
     let korean: String
     let isCurrent: Bool
+    let wordIndex: Int
     let tint: Color
+    let wordTint: Color
+
+    /// La phrase, avec le mot prononcé teinté plus fort.
+    ///
+    /// Un seul `Text` porteur d'un `AttributedString` : le texte continue de
+    /// s'écouler et de se couper aux bons endroits, là où une rangée de vues par
+    /// mot aurait demandé d'écrire soi-même le retour à la ligne.
+    private var attributed: AttributedString {
+        // On redécoupe sur les espaces, exactement comme la fabrique l'a fait
+        // pour poser les repères : même règle des deux côtés, donc mêmes mots.
+        let tokens = korean.split(separator: " ", omittingEmptySubsequences: true)
+        guard isCurrent, tokens.indices.contains(wordIndex) else {
+            return AttributedString(korean)
+        }
+
+        var out = AttributedString()
+        for (i, token) in tokens.enumerated() {
+            var piece = AttributedString(token)
+            if i == wordIndex { piece.backgroundColor = wordTint }
+            out += piece
+            if i < tokens.count - 1 { out += AttributedString(" ") }
+        }
+        return out
+    }
 
     var body: some View {
-        Text(korean)
+        Text(attributed)
             .font(.body)
             .lineSpacing(7)
             .foregroundStyle(Dancheong.ink)

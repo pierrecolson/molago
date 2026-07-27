@@ -585,8 +585,9 @@ trois passages chez deux juges sur trois) *et* le moins cher du haut de tableau 
 
 **Vérification : aucune.** Voir §9.1.
 
-**Voix : Google Cloud TTS, voix `ko-KR-Chirp3-HD-*`.** Jugée nettement meilleure
-qu'ElevenLabs à l'écoute, et **0 €/mois** : la consommation est de ~93 000 caractères par
+**Voix : Google Cloud TTS, `ko-KR-Neural2-B`.** Retenue à l'écoute comparée, et seule
+famille à renvoyer les repères temporels qui permettent de surligner le mot en cours
+(§36 des décisions). **0 €/mois** : la consommation est de ~93 000 caractères par
 mois, le palier gratuit de Google est à 1 million, sans expiration.
 
 **Limite qui reste vraie** : KMMLU, CLIcK et KAIO mesurent ce qu'un modèle *sait* en
@@ -631,7 +632,7 @@ Repris tel quel du projet `to-day`, qui tourne déjà sur le même VPS.
 | **Planification** | Tâche périodique dans le conteneur, calée sur l'heure de chaque utilisateur |
 | **Génération** | **OpenRouter** — `openai/gpt-5.1` (§9.3) |
 | **Vérification** | *Aucune — étape supprimée (§9.1)* |
-| **Voix** | **Google Cloud TTS**, `ko-KR-Chirp3-HD-*` (§9.3) |
+| **Voix** | **Google Cloud TTS**, `ko-KR-Neural2-B` (§9.3) |
 | **Icônes** | API Thiings existante, port 3088 |
 | **OCR** | Natif iOS (Vision) — aucun service |
 | **Morphologie** | Kiwi, en conteneur |
@@ -725,8 +726,9 @@ au lieu de trois semaines.**
 
 ## 15. Le parking — idées gardées, non retenues pour la V1
 
-- **Contrôle fin de la vitesse de lecture, avec surlignage du mot en cours** (et non de
-  la phrase), pour se pousser progressivement plus vite.
+- ~~**Surlignage du mot en cours**~~ — **sorti du parking et livré le 27 juillet 2026.**
+  Reste au parking la moitié « contrôle fin de la vitesse de lecture », pour se pousser
+  progressivement plus vite.
 - **Une phrase à réutiliser aujourd'hui** en fin de session — sert l'objectif de parler,
   écartée au profit du quiz.
 - **Transformer un article capturé en texte du jour** (coller un lien, le faire réécrire

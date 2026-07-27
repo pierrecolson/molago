@@ -24,8 +24,19 @@ struct Day: Codable, Sendable {
         let ko: String
         let en: String
         let audio: String
+        /// L'instant où commence chaque 어절, mesuré par la synthèse vocale.
+        /// Absent quand les repères n'étaient pas complets : l'app retombe
+        /// alors sur le surlignage par phrase, plutôt que de surligner faux.
+        let words: [Word]?
 
         var id: String { audio }
+    }
+
+    struct Word: Codable, Sendable {
+        /// Le mot lui-même — sert à vérifier qu'on parle bien du même découpage.
+        let w: String
+        /// Secondes depuis le début de la phrase.
+        let t: Double
     }
 }
 

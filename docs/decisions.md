@@ -393,3 +393,30 @@ S'applique partout où un modèle évalue quelque chose dans le pipeline.
 - **§14, point 5** — « l'utilisateur lit, écoute, tranche ». Il tranche l'audio en une
   écoute, et ne peut pas juger l'écrit : c'est précisément ce que le produit doit lui
   apporter. Le niveau se vérifie par le calcul de l'étape 5 (P2), jamais par sa lecture.
+
+### 36 — La voix passe à Neural2 B, et le mot en cours est surligné
+
+**Décidé le 27 juillet 2026, en utilisant l'app.** En lisant le premier texte,
+l'utilisateur a demandé si les mots pouvaient être surlignés comme les phrases —
+c'est-à-dire, sans le savoir, l'idée mise au parking en §15 de la spec.
+
+Le surlignage mot à mot exige de savoir à quelle seconde chaque 어절 est prononcé.
+Test fait sur l'API : **Chirp3-HD accepte les marqueurs SSML mais renvoie une liste
+de repères vide.** Neural2, Wavenet et Standard les renvoient tous les trois.
+
+L'arbitrage n'était donc pas « précision contre estimation » mais **la voix contre la
+fonction**. Plutôt que de trancher à sa place, on a resynthétisé le même paragraphe
+avec les six voix candidates et il a écouté : **Neural2 B tient la comparaison**. Il
+avait préféré Chirp3-HD face à ElevenLabs, jamais face aux autres voix Google — la
+comparaison n'avait simplement jamais été faite.
+
+Conséquences : même fournisseur, toujours 0 €/mois (Neural2 est même moins cher au
+million), et le surlignage à deux niveaux — la phrase en teinte claire dit *où on en
+est*, le mot en teinte soutenue dit *ce qu'on entend*.
+
+**Effet de bord relevé au passage** : le débit du MP3 dépend de la famille de voix,
+64 kbps pour Neural2 contre 32 pour Chirp3-HD. La durée annoncée sur les cartes,
+calculée depuis la taille du fichier, s'est mise à afficher le double. Les repères
+SSML servent désormais de contre-mesure indépendante : si les deux estimations
+divergent de plus d'un quart, la fabrique le signale plutôt que de laisser la carte
+mentir en silence.

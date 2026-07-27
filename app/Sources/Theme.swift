@@ -48,6 +48,19 @@ enum Dancheong {
         default: Color(red: 0.973, green: 0.855, blue: 0.749)
         }
     }
+
+    /// Le mot prononcé à l'instant même, dans la phrase déjà surlignée.
+    ///
+    /// Deux niveaux plutôt qu'un : la phrase claire dit *où on en est* dans le
+    /// texte, le mot plus soutenu dit *ce qu'on entend*. Avec un seul niveau on
+    /// perd l'un ou l'autre.
+    static func wordHighlight(_ slot: String) -> Color {
+        switch slot {
+        case "tech": Color(red: 0.553, green: 0.729, blue: 0.855)
+        case "korea": Color(red: 0.565, green: 0.780, blue: 0.596)
+        default: Color(red: 0.949, green: 0.671, blue: 0.451)
+        }
+    }
 }
 
 extension View {

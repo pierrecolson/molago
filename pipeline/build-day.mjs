@@ -24,12 +24,22 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
 
 const MODEL = 'openai/gpt-5.1'                    // decisions.md §32
-const VOICE = 'ko-KR-Chirp3-HD-Achernar'          // decisions.md §33
+// Neural2 B plutôt que Chirp3-HD : à l'écoute comparée elle tient, et surtout
+// c'est la seule famille qui renvoie les repères temporels des marqueurs SSML.
+// Chirp3-HD accepte le balisage mais rend une liste vide — donc pas de
+// surlignage mot à mot avec elle. Voir decisions.md §36.
+const VOICE = 'ko-KR-Neural2-B'
 
 // La spec promet « 3 à 4 minutes » et affiche cette durée sur la carte. À la
 // vitesse de lecture mesurée, 380 어절 font quatre minutes : c'est le plafond
 // au-delà duquel la carte mentirait.
 const MAX_EOJEOL = 380
+
+// Le débit du MP3 dépend de la famille de voix : Neural2 rend du 64 kbps là où
+// Chirp3-HD rendait du 32. La durée annoncée sur la carte s'en déduit, donc une
+// valeur fausse ici fait mentir le contrat de durée — vérifiée à l'oreille et
+// recoupée plus bas avec les repères SSML.
+const MP3_KBPS = 64
 
 // Trois univers, trois couches de langue. C'est l'écart entre ces couches qui
 // fait plafonner les résidents de longue durée (spec §8.2).
@@ -173,17 +183,19 @@ brèves sans substance, et tout ce qui ne se raconterait pas à quelqu'un autour
 
 Le critère est unique : « l'aurait-il lu si c'était dans sa langue ? »
 
-Réponds en JSON : {"index": <le numéro choisi>, "why": "une phrase en français"}
-Si aucun titre ne passe le critère, réponds {"index": -1, "why": "..."}.`
+Réponds en JSON : {"indexes": [<le meilleur>, <le deuxième>, <le troisième>], "why": "une phrase en français sur le premier"}
+Classe-les du meilleur au moins bon. Si moins de trois titres passent le critère, n'en donne que ceux-là. Si aucun ne passe, réponds {"indexes": [], "why": "..."}.`
 
+// On demande un classement plutôt qu'un choix unique : quand la page du premier
+// article résiste à l'extraction, un créneau entier ne doit pas disparaître pour
+// autant.
 async function chooseFrom(slot, items) {
   const shortlist = items.slice(0, 30)
   const pick = await llm(CHOOSE(slot, shortlist), { json: true })
-  if (typeof pick.index !== 'number' || pick.index < 0 || pick.index >= shortlist.length) {
-    return null
-  }
+  const idx = (pick.indexes || []).filter((i) => Number.isInteger(i) && i >= 0 && i < shortlist.length)
+  if (!idx.length) return []
   log(`    choix : ${pick.why || ''}`)
-  return shortlist[pick.index]
+  return idx.map((i) => shortlist[i])
 }
 
 async function pickArticle(slot, used) {
@@ -206,14 +218,14 @@ async function pickArticle(slot, used) {
     .filter((i) => !/\/(Entertainment|Sports|Photo)\//i.test(i.url))
   if (!cands.length) return null
 
-  const chosen = await chooseFrom(slot, cands)
   // Si le modèle ne trouve rien de lisible, on ne force pas : mieux vaut deux
   // bons textes que trois dont un sans intérêt (spec §12).
-  for (const c of chosen ? [chosen] : []) {
+  for (const c of await chooseFrom(slot, cands)) {
     try {
       const paras = bodyFrom(await (await get(c.url)).text())
       if (paras.join(' ').length >= 700) return { ...c, paras }
-    } catch { /* on abandonne le slot */ }
+    } catch { /* candidat suivant */ }
+    await new Promise((r) => setTimeout(r, 400))
   }
   return null
 }
@@ -236,12 +248,11 @@ async function pickHackerNews(slot, used) {
   }
   if (!stories.length) return null
 
-  const chosen = await chooseFrom(slot, stories)
-  for (const c of chosen ? [chosen] : []) {
+  for (const c of await chooseFrom(slot, stories)) {
     try {
       const paras = bodyFrom(await (await get(c.url)).text(), false)
       if (paras.join(' ').length >= 900) return { ...c, paras }
-    } catch { /* paywall, JS, PDF… on abandonne le slot */ }
+    } catch { /* paywall, JS, PDF… candidat suivant */ }
   }
   return null
 }
@@ -303,22 +314,48 @@ Règles :
 
 // ── voix ─────────────────────────────────────────────────────────────────────
 
+const ssmlEscape = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+/// Synthétise une phrase et rend, en plus du son, l'instant où commence chaque
+/// 어절.
+///
+/// On insère un marqueur SSML muet devant chaque mot et on demande à l'API de
+/// nous dire quand il est atteint. C'est ce qui permet de surligner le mot en
+/// cours plutôt que la phrase entière — l'idée du parking §15 de la spec.
 async function speak(text) {
+  const words = text.trim().split(/\s+/)
+  const ssml = '<speak>' +
+    words.map((w, i) => `<mark name="w${i}"/>${ssmlEscape(w)}`).join(' ') +
+    '</speak>'
+
   const r = await fetch(
-    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${env.GOOGLE_TTS_API_KEY}`,
+    `https://texttospeech.googleapis.com/v1beta1/text:synthesize?key=${env.GOOGLE_TTS_API_KEY}`,
     {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        input: { text },
+        input: { ssml },
         voice: { languageCode: 'ko-KR', name: VOICE },
         audioConfig: { audioEncoding: 'MP3', speakingRate: 0.95 },
+        enableTimePointing: ['SSML_MARK'],
       }),
     },
   )
   const j = await r.json()
   if (!r.ok || j.error) throw new Error(j.error?.message || `HTTP ${r.status}`)
-  return Buffer.from(j.audioContent, 'base64')
+
+  // Les repères reviennent dans l'ordre des marqueurs, mais on les réordonne
+  // sur le nom : un décalage silencieux ferait dériver tout le surlignage.
+  const marks = new Map((j.timepoints || []).map((t) => [t.markName, t.timeSeconds]))
+  const starts = words.map((_, i) => marks.get(`w${i}`))
+  const complete = starts.every((t) => typeof t === 'number')
+
+  return {
+    buf: Buffer.from(j.audioContent, 'base64'),
+    // Incomplet : on ne publie pas de repères à moitié faux, l'app retombera
+    // proprement sur le surlignage par phrase.
+    words: complete ? words.map((w, i) => ({ w, t: Number(starts[i].toFixed(3)) })) : null,
+  }
 }
 
 // ── un texte, de bout en bout ────────────────────────────────────────────────
@@ -371,15 +408,22 @@ async function buildText(slot, date, used, outDir) {
   let bytes = 0
   for (const [i, s] of sentences.entries()) {
     const file = `${date}-${slot.id}-${pad(i + 1)}.mp3`
-    const buf = await speak(s.ko)
+    const { buf, words } = await speak(s.ko)
     writeFileSync(join(audioDir, file), buf)
     s.audio = `audio/${file}`
+    if (words) s.words = words
     bytes += buf.length
   }
 
   // La durée annoncée vient du son réel, pas d'une estimation au nombre de mots.
-  // Le débit du MP3 de Google est constant, donc les octets suffisent.
-  const seconds = Math.round(bytes / (32000 / 8))
+  // Le débit est constant, donc les octets suffisent — et les repères SSML
+  // servent de contre-mesure indépendante : s'ils divergent, c'est que le débit
+  // a changé sous nos pieds, et la carte se mettrait à mentir en silence.
+  const seconds = Math.round(bytes / (MP3_KBPS * 1000 / 8))
+  const marked = sentences.reduce((a, s) => a + (s.words?.at(-1)?.t ?? 0) + 0.6, 0)
+  if (marked > 0 && Math.abs(seconds - marked) / seconds > 0.25) {
+    log(`    ⚠ durée douteuse : ${seconds}s par les octets, ${Math.round(marked)}s par les repères`)
+  }
   return {
     slot: slot.id,
     universe: slot.universe,
