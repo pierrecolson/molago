@@ -68,6 +68,39 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+  # L'API de capture. Elle ne sert que deux routes et ne tourne que quand on
+  # photographie quelque chose — mais elle doit être debout à ce moment-là,
+  # donc elle reste en vie.
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    image: molago-api:local
+    container_name: molago-api
+    restart: unless-stopped
+    # Node au repos avec deux routes et zéro dépendance. Pic observé : ~70 Mo.
+    mem_limit: 256m
+    env_file: .env
+    environment:
+      PORT: "8080"
+      DATA_DIR: /data
+    volumes:
+      - ./data:/data
+    networks:
+      - n8n_default
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=n8n_default
+      # Même hôte que les fichiers, distingué par le préfixe de chemin. Une
+      # priorité plus haute que la route des fichiers, sinon nginx capterait
+      # tout et l'API ne verrait jamais rien.
+      - traefik.http.routers.molago-api.rule=Host(`molago.srv1405219.hstgr.cloud`) && PathRegexp(`^/u/[^/]+/(gloss|captures)$`)
+      - traefik.http.routers.molago-api.priority=100
+      - traefik.http.routers.molago-api.entrypoints=websecure
+      - traefik.http.routers.molago-api.tls=true
+      - traefik.http.routers.molago-api.tls.certresolver=mytlschallenge
+      - traefik.http.services.molago-api.loadbalancer.server.port=8080
+
 networks:
   n8n_default:
     external: true

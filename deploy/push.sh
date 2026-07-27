@@ -38,6 +38,7 @@ ssh "$VPS" "mkdir -p $REMOTE/data/u/$USER_ID"
 rsync -az --delete \
   --exclude 'out/' --exclude 'data/' \
   "$LOCAL/pipeline/" "$VPS:$REMOTE/pipeline/"
+rsync -az --delete "$LOCAL/api/" "$VPS:$REMOTE/api/"
 rsync -az \
   --exclude 'data/' --exclude '.env' \
   "$LOCAL/deploy/" "$VPS:$REMOTE/"
@@ -62,11 +63,11 @@ ssh "$VPS" '
 '
 
 step "Serveur de fichiers"
-ssh "$VPS" "cd $REMOTE && docker compose up -d files"
+ssh "$VPS" "cd $REMOTE && docker compose up -d files api"
 
 if [[ " $* " == *" --build "* || " $* " == *" --run "* ]]; then
   step "Construction de la fabrique"
-  ssh "$VPS" "cd $REMOTE && docker compose build pipeline"
+  ssh "$VPS" "cd $REMOTE && docker compose build pipeline api"
 fi
 
 if [[ " $* " == *" --run "* ]]; then

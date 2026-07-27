@@ -23,6 +23,9 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Molago lit les mots coréens que vous photographiez — une facture, un panneau, un menu — pour les ajouter à votre carnet.
 </string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choisissez une photo ou une capture d'écran contenant du coréen, et Molago vous dira ce que chaque mot veut dire.
+</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

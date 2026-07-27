@@ -69,6 +69,22 @@ struct Day: Codable, Sendable {
         /// pire que de ne rien ouvrir.
         var isTappable: Bool { en?.isEmpty == false }
 
+        /// Écrire un décodeur sur mesure supprime l'initialiseur que Swift
+        /// fabrique tout seul. Celui-ci le rend : la capture construit des mots
+        /// qui ne viennent d'aucun JSON.
+        init(w: String, t: Double, lemma: String? = nil, pos: String? = nil, en: String? = nil,
+             icon: String? = nil, hanja: String? = nil, root: String? = nil, family: [Relative]? = nil) {
+            self.w = w
+            self.t = t
+            self.lemma = lemma
+            self.pos = pos
+            self.en = en
+            self.icon = icon
+            self.hanja = hanja
+            self.root = root
+            self.family = family
+        }
+
         /// Décodage indulgent sur tout ce qui est facultatif.
         ///
         /// La forme stricte de `Codable` fait échouer **toute** la journée sur
