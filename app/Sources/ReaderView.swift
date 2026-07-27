@@ -28,6 +28,10 @@ struct ReaderView: View {
     /// recommence en coréen.
     @State private var english = false
     @State private var hinting = false
+    /// La phrase visée pendant qu'on déplace le curseur. Le texte la surligne et
+    /// s'y rend avant même qu'on ait lâché : on voit où l'on va, on n'y arrive
+    /// pas par surprise.
+    @State private var scrubbing: Int?
     @Environment(\.modelContext) private var context
 
     init(text: Day.Text) {
@@ -65,8 +69,9 @@ struct ReaderView: View {
                                 SentenceLine(
                                     sentence: sentence,
                                     english: english,
-                                    isCurrent: i == player.index && player.isPlaying,
-                                    wordIndex: i == player.index ? player.wordIndex : -1,
+                                    isCurrent: i == (scrubbing ?? player.index)
+                                        && (player.isPlaying || scrubbing != nil),
+                                    wordIndex: scrubbing == nil && i == player.index ? player.wordIndex : -1,
                                     tint: Dancheong.highlight(text.slot),
                                     wordTint: Dancheong.wordHighlight(text.slot),
                                     onTapSentence: { player.play(from: i) },
@@ -87,13 +92,20 @@ struct ReaderView: View {
                     .padding(.bottom, 28)
                 }
                 .onChange(of: player.index) { _, new in
+                    guard scrubbing == nil else { return }
                     withAnimation(.easeOut(duration: 0.35)) {
+                        proxy.scrollTo(new, anchor: .center)
+                    }
+                }
+                .onChange(of: scrubbing) { _, new in
+                    guard let new else { return }
+                    withAnimation(.easeOut(duration: 0.18)) {
                         proxy.scrollTo(new, anchor: .center)
                     }
                 }
             }
 
-            PlayerBar(player: player, tint: universe.color)
+            PlayerBar(player: player, tint: universe.color, scrubbing: $scrubbing)
         }
         .background(Dancheong.paper)
         .navigationTitle(text.universe)
@@ -292,6 +304,7 @@ private struct SentenceLine: View {
 private struct PlayerBar: View {
     let player: SentencePlayer
     let tint: Color
+    @Binding var scrubbing: Int?
 
     /// « 1× » et non « 1.0× » : le zéro n'apprend rien et allonge l'étiquette.
     static func label(_ rate: Float) -> String {
@@ -311,14 +324,15 @@ private struct PlayerBar: View {
             }
             .accessibilityLabel(player.isPlaying ? "Pause" : "Play")
 
-            // Une jauge de progression sur les phrases, pas sur les secondes :
-            // c'est l'unité dans laquelle on lit.
-            ProgressView(
-                value: Double(player.index + 1),
-                total: Double(max(player.urls.count, 1))
+            Scrubber(
+                count: player.urls.count,
+                index: scrubbing ?? player.index,
+                onScrub: { scrubbing = $0 },
+                onCommit: { i in
+                    scrubbing = nil
+                    player.play(from: i)
+                }
             )
-            .tint(.white)
-            .background(.white.opacity(0.25))
 
             // La vitesse était affichée sans être cliquable, ce qui est pire
             // que de ne pas l'afficher : on croit pouvoir la changer.
@@ -339,5 +353,52 @@ private struct PlayerBar: View {
         .background(tint, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .padding(.horizontal, 12)
         .padding(.bottom, 8)
+    }
+}
+
+/// La barre de progression, et le moyen de s'y déplacer.
+///
+/// L'unité est la **phrase**, pas la seconde : c'est celle dans laquelle on lit,
+/// et chaque phrase est déjà sa propre piste. Se déplacer revient donc à choisir
+/// une phrase, ce qui tombe toujours juste — on n'atterrit jamais au milieu d'un
+/// mot.
+private struct Scrubber: View {
+    let count: Int
+    let index: Int
+    let onScrub: (Int) -> Void
+    let onCommit: (Int) -> Void
+
+    var body: some View {
+        GeometryReader { geo in
+            let width = geo.size.width
+            let progress = count > 1 ? Double(index) / Double(count - 1) : 0
+
+            ZStack(alignment: .leading) {
+                Capsule().fill(.white.opacity(0.28))
+                Capsule().fill(.white).frame(width: max(6, width * progress))
+                Circle()
+                    .fill(.white)
+                    .frame(width: 13, height: 13)
+                    .offset(x: max(0, width * progress - 6.5))
+            }
+            .frame(height: 5)
+            .frame(maxHeight: .infinity)
+            // La zone tapable fait toute la hauteur de la barre : viser un trait
+            // de cinq points avec le pouce est un jeu d'adresse, pas une
+            // commande. `minimumDistance: 0` fait qu'un simple tap déplace aussi.
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { onScrub(sentence(at: $0.location.x, width: width)) }
+                    .onEnded { onCommit(sentence(at: $0.location.x, width: width)) }
+            )
+        }
+        .frame(height: 36)
+    }
+
+    private func sentence(at x: CGFloat, width: CGFloat) -> Int {
+        guard count > 1, width > 0 else { return 0 }
+        let ratio = min(max(x / width, 0), 1)
+        return Int((ratio * Double(count - 1)).rounded())
     }
 }
