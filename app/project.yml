@@ -1,0 +1,50 @@
+# Le projet Xcode est décrit ici et régénéré par `xcodegen`. Le .xcodeproj
+# n'est pas versionné : c'est un fichier bineux dont les diffs sont illisibles
+# et qui entre en conflit dès qu'on y touche à deux endroits. Ce YAML, lui, se
+# lit et se relit.
+#
+#   cd app && xcodegen && open Molago.xcodeproj
+
+name: Molago
+options:
+  bundleIdPrefix: com.pierrecolson
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    # Sans compte payant, l'app se signe avec l'équipe personnelle et le profil
+    # expire au bout de sept jours (mvp-plan.md §7). En automatique, Xcode
+    # regénère ce qu'il faut à chaque exécution.
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+
+targets:
+  Molago:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      # XcodeGen n'a pas de clé `resources:` — tout passe par `sources`, et ce
+      # qui ne se compile pas devient une ressource. La phase est déclarée
+      # explicitement pour que le dossier ne soit pas pris pour du code.
+      - path: Resources
+        buildPhase: resources
+    info:
+      path: Sources/Info.plist
+      properties:
+        CFBundleDisplayName: Molago
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        # La voix continue quand l'écran s'éteint : on lit dans le métro,
+        # téléphone en poche.
+        UIBackgroundModes:
+          - audio
+        # Demandée seulement en M4, à la capture. Déclarée ici pour que la
+        # chaîne de signature soit déjà en place.
+        NSCameraUsageDescription: >
+          Molago lit les mots coréens que vous photographiez — une facture, un
+          panneau, un menu — pour les ajouter à votre carnet.

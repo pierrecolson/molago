@@ -11,3 +11,9 @@ docs/m0/
 
 # sortie du pipeline (JSON du jour + audio)
 pipeline/out/
+
+# projet Xcode généré par xcodegen (voir app/project.yml) et artefacts de build
+app/Molago.xcodeproj/
+app/build/
+app/Resources/
+app/shot-*.png
