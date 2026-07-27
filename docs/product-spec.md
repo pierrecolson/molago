@@ -511,13 +511,11 @@ l'utilisateur. Elle est **idempotente** : relancée, elle reprend sans dupliquer
 │  (2 tentatives max)                                  │
 └──────────────────────────────────────────────────────┘
                         ↓
-┌─ 6. VÉRIFICATION DE NATURALITÉ ──────────────────────┐
-│  Modèle coréen natif : DÉTECTE et ANNOTE ce qui      │
-│  sonne faux (번역투, registre, collocations)          │
-│                     ↓                                │
-│  GPT-5.1 : RÉÉCRIT à partir des annotations          │
-│                     ↓                                │
-│  Retour en 5 pour re-contrôle du niveau              │
+┌─ 6. VÉRIFICATION DE NATURALITÉ ── SUPPRIMÉE ─────────┐
+│  Prévue avec un modèle coréen natif. L'essai §14 a   │
+│  montré que le seul candidat commercial disponible   │
+│  écrit ET juge moins bien que le générateur retenu.  │
+│  Étape retirée. Détail en §9.1.                      │
 └──────────────────────────────────────────────────────┘
                         ↓
 ┌─ 7. ANNOTATION ──────────────────────────────────────┐
@@ -541,17 +539,34 @@ l'utilisateur. Elle est **idempotente** : relancée, elle reprend sans dupliquer
 └──────────────────────────────────────────────────────┘
 ```
 
-### 9.1 Pourquoi cette répartition entre modèles
+### 9.1 Pourquoi l'étape 6 a disparu
 
-**Juger et corriger sont deux tâches différentes.**
+*Cette section décrivait une répartition entre deux modèles. L'essai du 27 juillet 2026
+(§14) l'a invalidée.*
 
-- *Juger* — « un Coréen dirait-il ça ? » — relève de l'intuition de langue. Un modèle
-  nourri massivement de coréen y est meilleur, **même s'il est plus petit**.
-- *Corriger* — reformuler en respectant vocabulaire, registre et longueur — relève du
-  suivi de consignes. Le modèle frontière gagne.
+Le raisonnement initial était que *juger* — « un Coréen dirait-il ça ? » — relève de
+l'intuition de langue, et qu'un modèle nourri massivement de coréen y serait meilleur
+même en étant plus petit ; tandis que *corriger* relève du suivi de consignes, où le
+modèle frontière gagne.
 
-Ce n'est donc pas « un modèle qui relit un modèle », objection valable entre deux
-généralistes. Chacun est sur son terrain.
+**Les deux moitiés se sont révélées fausses en pratique.** Sur cinq réécritures du même
+article, jugées à l'aveugle par trois modèles en trois passages chacun :
+
+- `upstage/solar-pro-3`, seul modèle coréen natif à licence commerciale disponible,
+  **finit dernier à écrire du coréen** — 4,3/10 contre 8,8 pour le vainqueur. Les juges
+  citent des anglicismes (`톱 3`), de l'argot de jeu collé à des verbes formels
+  (`'치킨'을 성사시키다`), et une hallucination franche : une référence à la rhétorique
+  de Trump insérée dans un article sur un tournoi d'e-sport.
+- Il est aussi **le juge le moins fiable** : ±2,5 à ±3 points de dispersion sur des
+  passages strictement identiques, contre ±0 pour les deux autres juges.
+
+Un vérificateur qui écrit moins bien que le générateur et dont les verdicts ne sont pas
+reproductibles n'apporte rien. L'étape est retirée : un fournisseur, un contrat, une
+étape et de la latence en moins chaque nuit.
+
+**Leçon de méthode, valable partout ailleurs dans le pipeline** : un seul appel de
+jugement par un modèle ne mesure rien. Le même juge a noté le même texte 4/10 puis 9/10.
+Toute évaluation par modèle doit faire plusieurs passages et moyenner — ou ne pas exister.
 
 ### 9.2 Le contrôle déterministe est la garantie la plus solide
 
@@ -560,19 +575,26 @@ des lemmes, comparaison au profil. Elle est exacte, gratuite, reproductible. C'e
 qui garantit qu'un texte trop dur n'est jamais publié — aucun modèle n'a autorité sur ce
 point.
 
-### 9.3 Le choix des modèles
+### 9.3 Le choix des modèles — tranché
 
-**Génération : GPT-5.1**, en tête sur les tests de coréen parmi les modèles frontière, et
-**compatible avec un usage commercial** — critère décisif.
+**Génération : `openai/gpt-5.1`.** Le pari initial de cette section est confirmé par
+l'essai. Meilleure note de naturalité (8,8/10 de moyenne, avec **±0 de dispersion** sur
+trois passages chez deux juges sur trois) *et* le moins cher du haut de tableau :
+**1,31 €/mois** pour trois textes par nuit, contre 4,14 € pour GPT-5.5 qui le suivait à
+8,5. Compatible avec un usage commercial.
 
-**Vérification : un modèle coréen natif**, à trancher au branchement. EXAONE est le
-meilleur des ouverts mais sa **licence non commerciale l'écarte**. Restent HyperCLOVA X
-(API Naver, tarifs non publics, inscription coréenne), Upstage Solar, ou A.X.
+**Vérification : aucune.** Voir §9.1.
 
-**Limite à garder en tête** : KMMLU, CLIcK et KAIO mesurent ce qu'un modèle *sait* en
+**Voix : Google Cloud TTS, voix `ko-KR-Chirp3-HD-*`.** Jugée nettement meilleure
+qu'ElevenLabs à l'écoute, et **0 €/mois** : la consommation est de ~93 000 caractères par
+mois, le palier gratuit de Google est à 1 million, sans expiration.
+
+**Limite qui reste vraie** : KMMLU, CLIcK et KAIO mesurent ce qu'un modèle *sait* en
 coréen — histoire, droit, sciences. **Aucun ne mesure si un texte sonne écrit par un
-Coréen.** Les classements ne répondent pas à notre question ; seule l'oreille de
-l'utilisateur le peut (§14).
+Coréen.** C'est pourquoi il a fallu un essai maison. En revanche, l'hypothèse que
+« seule l'oreille de l'utilisateur le peut » s'est révélée fausse pour l'écrit : elle
+demande plus de coréen que n'en a l'utilisateur, ce qui est précisément le problème que
+ce produit existe pour résoudre. Elle reste vraie pour l'audio, tranché en une écoute.
 
 ---
 
@@ -607,9 +629,9 @@ Repris tel quel du projet `to-day`, qui tourne déjà sur le même VPS.
 | **Exposition** | Traefik existant (réseau `n8n_default`), sous-domaine dédié, TLS Let's Encrypt |
 | **Auth** | **Google OAuth** + liste blanche sur l'adresse |
 | **Planification** | Tâche périodique dans le conteneur, calée sur l'heure de chaque utilisateur |
-| **Génération** | **OpenRouter** (GPT-5.1) |
-| **Vérification** | Fournisseur coréen séparé |
-| **Voix** | À trancher à l'oreille (§14) |
+| **Génération** | **OpenRouter** — `openai/gpt-5.1` (§9.3) |
+| **Vérification** | *Aucune — étape supprimée (§9.1)* |
+| **Voix** | **Google Cloud TTS**, `ko-KR-Chirp3-HD-*` (§9.3) |
 | **Icônes** | API Thiings existante, port 3088 |
 | **OCR** | Natif iOS (Vision) — aucun service |
 | **Morphologie** | Kiwi, en conteneur |
@@ -621,10 +643,12 @@ dans le plan précédent, tous rendus inutiles par le passage au natif et au VPS
 
 | Poste | Estimation |
 |---|---|
-| Génération (3 textes/jour + vérification) | 2 à 5 € |
-| Voix (3 textes/jour, ~80 000 caractères) | 0,25 à 15 € selon le fournisseur |
+| Génération (3 textes/jour, GPT-5.1) | **1,31 €** — mesuré, pas estimé |
+| Annotation et quiz (même modèle) | ~1 à 2 € |
+| Voix (3 textes/jour, ~93 000 caractères) | **0 €** — palier gratuit Google, 1 M/mois |
+| Vérification | 0 € — étape supprimée |
 | Infrastructure | 0 € (VPS déjà payé) |
-| **Total** | **~3 à 20 €/mois** |
+| **Total** | **~2 à 4 €/mois** |
 
 ---
 
@@ -659,7 +683,24 @@ dans le plan précédent, tous rendus inutiles par le passage au natif et au VPS
 
 ---
 
-## 14. La première chose à faire
+## 14. La première chose à faire — ✅ faite le 27 juillet 2026
+
+> **Résultat.** Génération : `openai/gpt-5.1` (8,8/10). Voix : Google Cloud TTS
+> `ko-KR-Chirp3-HD-*` (0 €/mois). Vérificateur coréen natif : **supprimé** (§9.1).
+> Outillage : `tools/m0-blind-test/`. Coût de l'essai : 0,60 € et deux heures.
+>
+> **Ce qu'on a appris en plus, et qui ne figurait pas dans le plan :**
+> 1. Le seul modèle coréen natif à licence commerciale écrit *moins* bien le coréen que
+>    les modèles frontière — l'intuition « un natif écrit mieux » est fausse ici.
+> 2. Un jugement par modèle n'est pas reproductible d'un appel à l'autre. Toute
+>    évaluation par modèle doit faire plusieurs passages.
+> 3. L'utilisateur ne peut pas juger la naturalité d'une prose coréenne — c'est ce que le
+>    produit doit lui apporter. Le point 5 ci-dessous était mal posé : il tranche
+>    l'audio, pas l'écrit. Le niveau, lui, se vérifie par le calcul de l'étape 5, jamais
+>    par sa lecture (P2).
+>
+> *Le protocole d'origine est conservé ci-dessous : il resservira tel quel le jour où on
+> changera de modèle ou de fournisseur de voix.*
 
 **Avant toute ligne de code : un essai comparatif à l'aveugle.**
 
@@ -698,8 +739,9 @@ au lieu de trois semaines.**
 
 | Risque | Gravité | Parade |
 |---|---|---|
-| **Le coréen généré sonne artificiel** | Critique | L'essai comparatif §14, avant tout code. Puis vérificateur coréen natif. |
-| **Le vérificateur coréen commercial est cher ou inaccessible** | Moyenne | Repli sur un second modèle frontière d'un autre éditeur. |
+| ~~**Le coréen généré sonne artificiel**~~ | ~~Critique~~ | **Levé** — essai §14 mené le 27/07/2026 : GPT-5.1 noté 8,8/10 par trois juges, avec ±0 de dispersion chez deux d'entre eux. À re-vérifier si on change de modèle. |
+| ~~**Le vérificateur coréen commercial est cher ou inaccessible**~~ | ~~Moyenne~~ | **Sans objet** — l'étape est supprimée (§9.1). |
+| **Un jugement par modèle n'est pas reproductible** | Moyenne | Découvert pendant l'essai : le même juge note le même texte 4/10 puis 9/10. Toute évaluation par modèle fait plusieurs passages et moyenne. |
 | **La capture s'assèche, le slot 3 tourne à vide** | Moyenne | Fonds de situations d'expat. Signal utile : si la capture ne se fait pas, c'est que le geste est trop coûteux. |
 | **La calibration initiale est fausse** | Faible | Les taps corrigent en quelques jours. |
 | **Les distracteurs du quiz sont trop faciles** | Moyenne | Contrainte explicite : même nature, même bande, tirés du texte. À vérifier sur les premiers quiz réels. |

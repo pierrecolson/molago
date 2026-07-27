@@ -346,3 +346,50 @@ sur le téléphone à la notification. Lecture entièrement hors ligne, zéro at
 - Contrôle de la vitesse de lecture, avec le **mot en cours** surligné (pas seulement
   la phrase) — pour se pousser progressivement plus vite.
 - Transformer un article capturé en texte du jour.
+
+---
+
+## Essai M0 — 27 juillet 2026
+
+*Décisions 32 à 35, issues de l'essai comparatif à l'aveugle prévu en §14 de la spec.
+Cinq modèles réécrivant le même article coréen, jugés à l'aveugle par trois modèles en
+trois passages chacun. Outillage : `tools/m0-blind-test/`.*
+
+### 32 — Génération : GPT-5.1
+
+**Retenu.** Meilleure note de naturalité (8,8/10 de moyenne, ±0 de dispersion sur trois
+passages chez deux juges sur trois) **et** le moins cher du haut de tableau : 1,31 €/mois
+contre 4,14 € pour GPT-5.5, qui suivait à 8,5. Le pari initial de la spec est confirmé
+par la mesure, pas par l'intuition.
+
+### 33 — Voix : Google Cloud TTS, voix Chirp3-HD
+
+**Retenu.** Meilleur à l'oreille de l'utilisateur, sans hésitation, contre ElevenLabs.
+Et **0 €/mois** : la consommation réelle est de ~93 000 caractères par mois, le palier
+gratuit de Google est à 1 million, sans expiration. ElevenLabs aurait coûté 22 €/mois
+pour un résultat jugé moins bon.
+
+### 34 — Le vérificateur coréen natif est supprimé
+
+**Écarté.** `upstage/solar-pro-3`, seul modèle coréen natif à licence commerciale
+disponible, finit **dernier** à écrire du coréen (4,3/10) : anglicismes, argot de jeu
+collé à des verbes formels, et une hallucination franche. Il est aussi le juge le moins
+fiable des trois (±2,5 à ±3 points de dispersion contre ±0 pour les autres).
+
+Un vérificateur qui écrit moins bien que le générateur et dont les verdicts ne sont pas
+reproductibles n'apporte rien. **Un fournisseur, un contrat, une étape et de la latence
+nocturne en moins.**
+
+### 35 — Toute évaluation par modèle se fait en plusieurs passages
+
+**Règle de méthode.** Découverte en cours d'essai : le même juge, sur le même texte et le
+même prompt, a rendu 4/10 puis 9/10. Un appel unique est du bruit, pas une mesure.
+S'applique partout où un modèle évalue quelque chose dans le pipeline.
+
+### Ce qui a été invalidé dans la spec
+
+- **§9.1** — la répartition « natif juge, frontière corrige » : les deux moitiés sont
+  fausses en pratique. Section réécrite.
+- **§14, point 5** — « l'utilisateur lit, écoute, tranche ». Il tranche l'audio en une
+  écoute, et ne peut pas juger l'écrit : c'est précisément ce que le produit doit lui
+  apporter. Le niveau se vérifie par le calcul de l'étape 5 (P2), jamais par sa lecture.
