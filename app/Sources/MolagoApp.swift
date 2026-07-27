@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 @main
 struct MolagoApp: App {
@@ -24,7 +25,22 @@ struct MolagoApp: App {
                         NavigationStack { ReaderView(text: text) }
                             .tint(Dancheong.jangdan)
                     } else {
-                        LibraryView(day: day)
+                        // Deux onglets, et c'est tout. Pas d'onglet réglages —
+                        // la cloche les ouvre. Pas d'onglet bibliothèque —
+                        // l'archive est la suite du fil d'aujourd'hui, et les
+                        // séparer créerait un endroit où s'accumule ce qu'on n'a
+                        // pas fait (spec §5.1).
+                        TabView(selection: .constant(
+                            ProcessInfo.processInfo.arguments.contains("--open-notebook") ? 1 : 0
+                        )) {
+                            Tab("Library", systemImage: "book.pages", value: 0) {
+                                LibraryView(day: day)
+                            }
+                            Tab("Notebook", systemImage: "text.book.closed", value: 1) {
+                                NotebookView()
+                            }
+                        }
+                        .tint(Dancheong.jangdan)
                     }
 
                 case .nothing(let message):
@@ -39,6 +55,9 @@ struct MolagoApp: App {
                 }
             }
             .task { await store.load() }
+            // Le carnet est la seule chose irremplaçable du produit : les textes
+            // se régénèrent, une collection de mots non.
+            .modelContainer(for: [KeptWord.self, WordSignal.self])
         }
     }
 

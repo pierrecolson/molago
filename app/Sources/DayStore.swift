@@ -22,6 +22,19 @@ enum Paths {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }()
+
+    static let icons: URL = {
+        let dir = root.appending(path: "icons", directoryHint: .isDirectory)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }()
+
+    /// L'icône d'un mot si elle est déjà sur l'appareil, sinon rien : à défaut
+    /// l'app affiche la tuile typographique, jamais une image d'attente.
+    static func icon(_ slug: String) -> URL? {
+        let url = icons.appending(path: "\(slug).png")
+        return FileManager.default.fileExists(atPath: url.path()) ? url : nil
+    }
 }
 
 /// Récupère la journée et la garde sur l'appareil.
@@ -57,6 +70,7 @@ final class DayStore {
         do {
             let day = try await Self.fetch(date: today)
             try await Self.downloadAudio(for: day)
+            await Self.downloadIcons(for: day)
             Self.writeCached(day)
             state = .ready(day)
         } catch {
@@ -111,6 +125,33 @@ final class DayStore {
                 }
             }
             try await group.waitForAll()
+        }
+    }
+
+    /// Les icônes des mots du jour.
+    ///
+    /// Sans `throws` : une icône manquante n'empêche pas de lire, le mot montre
+    /// simplement sa tuile typographique. Ce serait absurde de refuser toute la
+    /// journée pour ça.
+    private static func downloadIcons(for day: Day) async {
+        let fm = FileManager.default
+        let slugs = Set(day.texts
+            .flatMap(\.sentences)
+            .flatMap { $0.words ?? [] }
+            .compactMap(\.icon))
+            .filter { !fm.fileExists(atPath: Paths.icons.appending(path: "\($0).png").path()) }
+        guard !slugs.isEmpty else { return }
+
+        await withTaskGroup(of: Void.self) { group in
+            for slug in slugs {
+                group.addTask {
+                    let from = Config.iconsURL.appending(path: "\(slug).png")
+                    guard let (temp, _) = try? await URLSession.shared.download(from: from) else { return }
+                    let to = Paths.icons.appending(path: "\(slug).png")
+                    try? FileManager.default.removeItem(at: to)
+                    try? FileManager.default.moveItem(at: temp, to: to)
+                }
+            }
         }
     }
 

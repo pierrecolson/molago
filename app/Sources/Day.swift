@@ -32,11 +32,21 @@ struct Day: Codable, Sendable {
         var id: String { audio }
     }
 
-    struct Word: Codable, Sendable {
+    struct Word: Codable, Sendable, Hashable {
         /// Le mot lui-même — sert à vérifier qu'on parle bien du même découpage.
         let w: String
         /// Secondes depuis le début de la phrase.
         let t: Double
+        /// La forme de dictionnaire : taper 관리비를 doit donner 관리비.
+        let lemma: String?
+        let pos: String?
+        let en: String?
+        /// Le slug de l'icône Thiings, quand le mot en a mérité une.
+        let icon: String?
+
+        /// Un mot sans sens n'est pas tappable : ouvrir une carte vide serait
+        /// pire que de ne rien ouvrir.
+        var isTappable: Bool { en?.isEmpty == false }
     }
 }
 

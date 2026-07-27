@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// Le texte, et la voix qui le suit.
 ///
@@ -10,6 +11,8 @@ struct ReaderView: View {
 
     @State private var player: SentencePlayer
     @State private var didStart = false
+    @State private var tapped: (word: Day.Word, context: String)?
+    @Environment(\.modelContext) private var context
 
     init(text: Day.Text) {
         self.text = text
@@ -44,14 +47,21 @@ struct ReaderView: View {
                         VStack(alignment: .leading, spacing: 7) {
                             ForEach(Array(text.sentences.enumerated()), id: \.offset) { i, sentence in
                                 SentenceLine(
-                                    korean: sentence.ko,
+                                    sentence: sentence,
                                     isCurrent: i == player.index && player.isPlaying,
                                     wordIndex: i == player.index ? player.wordIndex : -1,
                                     tint: Dancheong.highlight(text.slot),
-                                    wordTint: Dancheong.wordHighlight(text.slot)
+                                    wordTint: Dancheong.wordHighlight(text.slot),
+                                    onTapSentence: { player.play(from: i) },
+                                    onTapWord: { word in
+                                        // Taper un mot met la voix en pause : on
+                                        // ne lit pas une définition pendant que
+                                        // quelqu'un continue de parler (spec §4.4).
+                                        player.pause()
+                                        tapped = (word, sentence.ko)
+                                    }
                                 )
                                 .id(i)
-                                .onTapGesture { player.play(from: i) }
                             }
                         }
                     }
@@ -72,6 +82,7 @@ struct ReaderView: View {
         .navigationTitle(text.universe)
         .navigationBarTitleDisplayMode(.inline)
         .task {
+            openCardForScreenshotIfAsked()
             // La voix démarre à l'ouverture : on tape une carte, ça se met à
             // parler. Rien à déclencher (spec §4.4).
             guard !didStart else { return }
@@ -79,53 +90,123 @@ struct ReaderView: View {
             player.play(from: 0)
         }
         .onDisappear { player.pause() }
+        .overlay {
+            if let tapped {
+                WordCard(
+                    word: tapped.word,
+                    context: tapped.context,
+                    slot: text.slot,
+                    onKeep: { keep(tapped.word, from: tapped.context); close() },
+                    onKnew: { signal(tapped.word, "knew"); close() },
+                    onClose: { close() }
+                )
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.18), value: tapped?.word)
+    }
+
+    /// `simctl` ne sait pas taper sur un écran : sans ça, aucune capture de la
+    /// carte n'est possible en ligne de commande.
+    private func openCardForScreenshotIfAsked() {
+        let args = ProcessInfo.processInfo.arguments
+        // `--keep-word` garde en plus le mot aussitôt : c'est le seul moyen de
+        // vérifier la boucle complète — tap, garde, carnet — sans main humaine.
+        let keeping = args.contains("--keep-word")
+        let flag = keeping ? "--keep-word" : "--tap-word"
+        guard let i = args.firstIndex(of: flag), i + 1 < args.count,
+              let n = Int(args[i + 1]) else { return }
+        var seen = 0
+        for sentence in text.sentences {
+            for word in sentence.words ?? [] where word.isTappable {
+                if seen == n {
+                    if keeping { keep(word, from: sentence.ko) } else { tapped = (word, sentence.ko) }
+                    return
+                }
+                seen += 1
+            }
+        }
+    }
+
+    /// Fermer ne fait rien d'autre que fermer. C'est le cas le plus fréquent, et
+    /// c'est normal (spec §5.4).
+    private func close() {
+        tapped = nil
+    }
+
+    private func keep(_ word: Day.Word, from sentence: String) {
+        guard let lemma = word.lemma, let meaning = word.en else { return }
+        context.insert(KeptWord(
+            lemma: lemma,
+            meaning: meaning,
+            pos: word.pos ?? "",
+            icon: word.icon,
+            context: sentence,
+            slot: text.slot
+        ))
+        try? context.save()
+    }
+
+    private func signal(_ word: Day.Word, _ kind: String) {
+        guard let lemma = word.lemma else { return }
+        context.insert(WordSignal(lemma: lemma, kind: kind))
+        try? context.save()
     }
 }
 
 private struct SentenceLine: View {
-    let korean: String
+    let sentence: Day.Sentence
     let isCurrent: Bool
     let wordIndex: Int
     let tint: Color
     let wordTint: Color
-
-    /// La phrase, avec le mot prononcé teinté plus fort.
-    ///
-    /// Un seul `Text` porteur d'un `AttributedString` : le texte continue de
-    /// s'écouler et de se couper aux bons endroits, là où une rangée de vues par
-    /// mot aurait demandé d'écrire soi-même le retour à la ligne.
-    private var attributed: AttributedString {
-        // On redécoupe sur les espaces, exactement comme la fabrique l'a fait
-        // pour poser les repères : même règle des deux côtés, donc mêmes mots.
-        let tokens = korean.split(separator: " ", omittingEmptySubsequences: true)
-        guard isCurrent, tokens.indices.contains(wordIndex) else {
-            return AttributedString(korean)
-        }
-
-        var out = AttributedString()
-        for (i, token) in tokens.enumerated() {
-            var piece = AttributedString(token)
-            if i == wordIndex { piece.backgroundColor = wordTint }
-            out += piece
-            if i < tokens.count - 1 { out += AttributedString(" ") }
-        }
-        return out
-    }
+    let onTapSentence: () -> Void
+    let onTapWord: (Day.Word) -> Void
 
     var body: some View {
-        Text(attributed)
-            .font(.body)
-            .lineSpacing(7)
-            .foregroundStyle(Dancheong.ink)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 3)
-            .padding(.horizontal, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(isCurrent ? tint : .clear)
-            )
-            .contentShape(Rectangle())
-            .animation(.easeOut(duration: 0.25), value: isCurrent)
+        Group {
+            if let words = sentence.words, !words.isEmpty {
+                // Une vue par mot : c'est ce qui permet de viser un mot du doigt.
+                // La disposition les coule comme un paragraphe, donc le texte se
+                // lit toujours comme du texte.
+                FlowLayout {
+                    ForEach(Array(words.enumerated()), id: \.offset) { i, word in
+                        Text(word.w)
+                            .font(.body)
+                            .foregroundStyle(Dancheong.ink)
+                            .padding(.horizontal, 2)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                    .fill(isCurrent && i == wordIndex ? wordTint : .clear)
+                            )
+                            // La zone tapable dépasse le mot sans écarter les
+                            // lignes : au-delà, le texte cesse de se lire comme
+                            // un paragraphe et devient une liste. Rater un mot
+                            // n'est pas grave — le tap retombe sur la phrase.
+                            .padding(.vertical, 5)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                if word.isTappable { onTapWord(word) } else { onTapSentence() }
+                            }
+                    }
+                }
+            } else {
+                Text(sentence.ko)
+                    .font(.body)
+                    .lineSpacing(7)
+                    .foregroundStyle(Dancheong.ink)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .onTapGesture { onTapSentence() }
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(isCurrent ? tint : .clear)
+        )
+        .animation(.easeOut(duration: 0.25), value: isCurrent)
     }
 }
 
