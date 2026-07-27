@@ -12,6 +12,7 @@ import SwiftData
 struct NotebookView: View {
     @Query(sort: \KeptWord.keptAt, order: .reverse) private var words: [KeptWord]
     @State private var search = ""
+    @Environment(\.modelContext) private var context
 
     /// La recherche remplace les filtres. Elle accepte du coréen, de l'anglais,
     /// ou une nature grammaticale — trois façons de retrouver le même mot.
@@ -32,8 +33,12 @@ struct NotebookView: View {
             .sorted { $0.day > $1.day }
     }
 
+    /// `simctl` ne sait pas taper : sans ça, aucune capture de la fiche n'est
+    /// possible en ligne de commande.
+    @State private var path: [KeptWord] = []
+
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 if words.isEmpty {
                     ContentUnavailableView {
@@ -46,7 +51,15 @@ struct NotebookView: View {
                         ForEach(byDay, id: \.day) { group in
                             Section(Self.dayLabel(group.day)) {
                                 ForEach(group.words) { word in
-                                    KeptRow(word: word)
+                                    NavigationLink {
+                                        WordDetailView(word: word)
+                                    } label: {
+                                        KeptRow(word: word)
+                                    }
+                                }
+                                .onDelete { offsets in
+                                    for i in offsets { context.delete(group.words[i]) }
+                                    try? context.save()
                                 }
                             }
                         }
@@ -55,8 +68,13 @@ struct NotebookView: View {
                     .searchable(text: $search, prompt: "Search your words")
                 }
             }
+            .navigationDestination(for: KeptWord.self) { WordDetailView(word: $0) }
             .background(Dancheong.ground)
             .navigationTitle("Notebook")
+            .task {
+                if ProcessInfo.processInfo.arguments.contains("--open-word"),
+                   let first = words.first { path = [first] }
+            }
         }
         .tint(Dancheong.jangdan)
     }

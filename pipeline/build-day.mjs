@@ -389,50 +389,50 @@ async function speak(text) {
 
 // ── icônes ───────────────────────────────────────────────────────────────────
 
-/// Les icônes dont le titre correspond **exactement** à l'un des sens du mot.
+/// Les icônes plausibles pour un sens, sans trancher.
 ///
-/// Rien de plus souple : mesuré sur une journée réelle, une correspondance par
-/// tête de groupe nominal donne « sur la base de » → *Deck of Tarot Cards* et
-/// « ligne de commande » → *Bus Terminal*. La règle de la spec est nette —
-/// **pas d'icône plutôt qu'une icône fausse** — parce qu'une image approximative
-/// installe une association fausse, ce qui est pire que la tuile typographique
-/// affichée à défaut.
+/// On cherche large et on ne décide rien ici : une correspondance de titre
+/// exacte ne rapportait qu'une poignée d'icônes par journée, et une
+/// correspondance souple donnait « sur la base de » → *Deck of Tarot Cards*.
+/// La chaîne de caractères propose, le modèle dispose (voir `PICK`).
 async function iconCandidates(meaning) {
-  const alternatives = meaning.split(',')
+  const queries = meaning.split(',')
     .map((a) => a.trim().toLowerCase().replace(/^(a|an|the|to)\s+/, ''))
     .filter((a) => a.length >= 3)
+    .slice(0, 2)
 
-  for (const alt of alternatives) {
-    const r = await fetch(`${thiingsURL()}/icons?search=${encodeURIComponent(alt)}&limit=20`, {
-      headers: { authorization: `Bearer ${env.THIINGS_API_KEY}` },
-      signal: AbortSignal.timeout(8000),
-    })
-    if (!r.ok) continue
-    const body = await r.json()
-    const items = Array.isArray(body) ? body : (body.icons || body.data || [])
-    const exact = items.find((i) => String(i.title || '').toLowerCase() === alt)
-    if (exact) return { slug: exact.slug, title: exact.title, matched: alt }
+  const seen = new Map()
+  for (const q of queries) {
+    try {
+      const r = await fetch(`${thiingsURL()}/icons?search=${encodeURIComponent(q)}&limit=8`, {
+        headers: { authorization: `Bearer ${env.THIINGS_API_KEY}` },
+        signal: AbortSignal.timeout(8000),
+      })
+      if (!r.ok) continue
+      const body = await r.json()
+      const items = Array.isArray(body) ? body : (body.icons || body.data || [])
+      for (const i of items) if (i.slug && !seen.has(i.slug)) seen.set(i.slug, i.title)
+    } catch { /* requête suivante */ }
   }
-  return null
+  return [...seen].slice(0, 8).map(([slug, title]) => ({ slug, title }))
 }
 
-const VET = (candidates) => `Voici des mots coréens et l'icône 3D qu'on envisage de leur associer dans un carnet de vocabulaire.
+const PICK = (rows) => `Pour chaque mot coréen, choisis parmi les icônes proposées **celle qui représente la chose que le mot désigne**, ou aucune.
 
-${candidates.map((c, i) => `${i}. ${c.lemma} (« ${c.meaning} ») → icône intitulée « ${c.title} »`).join('\n')}
+${rows.map((r, i) => `${i}. ${r.lemma} (« ${r.meaning} »)\n   ${r.candidates.map((c, j) => `${j}) ${c.title}`).join('  ')}`).join('\n')}
 
-Pour chacune, dis si l'icône représente bien la chose que le mot désigne **dans ce sens-là**.
+Le piège est l'homonymie anglaise : « running » l'exécution d'un programme n'est pas « running » quelqu'un qui court ; « level » un palier n'est pas un niveau à bulle ; « terminal » une ligne de commande n'est pas une gare routière.
 
-Le piège est l'homonymie anglaise : « running » l'exécution d'un programme n'est pas « running » quelqu'un qui court ; « level » un palier n'est pas un niveau à bulle. Dans le doute, refuse.
+Un mot abstrait — une idée, une relation, une quantité — n'a pas d'objet à montrer : réponds « aucune ». Une icône fausse installe une association erronée dans la mémoire de quelqu'un qui apprend, ce qui est pire que pas d'icône du tout. Dans le doute, refuse.
 
-Une icône fausse est pire que pas d'icône du tout : elle installe une association erronée dans la mémoire de quelqu'un qui apprend la langue.
-
-Réponds en JSON : {"ok":[les numéros des icônes justes]}`
+Réponds en JSON : {"p":[{"i":<numéro du mot>,"c":<numéro de l'icône choisie>}]}
+N'inclus que les mots pour lesquels une icône convient vraiment.`
 
 /// Résout les icônes des noms d'un texte et les dépose dans le dossier partagé.
 ///
 /// Seuls les **noms** en reçoivent une : un verbe ou un adverbe n'a pas d'objet
-/// à montrer. La correspondance exacte réduit les candidats à une poignée, et un
-/// modèle tranche l'homonymie que la chaîne de caractères ne peut pas voir.
+/// à montrer, et lui en coller un serait exactement l'association fausse qu'on
+/// veut éviter.
 async function attachIcons(sentences) {
   if (!env.THIINGS_API_KEY) return 0
 
@@ -443,30 +443,34 @@ async function attachIcons(sentences) {
     }
   }
 
-  const candidates = []
-  for (const [lemma, meaning] of wanted) {
-    try {
-      const hit = await iconCandidates(meaning)
-      if (hit) candidates.push({ lemma, meaning: hit.matched, ...hit })
-    } catch { /* mot suivant */ }
+  // Par paquets plutôt qu'un par un : soixante-quinze noms qui interrogent
+  // l'API chacun leur tour ajoutaient plusieurs minutes à chaque texte. Huit à
+  // la fois, sur une API qui tourne sur la même machine, ne la gêne pas.
+  const entries = [...wanted]
+  const rows = []
+  for (let i = 0; i < entries.length; i += 8) {
+    const batch = await Promise.all(
+      entries.slice(i, i + 8).map(async ([lemma, meaning]) => ({
+        lemma, meaning, candidates: await iconCandidates(meaning).catch(() => []),
+      })),
+    )
+    rows.push(...batch.filter((r) => r.candidates.length))
   }
-  if (!candidates.length) return 0
+  if (!rows.length) return 0
 
-  // Le tri par le modèle. Une poignée de candidats, donc un seul appel.
-  let keep = candidates
+  let chosen = []
   try {
-    const verdict = await llm(VET(candidates), { json: true })
-    const ok = new Set((verdict.ok || []).filter(Number.isInteger))
-    keep = candidates.filter((_, i) => ok.has(i))
+    const verdict = await llm(PICK(rows), { json: true })
+    chosen = (verdict.p || [])
+      .filter((x) => rows[x.i] && rows[x.i].candidates[x.c])
+      .map((x) => ({ lemma: rows[x.i].lemma, ...rows[x.i].candidates[x.c] }))
   } catch {
     // Sans arbitrage, on ne pose rien : le doute profite à la tuile
     // typographique, jamais à une image peut-être fausse.
     return 0
   }
 
-  for (const c of keep) {
-    // Déjà sur le disque partagé ? Une icône ne change jamais, et un autre texte
-    // — ou un autre utilisateur — l'a peut-être déjà fait venir.
+  for (const c of chosen) {
     const dest = join(ICONS_OUT, `${c.slug}.png`)
     if (!existsSync(dest)) {
       try {
@@ -479,16 +483,63 @@ async function attachIcons(sentences) {
       } catch { continue }
     }
     for (const s of sentences) {
-      for (const w of s.words ?? []) {
-        if (w.lemma === c.lemma) w.icon = c.slug
-      }
+      for (const w of s.words ?? []) if (w.lemma === c.lemma) w.icon = c.slug
     }
   }
-  log(`    icônes    : ${keep.length} retenues sur ${candidates.length} candidates (${wanted.size} noms)`)
-  return keep.length
+  log(`    icônes    : ${chosen.length} retenues sur ${rows.length} proposées (${wanted.size} noms)`)
+  return chosen.length
 }
 
-// ── un texte, de bout en bout ────────────────────────────────────────────────
+// ── famille de racine ────────────────────────────────────────────────────────
+
+const ROOTS = (lemmas) => `Voici des mots coréens. Pour ceux qui sont **sino-coréens**, donne leurs hanja et la famille de mots qui partage la même racine.
+
+${lemmas.map((l, i) => `${i}. ${l}`).join('\n')}
+
+**Règle impérative** : le regroupement se fait sur le **caractère chinois réel**, jamais sur la syllabe hangul. 사회 et 사장 partagent une syllabe et rien d'autre — les regrouper produirait des familles absurdes.
+
+Réponds en JSON :
+{"r":[{"i":0,"h":"管理費","m":"le sens de la racine partagée, en anglais, 2 à 5 mots","f":[{"k":"관리하다","h":"管理","e":"to manage, look after"}]}]}
+
+- N'inclus **que** les mots réellement sino-coréens. Un mot d'origine coréenne pure ou un emprunt à l'anglais n'a pas de hanja : saute-le.
+- \`f\` : trois à cinq mots courants de la même famille, le mot lui-même exclu.
+- Le lecteur ne lit pas le chinois : ce qui compte est le **sens partagé**, le caractère reste discret.`
+
+/// L'étage 3 du panneau de mot : découvrir que 관리자 et 관리하다, employés tous
+/// les jours, sont le même bloc que le mot sur lequel on séchait. C'est là que
+/// le rangement mental se fait (spec §5.3).
+async function attachRoots(sentences) {
+  const lemmas = [...new Set(
+    sentences.flatMap((s) => s.words ?? [])
+      .filter((w) => (w.pos === 'noun' || w.pos === 'verb') && w.lemma)
+      .map((w) => w.lemma),
+  )]
+  if (!lemmas.length) return 0
+
+  let found = 0
+  try {
+    const out = await llm(ROOTS(lemmas), { json: true })
+    const byLemma = new Map()
+    for (const r of out.r || []) {
+      const lemma = lemmas[r.i]
+      if (lemma && r.h && Array.isArray(r.f) && r.f.length) {
+        byLemma.set(lemma, { hanja: r.h, rootMeaning: r.m || '', family: r.f.slice(0, 5) })
+      }
+    }
+    for (const s of sentences) {
+      for (const w of s.words ?? []) {
+        const r = byLemma.get(w.lemma)
+        if (r) { w.hanja = r.hanja; w.root = r.rootMeaning; w.family = r.family; found++ }
+      }
+    }
+    log(`    racines   : ${byLemma.size} mots sino-coréens sur ${lemmas.length}`)
+  } catch (e) {
+    log(`    ⚠ racines indisponibles (${e.message.slice(0, 40)})`)
+  }
+  return found
+}
+
+// ── un texte, de bout en bout ─// ── un texte, de bout en bout ────────────────────────────────────────────────
 
 async function buildText(slot, date, used, outDir) {
   let korean
@@ -575,6 +626,7 @@ async function buildText(slot, date, used, outDir) {
       } catch (e) {
         log(`    ⚠ icônes indisponibles (${e.message.slice(0, 40)})`)
       }
+      await attachRoots(sentences)
     } catch (e) {
       log(`    ⚠ glossaire indisponible (${e.message.slice(0, 40)}) — les mots ne seront pas tappables`)
     }

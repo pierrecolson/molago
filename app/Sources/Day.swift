@@ -32,6 +32,15 @@ struct Day: Codable, Sendable {
         var id: String { audio }
     }
 
+    struct Relative: Codable, Sendable, Hashable {
+        /// Le mot coréen.
+        let k: String
+        /// Ses hanja.
+        let h: String?
+        /// Son sens en anglais.
+        let e: String
+    }
+
     struct Word: Codable, Sendable, Hashable {
         /// Le mot lui-même — sert à vérifier qu'on parle bien du même découpage.
         let w: String
@@ -43,6 +52,14 @@ struct Day: Codable, Sendable {
         let en: String?
         /// Le slug de l'icône Thiings, quand le mot en a mérité une.
         let icon: String?
+        /// Les hanja du mot, quand il est sino-coréen.
+        let hanja: String?
+        /// Le sens que la racine partage avec toute sa famille.
+        let root: String?
+        /// Les mots de la même famille. C'est là que le rangement mental se
+        /// fait : découvrir que 관리자 et 관리하다, employés tous les jours, sont
+        /// le même bloc que le mot sur lequel on séchait (spec §5.3).
+        let family: [Relative]?
 
         /// Un mot sans sens n'est pas tappable : ouvrir une carte vide serait
         /// pire que de ne rien ouvrir.

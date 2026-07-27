@@ -22,11 +22,30 @@ final class KeptWord {
     /// La phrase où il a été rencontré. Un mot sans son contexte redevient une
     /// liste de vocabulaire (spec §5.5).
     var context: String
+    /// La piste audio de cette phrase, si on l'a encore.
+    ///
+    /// Optionnelle, et pas seulement par prudence de migration : l'audio de plus
+    /// de soixante jours est purgé du serveur, donc un mot ancien finit par
+    /// perdre sa voix. Il garde son sens et sa phrase, qui sont l'essentiel.
+    var contextAudio: String?
+    /// Les hanja et la famille, figés au moment où le mot est gardé.
+    ///
+    /// Recopiés plutôt que référencés : le texte d'où ils viennent finira purgé,
+    /// et la fiche doit continuer de fonctionner. Le jour où une vraie base
+    /// partagée existera (decisions.md §37), c'est elle qui les portera.
+    var hanja: String?
+    var root: String?
+    var family: [Day.Relative]?
     /// L'univers d'où il vient — c'est lui qui donne sa couleur dans le carnet.
     var slot: String
     var keptAt: Date
 
-    init(lemma: String, meaning: String, pos: String, icon: String?, context: String, slot: String) {
+    init(lemma: String, meaning: String, pos: String, icon: String?, context: String,
+         contextAudio: String?, hanja: String?, root: String?, family: [Day.Relative]?, slot: String) {
+        self.contextAudio = contextAudio
+        self.hanja = hanja
+        self.root = root
+        self.family = family
         self.lemma = lemma
         self.meaning = meaning
         self.pos = pos

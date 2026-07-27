@@ -47,7 +47,7 @@ Outillage réutilisable le jour où on changera de modèle ou de voix :
 | Google OAuth + liste blanche | ❌ **Un chemin secret** | Un utilisateur. L'auth arrive avec l'inscription publique, pas avant. |
 | Notification push (APNs) | ❌ **Notification locale + tâche de fond** | Pas de certificat, pas de serveur de push. `BGAppRefreshTask` télécharge la nuit et réécrit la notification avec le vrai titre ; si elle n'a pas tourné, la formulation est générique et l'app télécharge à l'ouverture. |
 | Vérificateur coréen natif (étape 6) | ❌ **Supprimé définitivement** | L'essai M0 a tranché : le seul modèle coréen natif commercial écrit *moins* bien que le générateur retenu, et juge de façon non reproductible. Voir `decisions.md` §34. |
-| Famille de racine hanja (étage 3) | ❌ | Demande une base de hanja et un regroupement par caractère réel. Deux étages au lieu de trois. |
+| Famille de racine hanja (étage 3) | ✅ **Rentrée le 27/07/2026** | Aucune base de hanja n'a été nécessaire : le modèle qui écrit le texte connaît les caractères. La fabrique produit hanja, sens de la racine et trois à cinq mots de la famille, en un appel par texte. Le regroupement se fait sur le caractère réel, jamais sur la syllabe. |
 | Icônes Thiings | ✅ **Gardées (V1)** | Licence commerciale acquise. Le coût réel est un script de correspondance plus ~2 h de tri à l'œil, une seule fois — et c'est ce qui fait que le Notebook ressemble à une collection d'objets plutôt qu'à une liste de vocabulaire. Les mots abstraits gardent une tuile typographique : la règle « pas d'icône plutôt qu'une icône fausse » tient. |
 | Calibration du premier jour | ❌ | La spec dit elle-même qu'elle est sautable et que les taps corrigent en quelques jours. Tu connais ton niveau : on part d'un seuil et on laisse le moteur corriger. |
 | Quiz par saisie clavier | ❌ **QCM seulement** | La tolérance de saisie (espaces, une lettre à côté) est la partie fastidieuse. Le QCM suffit à prouver que le rappel actif marche. |
@@ -209,12 +209,11 @@ quiz ni la capture n'y changeront rien — et on l'aura su avant de les construi
 
 Dans l'ordre où ça compte, une fois M4 en place et utilisé quinze jours :
 
-1. **La famille de racine hanja** — l'étage 3, celui où le rangement mental se fait.
-2. **Le quiz par saisie clavier** pour les mots mûrs, avec la tolérance aux espaces.
-3. **L'extension de partage iOS**, puis le contrôle du Centre de contrôle et le bouton Action.
-4. **APNs** — la notification qui porte le vrai titre, de façon fiable.
-5. **La jauge de confiance** et **la grille d'activité**.
-6. **Postgres + l'API + OAuth** — le jour où il y a un deuxième utilisateur, pas avant.
+1. **Le quiz par saisie clavier** pour les mots mûrs, avec la tolérance aux espaces.
+2. **L'extension de partage iOS**, puis le contrôle du Centre de contrôle et le bouton Action.
+3. **APNs** — la notification qui porte le vrai titre, de façon fiable.
+4. **La jauge de confiance** et **la grille d'activité**.
+5. **Postgres + l'API + OAuth** — le jour où il y a un deuxième utilisateur, pas avant.
 
 ---
 

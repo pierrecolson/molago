@@ -11,7 +11,7 @@ struct ReaderView: View {
 
     @State private var player: SentencePlayer
     @State private var didStart = false
-    @State private var tapped: (word: Day.Word, context: String)?
+    @State private var tapped: (word: Day.Word, sentence: Day.Sentence)?
     @Environment(\.modelContext) private var context
 
     init(text: Day.Text) {
@@ -58,7 +58,7 @@ struct ReaderView: View {
                                         // ne lit pas une définition pendant que
                                         // quelqu'un continue de parler (spec §4.4).
                                         player.pause()
-                                        tapped = (word, sentence.ko)
+                                        tapped = (word, sentence)
                                     }
                                 )
                                 .id(i)
@@ -81,6 +81,9 @@ struct ReaderView: View {
         .background(Dancheong.paper)
         .navigationTitle(text.universe)
         .navigationBarTitleDisplayMode(.inline)
+        // On lit : la barre d'onglets n'a rien à faire là. Elle sert à changer
+        // de section, pas à meubler le bas de l'écran pendant qu'on est dedans.
+        .toolbar(.hidden, for: .tabBar)
         .task {
             openCardForScreenshotIfAsked()
             // La voix démarre à l'ouverture : on tape une carte, ça se met à
@@ -94,9 +97,9 @@ struct ReaderView: View {
             if let tapped {
                 WordCard(
                     word: tapped.word,
-                    context: tapped.context,
+                    context: tapped.sentence.ko,
                     slot: text.slot,
-                    onKeep: { keep(tapped.word, from: tapped.context); close() },
+                    onKeep: { keep(tapped.word, from: tapped.sentence); close() },
                     onKnew: { signal(tapped.word, "knew"); close() },
                     onClose: { close() }
                 )
@@ -120,7 +123,7 @@ struct ReaderView: View {
         for sentence in text.sentences {
             for word in sentence.words ?? [] where word.isTappable {
                 if seen == n {
-                    if keeping { keep(word, from: sentence.ko) } else { tapped = (word, sentence.ko) }
+                    if keeping { keep(word, from: sentence) } else { tapped = (word, sentence) }
                     return
                 }
                 seen += 1
@@ -134,14 +137,18 @@ struct ReaderView: View {
         tapped = nil
     }
 
-    private func keep(_ word: Day.Word, from sentence: String) {
+    private func keep(_ word: Day.Word, from sentence: Day.Sentence) {
         guard let lemma = word.lemma, let meaning = word.en else { return }
         context.insert(KeptWord(
             lemma: lemma,
             meaning: meaning,
             pos: word.pos ?? "",
             icon: word.icon,
-            context: sentence,
+            context: sentence.ko,
+            contextAudio: sentence.fileName,
+            hanja: word.hanja,
+            root: word.root,
+            family: word.family,
             slot: text.slot
         ))
         try? context.save()

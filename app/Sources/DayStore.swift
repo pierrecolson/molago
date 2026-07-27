@@ -29,6 +29,13 @@ enum Paths {
         return dir
     }()
 
+    /// Une piste audio si elle est encore là. Les anciennes finissent purgées
+    /// du serveur, donc un mot ancien peut avoir perdu sa voix.
+    static func audioFile(_ name: String) -> URL? {
+        let url = audio.appending(path: name)
+        return FileManager.default.fileExists(atPath: url.path()) ? url : nil
+    }
+
     /// L'icône d'un mot si elle est déjà sur l'appareil, sinon rien : à défaut
     /// l'app affiche la tuile typographique, jamais une image d'attente.
     static func icon(_ slug: String) -> URL? {

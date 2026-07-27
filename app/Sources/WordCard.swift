@@ -34,13 +34,25 @@ struct WordCard: View {
 
     private enum Decision { case keep, knew }
 
+    /// L'opacité du fond suit le geste au lieu de sauter à l'arrivée : on sent
+    /// qu'on approche de la décision, on n'apprend pas qu'on l'a franchie.
+    private var backdrop: Double {
+        min(abs(Double(drag.width)) / Double(threshold), 1) * 0.42
+    }
+
     var body: some View {
         ZStack(alignment: .bottom) {
-            // Le texte reste visible au-dessus, atténué : on ne perd pas le fil
-            // de ce qu'on était en train de lire.
-            Color.black.opacity(0.18)
-                .ignoresSafeArea()
-                .onTapGesture { onClose() }
+            // Le fond répond au geste. Sans ça on ne sait ce qu'on décide qu'en
+            // regardant le petit tampon ; ici l'écran entier bascule dans la
+            // couleur de l'univers pour « Keep », vers le neutre pour
+            // « I knew this ». La décision se voit avant qu'on lâche.
+            ZStack {
+                Color.black.opacity(0.18)
+                (decision == .keep ? tint : Dancheong.inkSoft)
+                    .opacity(backdrop)
+            }
+            .ignoresSafeArea()
+            .onTapGesture { onClose() }
 
             card
                 .padding(.horizontal, 14)
