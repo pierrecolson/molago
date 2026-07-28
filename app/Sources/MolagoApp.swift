@@ -4,6 +4,18 @@ import SwiftData
 @main
 struct MolagoApp: App {
     @State private var store = DayStore()
+    @State private var tab = 0
+    @State private var capturing = false
+
+    /// Le lien vers l'onglet sélectionné, qui refuse celui du milieu.
+    private var tabBinding: Binding<Int> {
+        Binding(
+            get: { tab },
+            set: { new in
+                if new == 1 { capturing = true } else { tab = new }
+            }
+        )
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -30,32 +42,34 @@ struct MolagoApp: App {
                         // l'archive est la suite du fil d'aujourd'hui, et les
                         // séparer créerait un endroit où s'accumule ce qu'on n'a
                         // pas fait (spec §5.1).
-                        ZStack(alignment: .bottom) {
-                            TabView(selection: .constant(
-                                ProcessInfo.processInfo.arguments.contains("--open-notebook") ? 1 : 0
-                            )) {
-                                Tab("Library", systemImage: "book.pages", value: 0) {
-                                    LibraryView(day: day)
-                                }
-                                Tab("Notebook", systemImage: "text.book.closed", value: 1) {
-                                    NotebookView()
-                                }
+                        // Le bouton de capture est un onglet du milieu — mais
+                        // il ne sélectionne jamais rien : on intercepte la
+                        // sélection, on ouvre l'écran de capture, et on remet
+                        // l'onglet précédent.
+                        //
+                        // C'est la seule façon d'être vraiment AU MILIEU de la
+                        // barre d'iOS 26. Celle-ci est une pilule étroite que le
+                        // système centre lui-même : un bouton posé par-dessus la
+                        // chevauche, un bouton posé à côté la déséquilibre. À
+                        // l'intérieur, l'espacement est celui du système.
+                        //
+                        // La règle « un onglet est une section, jamais une
+                        // action » reste tenue : il n'a pas d'état sélectionné,
+                        // il n'affiche aucune vue, et il ouvre un écran modal
+                        // dont on revient exactement là où on était.
+                        TabView(selection: tabBinding) {
+                            Tab("Library", systemImage: "book.pages", value: 0) {
+                                LibraryView(day: day)
                             }
-                            .tint(Dancheong.jangdan)
-
-                            // Le bouton de capture, au centre de la barre —
-                            // l'endroit que le pouce atteint le plus facilement
-                            // sur un grand iPhone, alors que le coin haut-droit
-                            // est le plus difficile. Pour un geste qu'on fait
-                            // debout avec une facture dans l'autre main, ça
-                            // décide de tout.
-                            //
-                            // Trois détails l'empêchent de passer pour un
-                            // troisième onglet, ce qu'iOS interdit : aucun
-                            // libellé, aucun état sélectionné, et il ouvre un
-                            // écran modal sans changer d'onglet.
-                            CaptureButton()
+                            Tab("", systemImage: "plus.circle.fill", value: 1) {
+                                Color.clear
+                            }
+                            Tab("Notebook", systemImage: "text.book.closed", value: 2) {
+                                NotebookView()
+                            }
                         }
+                        .tint(Dancheong.jangdan)
+                        .fullScreenCover(isPresented: $capturing) { CaptureView() }
                     }
 
                 case .nothing(let message):
@@ -69,7 +83,10 @@ struct MolagoApp: App {
                     .background(Dancheong.ground)
                 }
             }
-            .task { await store.load() }
+            .task {
+                await store.load()
+                if ProcessInfo.processInfo.arguments.contains("--open-notebook") { tab = 2 }
+            }
             // Le carnet est la seule chose irremplaçable du produit : les textes
             // se régénèrent, une collection de mots non.
             .modelContainer(for: [KeptWord.self, WordSignal.self])
@@ -81,33 +98,5 @@ struct MolagoApp: App {
         let args = ProcessInfo.processInfo.arguments
         guard let i = args.firstIndex(of: "--open-text"), i + 1 < args.count else { return nil }
         return args[i + 1]
-    }
-}
-
-/// Le bouton de capture, posé au centre de la barre d'onglets.
-private struct CaptureButton: View {
-    @State private var capturing = false
-
-    var body: some View {
-        Button { capturing = true } label: {
-            Image(systemName: "plus")
-                .font(.system(size: 25, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 62, height: 62)
-                .background(Dancheong.jangdan, in: Circle())
-                // Un anneau de la couleur du fond détache le bouton de la
-                // pilule qu'il chevauche : sans lui, les deux formes se
-                // touchent et il a l'air posé de travers.
-                .overlay(Circle().stroke(Dancheong.ground, lineWidth: 5))
-                .shadow(color: .black.opacity(0.18), radius: 12, y: 5)
-        }
-        .accessibilityLabel("Capture a word")
-        // Au centre, chevauchant la pilule et débordant vers le haut — la
-        // place que le pouce atteint le plus facilement, et celle que Pierre a
-        // choisie. Il reste une action et non un troisième onglet : aucun
-        // libellé, aucun état sélectionné, et il ouvre un écran modal sans
-        // changer d'onglet.
-        .padding(.bottom, 34)
-        .fullScreenCover(isPresented: $capturing) { CaptureView() }
     }
 }
