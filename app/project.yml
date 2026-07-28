@@ -15,10 +15,19 @@ options:
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    # Sans compte payant, l'app se signe avec l'équipe personnelle et le profil
-    # expire au bout de sept jours (mvp-plan.md §7). En automatique, Xcode
-    # regénère ce qu'il faut à chaque exécution.
+    # Compte développeur payant (équipe « Pierre Nicolas COLSON »). C'est ce
+    # numéro, et pas l'équipe personnelle gratuite, qui donne un profil valable
+    # un an au lieu de sept jours — l'app installée sur l'iPhone reste donc
+    # utilisable au quotidien. L'équipe est nommée explicitement pour que la
+    # construction en ligne de commande se signe seule, sans ouvrir Xcode.
     CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: 7R46U8G25A
+    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    # Écrit en toutes lettres plutôt que dérivé du nom de la cible : le premier
+    # build s'était signé avec l'équipe personnelle gratuite, qui a enregistré
+    # « com.pierrecolson.Molago » chez Apple — et un identifiant d'app ne
+    # revient jamais à une autre équipe. Celui-ci appartient au compte payant.
+    PRODUCT_BUNDLE_IDENTIFIER: com.pierrecolson.molago
     ENABLE_USER_SCRIPT_SANDBOXING: YES
 
 targets:
