@@ -445,3 +445,43 @@ aujourd'hui taillé sur un profil, donc personnel. S'il devient mutualisable par
 (§13 de la spec, explicitement en suspens), les slots 1 et 2 se partagent et le coût de
 génération cesse de croître avec le nombre d'utilisateurs. Seul le slot 3, né des
 captures, reste irréductiblement personnel.
+
+---
+
+## §38 — Un quatrième pigment : ce que j'attrape moi-même n'est pas « du quotidien »
+
+**28 juillet 2026.**
+
+Les trois couleurs de l'app ne sont pas décoratives, elles **portent un sens** : 삼청 bleu
+pour la tech, 하엽 vert pour la Corée, 장단 orange pour le quotidien. L'écran de capture,
+lui, empruntait l'orange pour son bouton principal et le bleu pour le second — et rangeait
+les mots photographiés dans l'univers « quotidien ».
+
+Pierre l'a vu tout de suite : *« on utilise ces couleurs pour le type d'article »*. Le bleu
+du bouton « Choose a photo » **mentait** — il ne parlait pas de tech —, et un mot attrapé
+sur une facture d'immeuble n'est pas un mot d'un des trois textes du matin. Il ne vient
+d'aucun article. Il vient de la vie de celui qui lit.
+
+**Verdict : 자주, le pourpre, quatrième pigment, réservé à la capture.**
+
+| | |
+|---|---|
+| Couleur | `Color(red: 0.400, green: 0.243, blue: 0.451)` |
+| Hanja | 捉 — *attraper* |
+| Slot | `"capture"` |
+| Où | le `+` de la barre, tout l'écran de capture, les surlignages sur la photo, et la fiche des mots capturés au carnet |
+
+**Pourquoi le pourpre et pas le 석간주.** Le rouge de fer était le candidat le plus
+« culturel » — c'est le pigment qui voisine le 장단 sur les poutres de palais. Mis en
+situation sur une photo de facture, ses surlignages **se lisaient encore comme de
+l'orange** : exactement le problème qu'on cherchait à supprimer. Le 먹 (encre), lui, était
+juste sémantiquement mais éteignait les mots — ils ne donnaient plus envie d'être attrapés.
+Le 자주 est le seul de la palette qu'on ne confonde avec aucun des trois du coin de l'œil,
+et il reste chaud.
+
+**La règle qui en sort, et qui vaut pour la suite : une couleur de Molago dit d'où vient
+un mot, jamais « ceci est un bouton important ».** Un bouton secondaire ne prend donc pas
+un autre pigment — il prend le même, creusé. Cinq pigments du 단청 restent libres
+(석간주, 양록, 치자, 뇌록, 먹) pour de futurs univers ; aucun ne doit servir d'accent.
+
+Page de comparaison : `docs/design/couleur-capture.html`.

@@ -28,19 +28,23 @@ const USER = process.env.MOLAGO_USER_ID || process.env.MOLAGO_SECRET_PATH || ''
 
 // ── le glossaire d'un texte capturé ──────────────────────────────────────────
 
-const GLOSS = (text) => `Voici un texte coréen photographié — une facture, un panneau, un menu, un message.
+// Les mots arrivent numérotés parce que l'app sait **où** chacun se trouve dans
+// l'image : elle en a la boîte, donnée par l'OCR. Répondre par index garde
+// l'alignement entre le sens et le rectangle à surligner — un appariement par
+// forme se casserait dès qu'un mot apparaît deux fois.
+const GLOSS = (tokens) => `Voici les mots d'un texte coréen photographié — une facture, un panneau, un menu, un message —, numérotés dans l'ordre où ils apparaissent.
 
-${text}
+${tokens.map((t, i) => `${i}. ${t}`).join('\n')}
 
-Pour chaque mot porteur de sens, donne sa forme de dictionnaire et son sens. Ignore les particules seules, les nombres nus et la ponctuation.
+Retiens **ceux qui valent la peine d'être appris** par un étranger installé à Séoul depuis huit ans : les noms, verbes et adjectifs porteurs de sens. Laisse de côté les particules seules, les nombres, les nombres avec unité, la ponctuation, les noms propres évidents, et les mots trop élémentaires.
 
 Réponds en JSON strict :
-{"w":[{"s":"le mot tel qu'il apparaît","l":"la forme de dictionnaire","p":"noun|verb|adjective|adverb|other","e":"le sens en anglais, 2 à 5 mots"}]}
+{"w":[{"i":<numéro>,"l":"la forme de dictionnaire","p":"noun|verb|adjective|adverb|other","e":"le sens en anglais, 2 à 5 mots"}]}
 
 Règles :
 - \`e\` est le sens de \`l\`, jamais celui de la forme fléchie : 관리비를 donne \`l\`: 관리비 et \`e\`: "maintenance fee".
 - L'OCR se trompe. Si un mot est manifestement mal reconnu et ne veut rien dire, saute-le plutôt que d'inventer.
-- Au plus 25 mots, les plus utiles d'abord — ceux qu'un étranger installé à Séoul aurait besoin de comprendre.`
+- Au plus 30 mots, et seulement ceux qui apprennent vraiment quelque chose.`
 
 async function llm(prompt) {
   const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -105,14 +109,22 @@ createServer(async (req, res) => {
     const body = await readBody(req)
 
     if (route === 'gloss') {
-      const text = String(body.text || '').trim().slice(0, 4000)
-      if (text.length < 2) return json(res, 400, { error: 'no text' })
-      const out = await llm(GLOSS(text))
+      // L'app envoie les mots que l'OCR a vus, dans l'ordre. Elle accepte aussi
+      // un texte brut, pour rester utilisable depuis une ligne de commande.
+      const tokens = Array.isArray(body.tokens)
+        ? body.tokens.map((t) => String(t).trim()).filter(Boolean).slice(0, 400)
+        : String(body.text || '').split(/\s+/).filter(Boolean).slice(0, 400)
+      if (tokens.length < 1) return json(res, 400, { error: 'no text' })
+
+      const out = await llm(GLOSS(tokens))
       const words = (out.w || [])
-        .filter((w) => w && typeof w.l === 'string' && typeof w.e === 'string' && w.l.trim() && w.e.trim())
-        .slice(0, 25)
+        .filter((w) => w && Number.isInteger(w.i) && tokens[w.i]
+          && typeof w.l === 'string' && w.l.trim()
+          && typeof w.e === 'string' && w.e.trim())
+        .slice(0, 30)
         .map((w) => ({
-          surface: String(w.s || w.l).trim(),
+          index: w.i,
+          surface: tokens[w.i],
           lemma: w.l.trim(),
           pos: typeof w.p === 'string' ? w.p : 'other',
           en: w.e.trim(),

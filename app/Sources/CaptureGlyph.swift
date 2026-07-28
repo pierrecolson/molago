@@ -13,8 +13,10 @@ extension UIImage {
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: side, height: side))
         let image = renderer.image { context in
             let cg = context.cgContext
-            // 장단, l'orange du 단청 — la couleur de marque.
-            cg.setFillColor(UIColor(red: 0.824, green: 0.376, blue: 0.102, alpha: 1).cgColor)
+            // 자주, le pourpre de la capture — pas l'orange de marque. Le
+            // bouton et l'écran qu'il ouvre parlent d'une seule voix, et la
+            // couleur se reconnaît avant même d'avoir touché.
+            cg.setFillColor(UIColor(red: 0.400, green: 0.243, blue: 0.451, alpha: 1).cgColor)
             cg.fillEllipse(in: CGRect(x: 0, y: 0, width: side, height: side))
 
             // La croix, en blanc, en creux dans le disque.

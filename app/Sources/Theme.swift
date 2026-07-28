@@ -24,12 +24,22 @@ enum Dancheong {
     static let hayeop = Color(red: 0.247, green: 0.420, blue: 0.290)
     /// 장단 — l'orange dominant du 단청, et la couleur de marque de Molago.
     static let jangdan = Color(red: 0.824, green: 0.376, blue: 0.102)
+    /// 자주 — le pourpre, réservé à ce que l'utilisateur attrape lui-même.
+    ///
+    /// Les trois autres pigments disent **d'où vient le texte** : bleu pour la
+    /// tech, vert pour la Corée, orange pour le quotidien. Un mot photographié
+    /// sur une facture ne vient d'aucun article — il vient de la vie de celui
+    /// qui lit —, et lui donner l'orange du quotidien effaçait cette
+    /// différence. Le pourpre est le seul pigment de la palette qu'on ne
+    /// confonde avec aucun des trois du coin de l'œil.
+    static let jaju = Color(red: 0.400, green: 0.243, blue: 0.451)
 
     /// La couleur d'un univers, et le caractère chinois qui le désigne.
     static func universe(_ slot: String) -> (color: Color, hanja: String) {
         switch slot {
         case "tech": (samcheong, "科")
         case "korea": (hayeop, "韓")
+        case "capture": (jaju, "捉")
         default: (jangdan, "常")
         }
     }
@@ -45,6 +55,7 @@ enum Dancheong {
         switch slot {
         case "tech": Color(red: 0.784, green: 0.867, blue: 0.933)
         case "korea": Color(red: 0.796, green: 0.890, blue: 0.808)
+        case "capture": Color(red: 0.878, green: 0.831, blue: 0.906)
         default: Color(red: 0.973, green: 0.855, blue: 0.749)
         }
     }
@@ -58,6 +69,7 @@ enum Dancheong {
         switch slot {
         case "tech": Color(red: 0.553, green: 0.729, blue: 0.855)
         case "korea": Color(red: 0.565, green: 0.780, blue: 0.596)
+        case "capture": Color(red: 0.729, green: 0.647, blue: 0.784)
         default: Color(red: 0.949, green: 0.671, blue: 0.451)
         }
     }

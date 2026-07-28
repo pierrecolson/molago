@@ -62,13 +62,15 @@ ssh "$VPS" '
   mkdir -p '"$REMOTE"'/data/icons
 '
 
-step "Serveur de fichiers"
-ssh "$VPS" "cd $REMOTE && docker compose up -d files api"
-
 if [[ " $* " == *" --build "* || " $* " == *" --run "* ]]; then
-  step "Construction de la fabrique"
+  step "Construction des images"
   ssh "$VPS" "cd $REMOTE && docker compose build pipeline api"
 fi
+
+# Après la construction, jamais avant : remonter les services d abord laissait
+# tourner l ancienne image, et le code fraîchement déployé restait invisible.
+step "Services"
+ssh "$VPS" "cd $REMOTE && docker compose up -d files api"
 
 if [[ " $* " == *" --run "* ]]; then
   step "Fabrication de la journée"

@@ -3,53 +3,68 @@ import SwiftData
 import PhotosUI
 import Vision
 
-/// La capture : photographier, lire, trier.
+/// La capture : photographier, voir, toucher.
 ///
 /// C'est la boucle qui distingue Molago d'un lecteur. Un mot attrapé sur une
 /// facture mardi devient le sujet de mercredi (spec §8.2) — sans elle, le
 /// troisième texte tourne indéfiniment sur un fonds de situations inventées.
 ///
-/// L'OCR est **natif** (framework Vision, coréen depuis iOS 16) : gratuit, hors
-/// ligne, instantané, aucune dépendance. Sa seule faiblesse est le manuscrit.
+/// L'écran montre **la photo elle-même**, avec les mots qui valent la peine
+/// surlignés là où ils sont. C'est ce que la spec §5.7 décrivait — « le texte
+/// extrait s'affiche avec les mots inconnus surlignés » — et ce qui la rend
+/// utile avant même d'apprendre : trois secondes pour voir ce qui bloque sur un
+/// papier administratif.
+///
+/// L'OCR est natif (Vision, coréen depuis iOS 16) : gratuit, hors ligne,
+/// instantané. Sa seule faiblesse est le manuscrit.
 @Observable
 @MainActor
 final class CaptureFlow {
     enum Step {
         case choosing
         case reading
-        case sorting([Candidate])
+        case marked(UIImage, [Word])
         case nothing(String)
     }
 
-    struct Candidate: Identifiable, Hashable {
+    /// Un mot vu par l'OCR, avec sa place dans l'image et son sens.
+    struct Word: Identifiable, Hashable {
         let surface: String
         let lemma: String
         let pos: String
         let en: String
-        var id: String { lemma }
+        /// La ligne entière où il a été lu. C'est ce qui deviendra sa phrase au
+        /// carnet — un mot sans son contexte redevient une liste de vocabulaire.
+        let line: String
+        /// Rectangle normalisé, origine en haut à gauche — comme une vue.
+        let box: CGRect
+        var id: String { "\(lemma)-\(box.minX)-\(box.minY)" }
     }
 
     private(set) var step: Step = .choosing
-    /// Le texte reconnu, montré au-dessus des cartes. Utile avant même
-    /// d'apprendre : trois secondes pour voir ce qui bloque sur un papier
-    /// administratif (spec §5.7).
-    private(set) var recognised = ""
 
-    func read(_ image: UIImage) async {
+    func reset() { step = .choosing }
+
+    func read(_ photo: UIImage) async {
         step = .reading
-        guard let text = await Self.recogniseKorean(in: image), text.count > 1 else {
+
+        // Une photo prise à l'iPhone est stockée telle que le capteur l'a vue,
+        // avec une consigne de rotation à part. Vision travaille sur les pixels
+        // bruts : sans redressement, les rectangles tombent à côté des mots.
+        let image = photo.upright
+        let seen = await Self.recognise(image)
+        guard !seen.isEmpty else {
             step = .nothing("No Korean text found in that photo.")
             return
         }
-        recognised = text
 
         do {
-            let words = try await Self.gloss(text)
-            guard !words.isEmpty else {
+            let glossed = try await Self.gloss(seen)
+            guard !glossed.isEmpty else {
                 step = .nothing("Nothing worth keeping in there.")
                 return
             }
-            step = .sorting(words)
+            step = .marked(image, glossed)
         } catch {
             step = .nothing("Couldn't look those words up. Try again in a moment.")
         }
@@ -57,20 +72,34 @@ final class CaptureFlow {
 
     // ── lecture de l'image ───────────────────────────────────────────────────
 
-    /// `nonisolated` volontairement.
-    ///
-    /// Sans ça, la méthode appartient au main actor parce que la classe y
-    /// appartient — et le gestionnaire de Vision, qui s'exécute sur une file
-    /// d'arrière-plan, reprend alors une continuation isolée depuis le mauvais
-    /// contexte. Swift 6 le vérifie et l'app s'arrête net. Rien ici ne touche à
-    /// l'état de la classe : c'est une fonction pure sur une image.
-    private nonisolated static func recogniseKorean(in image: UIImage) async -> String? {
-        guard let cg = image.cgImage else { return nil }
+    private struct Seen {
+        let text: String
+        let line: String
+        let box: CGRect
+    }
+
+    /// `nonisolated` volontairement : le gestionnaire de Vision s'exécute sur une
+    /// file d'arrière-plan, et reprendre depuis là une continuation isolée au
+    /// main actor arrête l'app — Swift 6 vérifie l'isolation à l'exécution. Rien
+    /// ici ne touche à l'état de la classe.
+    private nonisolated static func recognise(_ image: UIImage) async -> [Seen] {
+        guard let cg = image.cgImage else { return [] }
         return await withCheckedContinuation { continuation in
             let request = VNRecognizeTextRequest { request, _ in
-                let lines = (request.results as? [VNRecognizedTextObservation] ?? [])
-                    .compactMap { $0.topCandidates(1).first?.string }
-                continuation.resume(returning: lines.joined(separator: "\n"))
+                var out: [Seen] = []
+                for observation in request.results as? [VNRecognizedTextObservation] ?? [] {
+                    guard let candidate = observation.topCandidates(1).first else { continue }
+                    let line = candidate.string
+                    // Chaque mot séparément : c'est le mot qu'on veut pouvoir
+                    // toucher, pas la ligne entière.
+                    for range in line.tokenRanges {
+                        let token = String(line[range])
+                        guard token.contains(where: { $0.isHangul }) else { continue }
+                        guard let piece = try? candidate.boundingBox(for: range) else { continue }
+                        out.append(Seen(text: token, line: line, box: piece.boundingBox.flippedToViewSpace))
+                    }
+                }
+                continuation.resume(returning: out)
             }
             request.recognitionLanguages = ["ko-KR", "en-US"]
             request.recognitionLevel = .accurate
@@ -87,35 +116,49 @@ final class CaptureFlow {
     // ── le sens, tout de suite ───────────────────────────────────────────────
 
     /// La spec §5.7 est explicite : « on capture souvent parce qu'on a besoin de
-    /// comprendre **maintenant**, devant sa facture. » Le sens ne peut donc pas
-    /// attendre la fabrication de la nuit.
-    private static func gloss(_ text: String) async throws -> [Candidate] {
+    /// comprendre **maintenant**, devant sa facture. »
+    ///
+    /// Les mots partent numérotés et reviennent numérotés : c'est ce qui garde
+    /// le sens aligné sur le rectangle à surligner. Un appariement par forme se
+    /// casserait dès qu'un mot apparaît deux fois sur la photo.
+    private static func gloss(_ seen: [Seen]) async throws -> [Word] {
         var request = URLRequest(url: Config.baseURL.appending(path: "gloss"))
         request.httpMethod = "POST"
         request.timeoutInterval = 45
         request.setValue("application/json", forHTTPHeaderField: "content-type")
-        request.httpBody = try JSONEncoder().encode(["text": text])
+        request.httpBody = try JSONEncoder().encode(["tokens": seen.map(\.text)])
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
 
         struct Reply: Decodable {
-            struct Word: Decodable { let surface: String; let lemma: String; let pos: String; let en: String }
+            struct Word: Decodable {
+                let index: Int
+                let surface: String
+                let lemma: String
+                let pos: String
+                let en: String
+            }
             let words: [Word]
         }
         return try JSONDecoder().decode(Reply.self, from: data).words
-            .map { Candidate(surface: $0.surface, lemma: $0.lemma, pos: $0.pos, en: $0.en) }
+            .filter { seen.indices.contains($0.index) }
+            .map {
+                Word(surface: $0.surface, lemma: $0.lemma, pos: $0.pos, en: $0.en,
+                     line: seen[$0.index].line, box: seen[$0.index].box)
+            }
     }
 
     /// Remonte au serveur ce qui a été gardé, pour que la fabrique de la nuit
     /// suivante en fasse le troisième texte. Sans `throws` : un envoi raté ne
     /// doit pas empêcher le mot d'entrer au carnet — il y est déjà.
-    static func report(_ kept: [Candidate], context: String) async {
+    static func report(_ kept: [Word]) async {
+        guard !kept.isEmpty else { return }
         struct Payload: Encodable {
             struct Word: Encodable { let lemma: String; let en: String; let context: String }
             let words: [Word]
         }
-        let payload = Payload(words: kept.map { .init(lemma: $0.lemma, en: $0.en, context: context) })
+        let payload = Payload(words: kept.map { .init(lemma: $0.lemma, en: $0.en, context: $0.line) })
         var request = URLRequest(url: Config.baseURL.appending(path: "captures"))
         request.httpMethod = "POST"
         request.timeoutInterval = 20
@@ -125,207 +168,41 @@ final class CaptureFlow {
     }
 }
 
-// ── l'écran ──────────────────────────────────────────────────────────────────
+// ── conversions ──────────────────────────────────────────────────────────────
 
-struct CaptureView: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var context
+private extension Character {
+    var isHangul: Bool { unicodeScalars.contains { (0xAC00...0xD7A3).contains($0.value) } }
+}
 
-    @State private var flow = CaptureFlow()
-    @State private var picked: PhotosPickerItem?
-    @State private var index = 0
-    @State private var kept: [CaptureFlow.Candidate] = []
-    @State private var showingCamera = false
-
-    var body: some View {
-        NavigationStack {
-            Group {
-                switch flow.step {
-                case .choosing: chooser
-                case .reading: reading
-                case .sorting(let words): sorting(words)
-                case .nothing(let message):
-                    ContentUnavailableView("Nothing to keep", systemImage: "text.viewfinder", description: Text(message))
-                }
-            }
-            .background(Dancheong.ground)
-            .navigationTitle("Capture")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { finish() }
-                }
-            }
+private extension String {
+    /// Les plages des mots, séparés par des espaces. Vision veut des plages
+    /// dans la chaîne d'origine pour rendre la boîte d'un morceau de ligne.
+    var tokenRanges: [Range<String.Index>] {
+        var out: [Range<String.Index>] = []
+        var i = startIndex
+        while i < endIndex {
+            while i < endIndex, self[i].isWhitespace { i = index(after: i) }
+            guard i < endIndex else { break }
+            var j = i
+            while j < endIndex, !self[j].isWhitespace { j = index(after: j) }
+            out.append(i..<j)
+            i = j
         }
-    }
-
-    private var chooser: some View {
-        VStack(spacing: 16) {
-            Spacer()
-            Image(systemName: "text.viewfinder")
-                .font(.system(size: 54))
-                .foregroundStyle(Dancheong.jangdan)
-
-            Text("A bill, a sign, a menu, a message")
-                .font(.headline)
-            Text("Molago reads the Korean and shows you what each word means.")
-                .font(.subheadline)
-                .foregroundStyle(Dancheong.inkSoft)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
-
-            Spacer()
-
-            #if !targetEnvironment(simulator)
-            Button { showingCamera = true } label: {
-                Label("Take a photo", systemImage: "camera.fill")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 15)
-                    .background(Dancheong.jangdan, in: Capsule())
-            }
-            #endif
-
-            // Aussi depuis la photothèque : une capture d'écran de KakaoTalk est
-            // une capture comme une autre, et c'est le seul chemin dans le
-            // simulateur.
-            PhotosPicker(selection: $picked, matching: .images) {
-                Label("Choose a photo", systemImage: "photo.on.rectangle")
-                    .font(.headline)
-                    .foregroundStyle(Dancheong.jangdan)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 15)
-                    .overlay(Capsule().stroke(Dancheong.jangdan, lineWidth: 1.5))
-            }
-        }
-        .padding(.horizontal, 24)
-        .padding(.bottom, 28)
-        .onChange(of: picked) { _, item in
-            guard let item else { return }
-            Task {
-                if let data = try? await item.loadTransferable(type: Data.self),
-                   let image = UIImage(data: data) {
-                    await flow.read(image)
-                }
-            }
-        }
-        .fullScreenCover(isPresented: $showingCamera) {
-            CameraPicker { image in
-                showingCamera = false
-                Task { await flow.read(image) }
-            }
-        }
-    }
-
-    private var reading: some View {
-        VStack(spacing: 14) {
-            ProgressView().controlSize(.large).tint(Dancheong.jangdan)
-            Text("Reading…").font(.subheadline).foregroundStyle(Dancheong.inkSoft)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    @ViewBuilder
-    private func sorting(_ words: [CaptureFlow.Candidate]) -> some View {
-        if index >= words.count {
-            ContentUnavailableView {
-                Label("\(kept.count) kept", systemImage: "checkmark.circle")
-            } description: {
-                Text(kept.isEmpty
-                     ? "Nothing this time — that's fine."
-                     : "They're in your Notebook, and tomorrow's Daily life text may use them.")
-            }
-            .task { finish() }
-        } else {
-            VStack(spacing: 0) {
-                // Le texte reconnu, au-dessus. Utile avant même d'apprendre :
-                // trois secondes pour voir ce qui bloque sur un papier.
-                ScrollView {
-                    Text(flow.recognised)
-                        .font(.footnote)
-                        .foregroundStyle(Dancheong.inkSoft)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(16)
-                }
-                .frame(maxHeight: 150)
-
-                Text("\(index + 1) of \(words.count)")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(Dancheong.inkSoft)
-                    .padding(.top, 4)
-
-                Spacer(minLength: 0)
-
-                // Le même geste qu'en lecture : droite je garde, gauche je
-                // passe. Un seul langage dans toute l'app, appris une fois.
-                WordCard(
-                    word: Day.Word(
-                        w: words[index].surface, t: 0,
-                        lemma: words[index].lemma, pos: words[index].pos,
-                        en: words[index].en, icon: nil,
-                        hanja: nil, root: nil, family: nil
-                    ),
-                    context: flow.recognised.replacingOccurrences(of: "\n", with: " "),
-                    slot: "daily",
-                    onKeep: { keep(words[index]) },
-                    onKnew: { index += 1 },
-                    onClose: { index += 1 }
-                )
-                .frame(maxHeight: 420)
-            }
-        }
-    }
-
-    private func keep(_ candidate: CaptureFlow.Candidate) {
-        kept.append(candidate)
-        context.insert(KeptWord(
-            lemma: candidate.lemma,
-            meaning: candidate.en,
-            pos: candidate.pos,
-            icon: nil,
-            context: flow.recognised.replacingOccurrences(of: "\n", with: " "),
-            contextAudio: nil,
-            hanja: nil, root: nil, family: nil,
-            slot: "daily"
-        ))
-        try? context.save()
-        index += 1
-    }
-
-    private func finish() {
-        let toReport = kept
-        let where_ = flow.recognised.replacingOccurrences(of: "\n", with: " ")
-        if !toReport.isEmpty {
-            Task { await CaptureFlow.report(toReport, context: where_) }
-        }
-        dismiss()
+        return out
     }
 }
 
-/// L'appareil photo. `UIImagePickerController` plutôt que quoi que ce soit de
-/// plus moderne : il est natif, il connaît déjà les permissions, et il n'existe
-/// pas dans le simulateur — ce que le code appelant sait.
-private struct CameraPicker: UIViewControllerRepresentable {
-    let onImage: (UIImage) -> Void
-
-    func makeUIViewController(context: Context) -> UIImagePickerController {
-        let picker = UIImagePickerController()
-        picker.sourceType = .camera
-        picker.delegate = context.coordinator
-        return picker
+private extension UIImage {
+    /// La même image, pixels déjà tournés dans le bon sens.
+    var upright: UIImage {
+        guard imageOrientation != .up else { return self }
+        return UIGraphicsImageRenderer(size: size).image { _ in draw(in: CGRect(origin: .zero, size: size)) }
     }
+}
 
-    func updateUIViewController(_ controller: UIImagePickerController, context: Context) {}
-    func makeCoordinator() -> Coordinator { Coordinator(onImage: onImage) }
-
-    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-        let onImage: (UIImage) -> Void
-        init(onImage: @escaping (UIImage) -> Void) { self.onImage = onImage }
-
-        func imagePickerController(_ picker: UIImagePickerController,
-                                   didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
-            if let image = info[.originalImage] as? UIImage { onImage(image) }
-        }
+private extension CGRect {
+    /// Vision compte depuis le bas à gauche, une vue depuis le haut à gauche.
+    var flippedToViewSpace: CGRect {
+        CGRect(x: minX, y: 1 - minY - height, width: width, height: height)
     }
 }
