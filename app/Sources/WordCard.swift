@@ -204,12 +204,17 @@ struct IconTile: View {
         .frame(width: size, height: size)
         .task(id: icon) {
             guard let icon else { loaded = nil; return }
-            let url = Paths.icons.appending(path: "\(icon).png")
-            if let data = try? Data(contentsOf: url) {
-                loaded = UIImage(data: data)
-            } else {
-                print("[molago] icône introuvable : \(url.path())")
-                loaded = nil
+            // Les icônes arrivent après la journée : elle est affichée dès
+            // qu'elle est lisible, les médias suivent. Une lecture unique au
+            // premier rendu laisserait donc la tuile jusqu'au prochain
+            // lancement. On réessaie le temps que le téléchargement passe.
+            for attempt in 0..<5 {
+                if attempt > 0 { try? await Task.sleep(for: .seconds(1.5)) }
+                let url = Paths.icons.appending(path: "\(icon).png")
+                if let data = try? Data(contentsOf: url), let image = UIImage(data: data) {
+                    loaded = image
+                    return
+                }
             }
         }
     }

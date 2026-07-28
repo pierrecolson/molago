@@ -182,8 +182,16 @@ private struct CoverMark: View {
         }
         .task(id: icon) {
             guard let icon else { loaded = nil; return }
-            let url = Paths.icons.appending(path: "\(icon).png")
-            loaded = (try? Data(contentsOf: url)).flatMap(UIImage.init(data:))
+            // Même raison que pour les tuiles du carnet : la vignette peut
+            // arriver après que la carte s'est affichée.
+            for attempt in 0..<5 {
+                if attempt > 0 { try? await Task.sleep(for: .seconds(1.5)) }
+                let url = Paths.icons.appending(path: "\(icon).png")
+                if let data = try? Data(contentsOf: url), let image = UIImage(data: data) {
+                    loaded = image
+                    return
+                }
+            }
         }
     }
 }

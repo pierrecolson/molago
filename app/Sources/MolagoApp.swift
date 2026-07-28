@@ -30,7 +30,7 @@ struct MolagoApp: App {
                         // l'archive est la suite du fil d'aujourd'hui, et les
                         // séparer créerait un endroit où s'accumule ce qu'on n'a
                         // pas fait (spec §5.1).
-                        ZStack(alignment: .bottomTrailing) {
+                        ZStack(alignment: .bottom) {
                             TabView(selection: .constant(
                                 ProcessInfo.processInfo.arguments.contains("--open-notebook") ? 1 : 0
                             )) {
@@ -91,20 +91,23 @@ private struct CaptureButton: View {
     var body: some View {
         Button { capturing = true } label: {
             Image(systemName: "plus")
-                .font(.system(size: 19, weight: .bold))
+                .font(.system(size: 25, weight: .semibold))
                 .foregroundStyle(.white)
-                .frame(width: 46, height: 46)
+                .frame(width: 62, height: 62)
                 .background(Dancheong.jangdan, in: Circle())
-                .shadow(color: Dancheong.jangdan.opacity(0.45), radius: 10, y: 4)
+                // Un anneau de la couleur du fond détache le bouton de la
+                // pilule qu'il chevauche : sans lui, les deux formes se
+                // touchent et il a l'air posé de travers.
+                .overlay(Circle().stroke(Dancheong.ground, lineWidth: 5))
+                .shadow(color: .black.opacity(0.18), radius: 12, y: 5)
         }
         .accessibilityLabel("Capture a word")
-        // À droite de la barre, aligné avec elle. Le « centre de la barre
-        // d'onglets » qu'on avait dessiné supposait une barre pleine largeur ;
-        // celle d'iOS 26 est une pilule étroite et flottante, et un bouton posé
-        // en son centre la chevauche. À côté, il reste dans la zone du pouce et
-        // se lit comme une action, pas comme un troisième onglet.
-        .padding(.trailing, 26)
-        .padding(.bottom, 30)
+        // Au centre, chevauchant la pilule et débordant vers le haut — la
+        // place que le pouce atteint le plus facilement, et celle que Pierre a
+        // choisie. Il reste une action et non un troisième onglet : aucun
+        // libellé, aucun état sélectionné, et il ouvre un écran modal sans
+        // changer d'onglet.
+        .padding(.bottom, 34)
         .fullScreenCover(isPresented: $capturing) { CaptureView() }
     }
 }
