@@ -57,7 +57,14 @@ final class CaptureFlow {
 
     // ── lecture de l'image ───────────────────────────────────────────────────
 
-    private static func recogniseKorean(in image: UIImage) async -> String? {
+    /// `nonisolated` volontairement.
+    ///
+    /// Sans ça, la méthode appartient au main actor parce que la classe y
+    /// appartient — et le gestionnaire de Vision, qui s'exécute sur une file
+    /// d'arrière-plan, reprend alors une continuation isolée depuis le mauvais
+    /// contexte. Swift 6 le vérifie et l'app s'arrête net. Rien ici ne touche à
+    /// l'état de la classe : c'est une fonction pure sur une image.
+    private nonisolated static func recogniseKorean(in image: UIImage) async -> String? {
         guard let cg = image.cgImage else { return nil }
         return await withCheckedContinuation { continuation in
             let request = VNRecognizeTextRequest { request, _ in
