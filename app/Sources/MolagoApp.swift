@@ -58,11 +58,19 @@ struct MolagoApp: App {
                         // il n'affiche aucune vue, et il ouvre un écran modal
                         // dont on revient exactement là où on était.
                         TabView(selection: tabBinding) {
-                            Tab("Library", systemImage: "book.pages", value: 0) {
+                            Tab("Library", systemImage: "newspaper", value: 0) {
                                 LibraryView(day: day)
                             }
-                            Tab("", systemImage: "plus.circle.fill", value: 1) {
+                            Tab(value: 1) {
                                 Color.clear
+                            } label: {
+                                // Une image dessinée à la main plutôt qu'un
+                                // symbole système : la barre impose sa taille et
+                                // sa teinte à `systemImage`, mais respecte une
+                                // image marquée « garde tes couleurs ». C'est le
+                                // seul moyen d'avoir un + orange et plein sans
+                                // sortir de la barre.
+                                Image(uiImage: .captureGlyph)
                             }
                             Tab("Notebook", systemImage: "text.book.closed", value: 2) {
                                 NotebookView()
