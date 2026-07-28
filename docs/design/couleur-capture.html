@@ -1,0 +1,511 @@
+<title>Molago — la couleur de la capture</title>
+
+<style>
+  /* Le système de l'app, repris tel quel : les pigments du 단청, le fond 호분,
+     le filet clair à l'intérieur du bord. Rien n'est inventé ici pour la page. */
+  :root {
+    --ground: #F4F1EA;
+    --paper: #FBF9F5;
+    --ink: #17161A;
+    --ink-soft: #8D8579;
+    --rule: #E6E1D7;
+    --shade: rgba(23, 22, 26, .06);
+
+    --samcheong: #2B5876;
+    --hayeop:    #3F6B4A;
+    --jangdan:   #D2601A;
+
+    --capture: #663E73;
+    --capture-wash: rgba(102, 62, 115, .13);
+    --capture-line: rgba(102, 62, 115, .42);
+
+    --keyline: rgba(255, 255, 255, .42);
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #16151A;
+      --paper: #1F1D23;
+      --ink: #F0EDE6;
+      --ink-soft: #948C80;
+      --rule: #2E2B33;
+      --shade: rgba(255, 255, 255, .07);
+      --keyline: rgba(255, 255, 255, .30);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #16151A;
+    --paper: #1F1D23;
+    --ink: #F0EDE6;
+    --ink-soft: #948C80;
+    --rule: #2E2B33;
+    --shade: rgba(255, 255, 255, .07);
+    --keyline: rgba(255, 255, 255, .30);
+  }
+  :root[data-theme="light"] {
+    --ground: #F4F1EA;
+    --paper: #FBF9F5;
+    --ink: #17161A;
+    --ink-soft: #8D8579;
+    --rule: #E6E1D7;
+    --shade: rgba(23, 22, 26, .06);
+    --keyline: rgba(255, 255, 255, .42);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 56px 24px 96px;
+    display: flex;
+    flex-direction: column;
+    gap: 64px;
+  }
+
+  /* ── en-tête ─────────────────────────────────────────────────────────── */
+
+  header { display: flex; flex-direction: column; gap: 14px; }
+
+  .eyebrow {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: clamp(34px, 6vw, 52px);
+    line-height: 1.1;
+    font-weight: 600;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .lede {
+    max-width: 62ch;
+    font-size: 18px;
+    color: var(--ink-soft);
+    margin: 0;
+  }
+
+  section { display: flex; flex-direction: column; gap: 20px; }
+
+  h2 {
+    font-family: var(--serif);
+    font-size: 26px;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .note { max-width: 66ch; margin: 0; color: var(--ink-soft); }
+  .note strong { color: var(--ink); font-weight: 600; }
+
+  /* ── la palette ──────────────────────────────────────────────────────── */
+
+  .palette {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    gap: 14px;
+  }
+
+  .pigment {
+    position: relative;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    text-align: left;
+    color: inherit;
+    background: none;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .pigment[disabled] { cursor: default; }
+
+  .chip {
+    position: relative;
+    height: 104px;
+    border-radius: 20px;
+    background: var(--fill);
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 14px;
+    color: #fff;
+    transition: transform .18s ease;
+  }
+  .chip::after {
+    content: "";
+    position: absolute;
+    inset: 7px;
+    border: 1px solid var(--keyline);
+    border-radius: 13px;
+    pointer-events: none;
+  }
+  .pigment:not([disabled]):hover .chip { transform: translateY(-3px); }
+  .pigment:focus-visible { outline: none; }
+  .pigment:focus-visible .chip { outline: 2px solid var(--ink); outline-offset: 3px; }
+
+  .chip .ko { font-size: 21px; font-weight: 700; line-height: 1.2; }
+  .chip .fr { font-size: 12.5px; opacity: .8; }
+
+  .status {
+    font-size: 12px;
+    color: var(--ink-soft);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .pigment[aria-pressed="true"] .status { color: var(--ink); font-weight: 600; }
+  .status .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: currentColor; opacity: .5;
+  }
+  .pigment[aria-pressed="true"] .status .dot { opacity: 1; background: var(--capture); }
+
+  /* ── les trois écrans ────────────────────────────────────────────────── */
+
+  .screens {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 24px;
+  }
+
+  .phone {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 34px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 430px;
+  }
+  .phone.dark { background: #121114; border-color: #121114; }
+
+  .caption {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    text-align: center;
+    margin: 0;
+  }
+
+  .screen-title {
+    font-family: var(--serif);
+    font-size: 24px;
+    font-weight: 700;
+    margin: 6px 0 0;
+  }
+  .screen-sub { font-size: 13.5px; color: var(--ink-soft); margin: 0; }
+
+  .btn {
+    border-radius: 16px;
+    padding: 15px 18px;
+    font-size: 15px;
+    font-weight: 600;
+    position: relative;
+  }
+  .btn.solid { background: var(--capture); color: #fff; }
+  .btn.solid::after {
+    content: ""; position: absolute; inset: 6px;
+    border: 1px solid var(--keyline); border-radius: 10px;
+  }
+  /* Creusé, pas bleu : le 삼청 veut dire « tech » et ne peut pas servir ici. */
+  .btn.hollow {
+    background: var(--capture-wash);
+    color: var(--capture);
+    box-shadow: inset 0 0 0 1px var(--capture-line);
+  }
+
+  .bill {
+    background: #F2F0EC;
+    border-radius: 8px;
+    padding: 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+  }
+  .bill-row { display: flex; gap: 8px; align-items: center; }
+  .bill-row .amount { margin-left: auto; font-size: 13px; color: #4A4640; font-variant-numeric: tabular-nums; }
+
+  .word {
+    font-size: 15px;
+    padding: 3px 6px;
+    border-radius: 5px;
+    color: #17161A;
+    background: color-mix(in srgb, var(--capture) 32%, transparent);
+    box-shadow: inset 0 0 0 1.5px var(--capture);
+  }
+  .word.kept {
+    background: var(--capture);
+    color: #fff;
+    font-weight: 600;
+    box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .5);
+  }
+  .plain { font-size: 15px; color: #17161A; }
+
+  .sheet {
+    background: var(--paper);
+    border-radius: 18px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .sheet .lemma { font-size: 22px; font-weight: 600; }
+  .sheet .gloss { font-size: 14px; color: var(--ink-soft); }
+  .sheet .keep {
+    background: var(--capture);
+    color: #fff;
+    text-align: center;
+    border-radius: 12px;
+    padding: 11px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .hero {
+    background: var(--capture);
+    border-radius: 24px;
+    padding: 20px;
+    color: #fff;
+    position: relative;
+    min-height: 190px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+  .hero::after {
+    content: ""; position: absolute; inset: 7px;
+    border: 1px solid var(--keyline); border-radius: 17px;
+  }
+  .hero .pos {
+    position: absolute; top: 20px; left: 20px;
+    font-size: 10.5px; font-weight: 700; letter-spacing: .12em;
+    padding: 4px 10px; border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, .45);
+  }
+  .hero .lemma { font-size: 38px; font-weight: 700; line-height: 1.1; }
+  .hero .gloss { font-size: 15px; opacity: .78; }
+
+  .met-label {
+    font-size: 10.5px; font-weight: 700; letter-spacing: .13em;
+    color: var(--ink-soft); text-transform: uppercase;
+  }
+  .met {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 16px;
+    padding: 14px;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  .met b { color: var(--capture); font-weight: 600; }
+
+  /* ── l'épreuve du coin de l'œil ──────────────────────────────────────── */
+
+  .glance {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 14px;
+  }
+  .card {
+    position: relative;
+    border-radius: 22px;
+    padding: 16px;
+    min-height: 132px;
+    color: #fff;
+    background: var(--fill);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .card::after {
+    content: ""; position: absolute; inset: 7px;
+    border: 1px solid var(--keyline); border-radius: 15px;
+  }
+  .card .hanja { font-size: 26px; font-weight: 700; }
+  .card .what { font-size: 13px; opacity: .82; }
+
+  footer {
+    border-top: 1px solid var(--rule);
+    padding-top: 24px;
+    color: var(--ink-soft);
+    font-size: 14.5px;
+    max-width: 66ch;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+
+<div class="page">
+
+  <header>
+    <p class="eyebrow">Molago · décision de design</p>
+    <h1>Quelle couleur pour un mot que tu attrapes toi-même&nbsp;?</h1>
+    <p class="lede">
+      Le bleu dit «&nbsp;tech&nbsp;», le vert dit «&nbsp;Corée&nbsp;», l'orange dit
+      «&nbsp;quotidien&nbsp;». L'écran de capture leur empruntait deux d'entre eux et
+      brouillait le code. Or un mot photographié sur une facture ne vient d'aucun
+      article&nbsp;: il vient de ta vie, et il lui faut son pigment.
+    </p>
+  </header>
+
+  <section>
+    <h2>La palette 단청</h2>
+    <p class="note">
+      Trois pigments sont pris. <strong>Touche un des cinq autres</strong> — toute la
+      page se repeint.
+    </p>
+    <div class="palette" id="palette"></div>
+  </section>
+
+  <section>
+    <h2>Le même parcours, dans la couleur choisie</h2>
+    <div class="screens">
+      <div>
+        <div class="phone">
+          <p class="screen-title">Catch a word</p>
+          <p class="screen-sub">A bill, a sign, a menu.<br>Molago reads the Korean on it.</p>
+          <div style="flex:1"></div>
+          <div class="btn solid">Take a photo</div>
+          <div class="btn hollow">Choose a photo</div>
+        </div>
+        <p class="caption">1 · d'où vient la photo</p>
+      </div>
+
+      <div>
+        <div class="phone dark">
+          <div class="bill">
+            <div class="bill-row"><span class="word kept">관리비</span><span class="word">고지서</span></div>
+            <div class="bill-row"><span class="word">승강기</span><span class="word">유지비</span><span class="amount">8,700원</span></div>
+            <div class="bill-row"><span class="word">전기료</span><span class="amount">41,900원</span></div>
+            <div class="bill-row"><span class="plain">합계</span><span class="amount">210,800원</span></div>
+            <div class="bill-row"><span class="word">납부기한</span><span class="plain">8월 5일</span></div>
+          </div>
+          <div class="sheet">
+            <div>
+              <div class="lemma">고지서</div>
+              <div class="gloss">bill, notice, invoice</div>
+            </div>
+            <div class="keep">Keep this word</div>
+          </div>
+        </div>
+        <p class="caption">2 · les mots allumés sur la photo — 관리비 est déjà gardé</p>
+      </div>
+
+      <div>
+        <div class="phone">
+          <div class="hero">
+            <span class="pos">NOUN</span>
+            <div class="lemma">관리비</div>
+            <div class="gloss">maintenance fee</div>
+          </div>
+          <span class="met-label">Where you met it</span>
+          <div class="met">일반<b>관리비</b> 68,400원 · 청소비 12,300원</div>
+          <div style="flex:1"></div>
+          <p class="caption" style="margin:0">Kept today</p>
+        </div>
+        <p class="caption">3 · sa fiche au carnet</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>L'épreuve du coin de l'œil</h2>
+    <p class="note">
+      C'est ici que ça se joue vraiment : dans le carnet, les quatre couleurs se
+      côtoient à petite taille. <strong>Si tu dois réfléchir une seconde pour
+      distinguer la quatrième des trois autres, elle ne va pas.</strong>
+    </p>
+    <div class="glance">
+      <div class="card" style="--fill: var(--samcheong)"><span class="hanja">科</span><span class="what">tech</span></div>
+      <div class="card" style="--fill: var(--hayeop)"><span class="hanja">韓</span><span class="what">Corée</span></div>
+      <div class="card" style="--fill: var(--jangdan)"><span class="hanja">常</span><span class="what">quotidien</span></div>
+      <div class="card" style="--fill: var(--capture)"><span class="hanja">捉</span><span class="what" id="glance-label">capture</span></div>
+    </div>
+  </section>
+
+  <footer>
+    Mon avis : le <strong>자주 pourpre</strong>. C'est le seul qu'on ne confond avec
+    rien du coin de l'œil, et il reste chaud — le 석간주 se lit encore comme de
+    l'orange sur la photo, et le 먹 éteint les mots au lieu de donner envie de les
+    attraper. Mais c'est ton œil qui tranche.
+  </footer>
+
+</div>
+
+<script>
+  // Les cinq pigments encore libres, plus l'encre. Les trois premiers portent
+  // déjà un sens et ne peuvent pas être repris.
+  const PIGMENTS = [
+    { ko: "삼청",   fr: "tech",         hex: "#2B5876", taken: true },
+    { ko: "하엽",   fr: "Corée",        hex: "#3F6B4A", taken: true },
+    { ko: "장단",   fr: "quotidien",    hex: "#D2601A", taken: true },
+    { ko: "석간주", fr: "rouge de fer", hex: "#93372D" },
+    { ko: "자주",   fr: "pourpre",      hex: "#663E73" },
+    { ko: "양록",   fr: "vert vif",     hex: "#5A8C5A" },
+    { ko: "치자",   fr: "jaune safran", hex: "#C08A16" },
+    { ko: "뇌록",   fr: "vert-de-gris", hex: "#5E7468" },
+    { ko: "먹",     fr: "encre",        hex: "#252328" },
+  ];
+
+  const root = document.documentElement;
+  const palette = document.getElementById("palette");
+  const glanceLabel = document.getElementById("glance-label");
+
+  function hexToRgb(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return [n >> 16 & 255, n >> 8 & 255, n & 255];
+  }
+
+  function choose(p) {
+    const [r, g, b] = hexToRgb(p.hex);
+    root.style.setProperty("--capture", p.hex);
+    root.style.setProperty("--capture-wash", `rgba(${r}, ${g}, ${b}, .13)`);
+    root.style.setProperty("--capture-line", `rgba(${r}, ${g}, ${b}, .42)`);
+    glanceLabel.textContent = `capture · ${p.ko}`;
+    for (const b of palette.querySelectorAll(".pigment")) {
+      b.setAttribute("aria-pressed", String(b.dataset.ko === p.ko));
+      const s = b.querySelector(".status");
+      if (!b.disabled) s.lastChild.textContent = b.dataset.ko === p.ko ? " choisi" : " libre";
+    }
+  }
+
+  for (const p of PIGMENTS) {
+    const el = document.createElement(p.taken ? "div" : "button");
+    el.className = "pigment";
+    el.dataset.ko = p.ko;
+    if (p.taken) el.setAttribute("disabled", "");
+    else { el.type = "button"; el.setAttribute("aria-pressed", "false"); }
+    el.innerHTML =
+      `<span class="chip" style="--fill:${p.hex}">
+         <span class="ko">${p.ko}</span>
+         <span class="fr">${p.fr}</span>
+       </span>
+       <span class="status"><span class="dot"></span>${p.taken ? " déjà pris" : " libre"}</span>`;
+    if (!p.taken) el.addEventListener("click", () => choose(p));
+    palette.appendChild(el);
+  }
+
+  choose(PIGMENTS.find((p) => p.ko === "자주"));
+</script>

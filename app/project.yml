@@ -1,0 +1,57 @@
+# Le projet Xcode est décrit ici et régénéré par `xcodegen`. Le .xcodeproj
+# n'est pas versionné : c'est un fichier bineux dont les diffs sont illisibles
+# et qui entre en conflit dès qu'on y touche à deux endroits. Ce YAML, lui, se
+# lit et se relit.
+#
+#   cd app && xcodegen && open Molago.xcodeproj
+
+name: Molago
+options:
+  bundleIdPrefix: com.pierrecolson
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    # Compte développeur payant (équipe « Pierre Nicolas COLSON »). C'est ce
+    # numéro, et pas l'équipe personnelle gratuite, qui donne un profil valable
+    # un an au lieu de sept jours — l'app installée sur l'iPhone reste donc
+    # utilisable au quotidien. L'équipe est nommée explicitement pour que la
+    # construction en ligne de commande se signe seule, sans ouvrir Xcode.
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: 7R46U8G25A
+    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    # Écrit en toutes lettres plutôt que dérivé du nom de la cible : le premier
+    # build s'était signé avec l'équipe personnelle gratuite, qui a enregistré
+    # « com.pierrecolson.Molago » chez Apple — et un identifiant d'app ne
+    # revient jamais à une autre équipe. Celui-ci appartient au compte payant.
+    PRODUCT_BUNDLE_IDENTIFIER: com.pierrecolson.molago
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+
+targets:
+  Molago:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+    info:
+      path: Sources/Info.plist
+      properties:
+        CFBundleDisplayName: Molago
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        # La voix continue quand l'écran s'éteint : on lit dans le métro,
+        # téléphone en poche.
+        UIBackgroundModes:
+          - audio
+        # Demandée seulement en M4, à la capture. Déclarée ici pour que la
+        # chaîne de signature soit déjà en place.
+        NSCameraUsageDescription: >
+          Molago lit les mots coréens que vous photographiez — une facture, un
+          panneau, un menu — pour les ajouter à votre carnet.
+        NSPhotoLibraryUsageDescription: >
+          Choisissez une photo ou une capture d'écran contenant du coréen, et
+          Molago vous dira ce que chaque mot veut dire.

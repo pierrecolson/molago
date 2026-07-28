@@ -1,0 +1,782 @@
+<title>Molago — trois directions visuelles</title>
+
+<style>
+  :root {
+    --ink: #171614;
+    --ink-2: #5c574f;
+    --ink-3: #8d8579;
+    --paper: #f4f1ea;
+    --paper-2: #fbf9f5;
+    --line: #ddd7cb;
+    --orange: #d2601a;
+    --rule: rgba(23,22,20,.10);
+    --shadow: 0 18px 40px -22px rgba(40,30,15,.45);
+    --max: 1080px;
+  }
+  :root[data-theme="dark"], :root:not([data-theme="light"]) {
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: #f2ede4;
+      --ink-2: #b3aa9c;
+      --ink-3: #837b6e;
+      --paper: #161513;
+      --paper-2: #1f1d1a;
+      --line: #33302b;
+      --rule: rgba(242,237,228,.12);
+      --shadow: 0 18px 40px -22px rgba(0,0,0,.8);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: #f2ede4;
+    --ink-2: #b3aa9c;
+    --ink-3: #837b6e;
+    --paper: #161513;
+    --paper-2: #1f1d1a;
+    --line: #33302b;
+    --rule: rgba(242,237,228,.12);
+    --shadow: 0 18px 40px -22px rgba(0,0,0,.8);
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    font-size: 17px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  .wrap { max-width: var(--max); margin: 0 auto; padding: 0 24px; }
+  @media (max-width: 620px) { .wrap { padding: 0 18px; } }
+
+  h1, h2, h3 { line-height: 1.1; text-wrap: balance; margin: 0; letter-spacing: -0.025em; }
+  p { margin: 0; max-width: 68ch; }
+  a { color: inherit; }
+
+  /* ---------- masthead ---------- */
+  .mast { padding: 72px 0 0; }
+  .mast .eyebrow {
+    font-size: 12px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--orange); font-weight: 660; margin-bottom: 20px;
+  }
+  .mast h1 { font-size: clamp(38px, 7vw, 68px); font-weight: 700; }
+  .mast h1 em { font-style: normal; color: var(--orange); }
+  .mast .lede { margin-top: 22px; font-size: clamp(18px, 2.1vw, 21px); color: var(--ink-2); }
+
+  .tldr {
+    margin-top: 40px; padding: 22px 26px;
+    border: 1px solid var(--line); border-radius: 18px;
+    background: var(--paper-2);
+    display: grid; gap: 10px;
+  }
+  .tldr b { color: var(--ink); }
+  .tldr p { font-size: 16px; color: var(--ink-2); max-width: none; }
+
+  /* ---------- sections ---------- */
+  section { padding-top: 88px; }
+  .sec-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 8px; }
+  .sec-head h2 { font-size: clamp(26px, 3.4vw, 34px); font-weight: 680; }
+  .sec-head .num {
+    font-size: 12px; font-weight: 660; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .sec-sub { margin-top: 14px; color: var(--ink-2); font-size: 17px; }
+
+  hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
+
+  /* ---------- slop table ---------- */
+  .slop { margin-top: 30px; display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+  .slop-row { display: grid; grid-template-columns: 1.1fr 1fr; gap: 1px; background: var(--line); }
+  .slop-row > div { background: var(--paper-2); padding: 16px 20px; }
+  .slop-row:first-child > div { background: var(--paper); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); font-weight: 660; padding: 12px 20px; }
+  .slop .bad { color: var(--ink-2); }
+  .slop .bad::before { content: "✕"; color: #c0392b; margin-right: 10px; font-weight: 700; }
+  .slop .good::before { content: "→"; color: var(--orange); margin-right: 10px; font-weight: 700; }
+  @media (max-width: 640px) {
+    .slop-row { grid-template-columns: 1fr; }
+    .slop-row:first-child { display: none; }
+    .slop .good { padding-top: 0 !important; }
+  }
+
+  /* ---------- apple twist ---------- */
+  .split { margin-top: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 720px) { .split { grid-template-columns: 1fr; } }
+  .panel { border: 1px solid var(--line); border-radius: 18px; padding: 24px; background: var(--paper-2); }
+  .panel h3 { font-size: 19px; font-weight: 660; margin-bottom: 14px; }
+  .panel ul { margin: 0; padding-left: 20px; color: var(--ink-2); font-size: 16px; }
+  .panel li { margin-bottom: 9px; }
+  .panel li b { color: var(--ink); font-weight: 620; }
+  .panel.accent { border-color: color-mix(in srgb, var(--orange) 45%, var(--line)); }
+  .panel.accent h3 { color: var(--orange); }
+
+  /* ---------- direction blocks ---------- */
+  .dir { padding-top: 96px; }
+  .dir-head { display: grid; gap: 16px; }
+  .dir-tag {
+    display: inline-flex; align-items: center; gap: 10px; align-self: start;
+    font-size: 12px; font-weight: 680; letter-spacing: .12em; text-transform: uppercase;
+    padding: 7px 14px; border-radius: 999px; color: #fff;
+  }
+  .dir-head h2 { font-size: clamp(30px, 4.6vw, 46px); font-weight: 700; }
+  .dir-head h2 .kr { font-weight: 620; margin-right: 6px; }
+  .dir-thesis { font-size: clamp(18px, 2.1vw, 21px); color: var(--ink-2); margin-top: 4px; }
+
+  .swatches { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+  .sw { border-radius: 12px; padding: 12px 14px 14px; min-width: 118px; color: #fff; line-height: 1.25; }
+  .sw .n { font-size: 13px; font-weight: 640; display: block; }
+  .sw .h { font-size: 11px; opacity: .72; font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+  .sw.pale { color: var(--ink); border: 1px solid var(--line); }
+
+  .dir-body { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 34px; }
+  @media (max-width: 720px) { .dir-body { grid-template-columns: 1fr; } }
+
+  .phones {
+    margin-top: 40px;
+    display: flex; gap: 26px; flex-wrap: wrap; justify-content: flex-start;
+  }
+  .phone-slot { display: grid; gap: 12px; justify-items: center; }
+  .phone-cap { font-size: 13px; color: var(--ink-3); letter-spacing: .01em; }
+
+  /* ---------- phone chrome ---------- */
+  .phone {
+    width: 296px; height: 616px;
+    border-radius: 44px;
+    padding: 9px;
+    background: linear-gradient(160deg, #b6b1a8, #6f6a62 40%, #a09a90);
+    box-shadow: var(--shadow);
+    flex: 0 0 auto;
+  }
+  @media (max-width: 360px) { .phone { width: 268px; height: 558px; } }
+  .screen {
+    width: 100%; height: 100%;
+    border-radius: 36px;
+    overflow: hidden;
+    position: relative;
+    display: flex; flex-direction: column;
+    font-size: 13px;
+    background: var(--s-bg);
+    color: var(--s-ink);
+  }
+  .statusbar {
+    height: 34px; flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 20px 0 22px;
+    font-size: 11.5px; font-weight: 640; letter-spacing: .02em;
+    position: relative;
+  }
+  .statusbar::after {
+    content: ""; position: absolute; left: 50%; top: 7px; transform: translateX(-50%);
+    width: 74px; height: 20px; border-radius: 999px; background: #000;
+  }
+  .sb-icons { display: flex; gap: 4px; align-items: center; }
+  .sb-icons i { display: block; width: 3px; border-radius: 1px; background: currentColor; }
+  .sb-icons i:nth-child(1) { height: 5px; } .sb-icons i:nth-child(2) { height: 7px; }
+  .sb-icons i:nth-child(3) { height: 9px; } .sb-icons i:nth-child(4) { height: 11px; }
+  .sb-bat { width: 20px; height: 10px; border: 1.2px solid currentColor; border-radius: 3px; position: relative; margin-left: 3px; }
+  .sb-bat::before { content:""; position:absolute; inset:1.6px; background: currentColor; border-radius: 1px; }
+
+  .body { flex: 1 1 auto; overflow: hidden; display: flex; flex-direction: column; }
+  .tabbar {
+    flex: 0 0 auto; height: 56px;
+    display: flex; align-items: center; justify-content: space-around;
+    border-top: 1px solid var(--s-sep);
+    padding-bottom: 8px;
+    background: var(--s-bar);
+  }
+  .tab { display: grid; justify-items: center; gap: 3px; font-size: 10px; font-weight: 600; color: var(--s-dim); }
+  .tab.on { color: var(--s-tint); }
+  .tab svg { width: 20px; height: 20px; }
+  .homebar { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); width: 108px; height: 4px; border-radius: 999px; background: currentColor; opacity: .32; }
+
+  .navbar { flex: 0 0 auto; padding: 4px 18px 10px; display: flex; align-items: center; justify-content: space-between; }
+  .navbar .lt { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+  .avatar { width: 28px; height: 28px; border-radius: 999px; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: #fff; }
+
+  .scroll { flex: 1 1 auto; overflow: hidden; padding: 0 18px; }
+  .daylabel { font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--s-dim); margin: 6px 0 10px; }
+
+  /* card = full-bleed colour field */
+  .card {
+    border-radius: 22px; padding: 16px 17px 15px; margin-bottom: 11px;
+    color: #fff; position: relative; overflow: hidden;
+  }
+  .card .uni { font-size: 9.5px; font-weight: 750; letter-spacing: .15em; text-transform: uppercase; opacity: .85; }
+  .card .ttl { font-size: 17px; font-weight: 660; line-height: 1.22; margin-top: 9px; letter-spacing: -.015em; }
+  .card .meta { font-size: 11.5px; margin-top: 11px; opacity: .8; font-weight: 520; }
+  .card.keyline::after {
+    content: ""; position: absolute; inset: 7px; border-radius: 16px;
+    border: 1px solid rgba(255,255,255,.42); pointer-events: none;
+  }
+  .card .hanja {
+    position: absolute; right: -6px; bottom: -22px;
+    font-size: 76px; font-weight: 700; color: rgba(255,255,255,.14); line-height: 1;
+  }
+
+  .earlier { font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--s-dim); margin: 16px 0 8px; }
+  .row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--s-sep); font-size: 12.5px; }
+  .row .dot { width: 8px; height: 8px; border-radius: 3px; flex: 0 0 auto; }
+  .row .t { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .c { color: var(--s-dim); font-size: 11px; }
+
+  /* reader */
+  .rd-nav { display: flex; align-items: center; justify-content: space-between; padding: 2px 18px 0; font-size: 10px; font-weight: 750; letter-spacing: .14em; text-transform: uppercase; }
+  .rd-title { padding: 14px 18px 0; font-size: 19px; font-weight: 680; line-height: 1.24; letter-spacing: -.02em; }
+  .rd-meta { padding: 7px 18px 0; font-size: 11.5px; color: var(--s-dim); }
+  .rd-text { padding: 16px 18px 0; font-size: 15px; line-height: 1.85; letter-spacing: -.005em; }
+  .rd-text .sent { border-radius: 5px; padding: 1px 2px; margin: 0 -2px; }
+  .player {
+    flex: 0 0 auto; margin: 0 12px 10px; padding: 12px 14px; border-radius: 20px;
+    display: flex; align-items: center; gap: 12px; background: var(--s-player); color: var(--s-playerink);
+  }
+  .player .pp { width: 34px; height: 34px; border-radius: 999px; display: grid; place-items: center; flex: 0 0 auto; }
+  .player .track { flex: 1 1 auto; height: 3px; border-radius: 999px; background: currentColor; opacity: .28; position: relative; }
+  .player .track::after { content:""; position:absolute; left:0; top:0; bottom:0; width: 44%; border-radius: 999px; background: currentColor; opacity: 1; }
+  .player .sp { font-size: 11.5px; font-weight: 640; font-variant-numeric: tabular-nums; }
+
+  /* word sheet */
+  .sheet-scrim { flex: 1 1 auto; position: relative; }
+  .sheet {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    border-radius: 26px 26px 0 0; padding: 10px 20px 18px;
+    background: var(--s-sheet); box-shadow: 0 -16px 40px -20px rgba(0,0,0,.35);
+  }
+  .grabber { width: 36px; height: 4px; border-radius: 999px; background: var(--s-dim); opacity: .5; margin: 0 auto 14px; }
+  .w-kr { font-size: 30px; font-weight: 660; letter-spacing: -.02em; }
+  .w-rom { font-size: 12px; color: var(--s-dim); margin-top: 3px; }
+  .w-def { font-size: 14px; line-height: 1.5; margin-top: 14px; }
+  .w-acts { display: flex; align-items: center; justify-content: space-between; margin-top: 18px; padding-top: 13px; border-top: 1px solid var(--s-sep); font-size: 12px; font-weight: 620; }
+  .pill { padding: 7px 14px; border-radius: 999px; font-size: 11.5px; font-weight: 660; }
+
+  /* notebook patch grid */
+  .patchgrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin-top: 4px; }
+  .patchgrid span { aspect-ratio: 1; border-radius: 5px; }
+
+  .nb-item { display: flex; gap: 11px; padding: 11px 0; border-bottom: 1px solid var(--s-sep); align-items: center; }
+  .nb-ico { width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; font-size: 16px; flex: 0 0 auto; }
+  .nb-kr { font-size: 14px; font-weight: 640; }
+  .nb-en { font-size: 11.5px; color: var(--s-dim); }
+
+  /* ---------- verdict + refs ---------- */
+  .verdict { margin-top: 26px; display: grid; gap: 14px; }
+  .vrow { display: grid; grid-template-columns: 92px 1fr; gap: 16px; align-items: start; }
+  .vrow .k { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); padding-top: 3px; }
+  .vrow .v { color: var(--ink-2); font-size: 16px; }
+  .vrow .v b { color: var(--ink); font-weight: 620; }
+
+  .refs { margin-top: 28px; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+  .ref { border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; background: var(--paper-2); text-decoration: none; display: block; }
+  .ref b { display: block; font-size: 15px; font-weight: 640; margin-bottom: 5px; }
+  .ref span { font-size: 13.5px; color: var(--ink-2); }
+  .ref:hover { border-color: color-mix(in srgb, var(--orange) 50%, var(--line)); }
+
+  .close { margin: 96px 0 0; padding: 34px 0 90px; border-top: 1px solid var(--line); }
+  .close h2 { font-size: clamp(24px, 3.2vw, 32px); font-weight: 680; }
+  .close p { margin-top: 16px; color: var(--ink-2); font-size: 17px; }
+  .close ol { margin: 22px 0 0; padding-left: 22px; color: var(--ink-2); font-size: 16px; }
+  .close li { margin-bottom: 10px; }
+  .close li b { color: var(--ink); font-weight: 620; }
+
+  .sources { margin-top: 30px; font-size: 13.5px; color: var(--ink-3); }
+  .sources a { color: var(--ink-2); }
+</style>
+
+<div class="wrap">
+
+  <header class="mast">
+    <div class="eyebrow">Molago · recherche de direction · 27 juillet 2026</div>
+    <h1>Trois directions.<br>Toutes les trois <em>coréennes</em>,<br>aucune générique.</h1>
+    <p class="lede">La structure de l'app est déjà tranchée (spec du 25 juillet). Ce document ne touche à rien de tout ça : il propose seulement à quoi elle ressemble. Structure Apple, peau coréenne.</p>
+
+    <div class="tldr">
+      <p><b>TLDR —</b> Trois mondes visuels, chacun avec ses vraies couleurs et ses écrans maquettés. Le fil commun : des cartes en <b>aplats de couleur pleine</b>, gros titres blancs, coins très ronds — l'orange comme couleur de marque. Ma recommandation : <b>Direction A — 단청 Dancheong</b>.</p>
+      <p>Les trois respectent les principes non négociables : zéro compteur, zéro série, zéro culpabilité.</p>
+    </div>
+  </header>
+
+  <!-- ============ 1 · ANTI-SLOP ============ -->
+  <section>
+    <div class="sec-head"><span class="num">01</span><h2>Ce qu'on ne fera pas</h2></div>
+    <p class="sec-sub">J'ai cherché les signes qui trahissent une interface générée par IA en 2026. Ils sont remarquablement stables — et le problème n'est pas qu'ils soient laids, c'est qu'ils sont <em>interchangeables</em>. Voici la liste, et ce qu'on fait à la place.</p>
+
+    <div class="slop">
+      <div class="slop-row"><div>Le signe</div><div>Ce qu'on fait à la place</div></div>
+      <div class="slop-row">
+        <div class="bad">Mode sombre permanent par défaut — le tell numéro un</div>
+        <div class="good">Clair par défaut. On lit à 7 h du matin, souvent dans le métro. Le sombre existe et est soigné, il n'est pas la posture.</div>
+      </div>
+      <div class="slop-row">
+        <div class="bad">Dégradés violet→cyan, indigo-500, la palette Tailwind par défaut</div>
+        <div class="good">Une palette prélevée sur une source réelle et datée : les pigments du 단청, la teinture des étoffes, l'encre des estampes populaires.</div>
+      </div>
+      <div class="slop-row">
+        <div class="bad">Glassmorphism partout, halos lumineux, blobs 3D flottants</div>
+        <div class="good">Aplats. Zéro ombre portée sur les cartes, zéro flou décoratif. Les matériaux système d'iOS pour les barres, et rien d'autre.</div>
+      </div>
+      <div class="slop-row">
+        <div class="bad">Six cartes identiques : icône + titre + deux lignes</div>
+        <div class="good">Trois cartes, chacune un pan de couleur pleine. Ce sont trois choses différentes, elles se distinguent à la couleur avant le texte.</div>
+      </div>
+      <div class="slop-row">
+        <div class="bad">Survols qui ne font rien, même fondu sur tout, boutons qui claquent</div>
+        <div class="good">Un seul moment animé et travaillé : la phrase surlignée qui suit la voix. Le reste, ce sont les transitions natives d'iOS.</div>
+      </div>
+      <div class="slop-row">
+        <div class="bad">Le sur-mesure de l'app de langue : hibou, flammes, confettis, séries</div>
+        <div class="good">Rien de tout ça n'existe dans le produit. Aucune fin de session ne dit « bravo ».</div>
+      </div>
+      <div class="slop-row">
+        <div class="bad">Et son opposé prévisible : papier crème + serif éditorial + terracotta</div>
+        <div class="good">Écarté aussi. C'est devenu le second défaut, celui de l'app « calme et lettrée ». Nos fonds sont des blancs francs, pas du parchemin.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 2 · APPLE + TWIST ============ -->
+  <section>
+    <div class="sec-head"><span class="num">02</span><h2>Apple pour la structure, nous pour la peau</h2></div>
+    <p class="sec-sub">La règle est simple : tout ce qu'un utilisateur d'iPhone connaît par cœur reste standard. Tout ce qu'Apple laisse ouvert devient notre terrain. C'est ça, « Apple avec un twist » — et pas un thème posé sur une app web déguisée.</p>
+
+    <div class="split">
+      <div class="panel">
+        <h3>Ce qu'on prend à Apple, sans discuter</h3>
+        <ul>
+          <li><b>La barre d'onglets</b> pour les deux sections, la pile de navigation pour la profondeur, la feuille (sheet) pour le panneau de mot.</li>
+          <li><b>Le retour par le bord gauche.</b> Jamais désactivé, jamais recouvert — c'est un réflexe musculaire.</li>
+          <li><b>Les grands titres</b> qui se replient au défilement.</li>
+          <li><b>Dynamic Type.</b> La taille du texte suit le réglage système, en coréen comme en anglais. Aucune taille figée.</li>
+          <li><b>44 pt minimum</b> pour toute cible tapable. Un mot dans un texte coréen est petit : c'est la zone tapable qui s'élargit, pas le mot.</li>
+          <li><b>SF Symbols</b> pour les icônes d'interface, les matériaux système pour les barres.</li>
+        </ul>
+      </div>
+      <div class="panel accent">
+        <h3>Le twist — les quatre endroits où on signe</h3>
+        <ul>
+          <li><b>La couleur à l'échelle du pan.</b> Apple met la couleur en accent ; nous la mettons en surface. Une carte n'est pas blanche avec une étiquette colorée, elle <em>est</em> la couleur.</li>
+          <li><b>Une source citable.</b> Chaque couleur vient d'un pigment ou d'une teinture réels, pas d'un nuancier. C'est ce qui la rend impossible à confondre.</li>
+          <li><b>Le surlignage de lecture</b> — le seul mouvement travaillé de l'app. Il suit la voix, phrase par phrase.</li>
+          <li><b>L'absence d'ombre.</b> Rien ne flotte. Tout est peint à plat, comme sur du bois.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ DIRECTION A ============ -->
+  <section class="dir" style="--dir:#d2601a">
+    <div class="dir-head">
+      <span class="dir-tag" style="background:#d2601a">Direction A · recommandée</span>
+      <h2><span class="kr">단청</span> Dancheong — la polychromie des temples</h2>
+      <p class="dir-thesis">Les bandes peintes sous les avant-toits des palais coréens. Couleurs pleines, séparées par un filet blanc, jamais de dégradé, jamais d'ombre : c'est peint sur du bois. L'orange 장단 y est la couleur dominante — c'est notre orange, et il est authentiquement coréen.</p>
+    </div>
+
+    <div class="swatches">
+      <div class="sw" style="background:#d2601a"><span class="n">장단 Jangdan</span><span class="h">#D2601A · Daily life · marque</span></div>
+      <div class="sw" style="background:#2b5876"><span class="n">삼청 Samcheong</span><span class="h">#2B5876 · Tech &amp; Science</span></div>
+      <div class="sw" style="background:#3f6b4a"><span class="n">하엽 Hayeop</span><span class="h">#3F6B4A · Korea</span></div>
+      <div class="sw" style="background:#c9992e"><span class="n">황 Hwang</span><span class="h">#C9992E · KNOWN, uniquement</span></div>
+      <div class="sw pale" style="background:#f4f1ea"><span class="n">호분 Hobun</span><span class="h">#F4F1EA · fond</span></div>
+      <div class="sw" style="background:#171614"><span class="n">먹 Meok</span><span class="h">#17161A · encre</span></div>
+    </div>
+
+    <div class="phones">
+      <!-- A · Library -->
+      <div class="phone-slot">
+        <div class="phone">
+          <div class="screen" style="--s-bg:#f4f1ea;--s-ink:#17161a;--s-dim:#8d8579;--s-sep:#e2ddd2;--s-bar:#f4f1eaee;--s-tint:#d2601a">
+            <div class="statusbar"><span>9:41</span><span class="sb-icons"><i></i><i></i><i></i><i></i><span class="sb-bat"></span></span></div>
+            <div class="body">
+              <div class="navbar"><span class="lt">Library</span><span class="avatar" style="background:#d2601a">P</span></div>
+              <div class="scroll">
+                <div class="daylabel">Saturday 27 July</div>
+
+                <div class="card keyline" style="background:#2b5876">
+                  <span class="hanja">半</span>
+                  <div class="uni">Tech &amp; Science</div>
+                  <div class="ttl">Why Korean chipmakers are betting everything on HBM4</div>
+                  <div class="meta">4 min</div>
+                </div>
+
+                <div class="card keyline" style="background:#3f6b4a">
+                  <span class="hanja">傳</span>
+                  <div class="uni">Korea</div>
+                  <div class="ttl">Seoul raises the ceiling on jeonse deposits</div>
+                  <div class="meta">4 min · a bit of a stretch</div>
+                </div>
+
+                <div class="card keyline" style="background:#d2601a">
+                  <span class="hanja">管</span>
+                  <div class="uni">Daily life</div>
+                  <div class="ttl">When the building manager calls at 8 a.m.</div>
+                  <div class="meta">3 min</div>
+                </div>
+
+                <div class="earlier">Earlier</div>
+                <div class="row"><span class="dot" style="background:#3f6b4a"></span><span class="t">The rice price everyone is arguing about</span><span class="c">Fri</span></div>
+                <div class="row"><span class="dot" style="background:#2b5876"></span><span class="t">Chip exports, month eleven</span><span class="c">Fri</span></div>
+              </div>
+              <div class="tabbar">
+                <span class="tab on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10v16H5.5A1.5 1.5 0 0 1 4 18.5zM14 4h4.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H14z"/></svg>Library</span>
+                <span class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h11a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6zM6 3v18M9.5 8.5h6M9.5 12.5h4"/></svg>Notebook</span>
+              </div>
+            </div>
+            <span class="homebar" style="color:#17161a"></span>
+          </div>
+        </div>
+        <div class="phone-cap">Library — trois pans de couleur, un filet blanc à l'intérieur</div>
+      </div>
+
+      <!-- A · Reader -->
+      <div class="phone-slot">
+        <div class="phone">
+          <div class="screen" style="--s-bg:#fbf9f5;--s-ink:#17161a;--s-dim:#8d8579;--s-sep:#e6e1d6;--s-player:#d2601a;--s-playerink:#fff">
+            <div class="statusbar"><span>9:41</span><span class="sb-icons"><i></i><i></i><i></i><i></i><span class="sb-bat"></span></span></div>
+            <div class="body">
+              <div style="height:5px;background:#d2601a"></div>
+              <div class="rd-nav" style="padding-top:12px"><span style="color:#d2601a">‹ Daily life</span><span style="letter-spacing:0;font-size:14px;font-weight:600;color:#8d8579">Aa</span></div>
+              <div class="rd-title">When the building manager calls at 8 a.m.</div>
+              <div class="rd-meta">3 min</div>
+              <div class="rd-text">
+                이번 달 관리비 고지서를 받고 깜짝 놀랐어요.
+                <span class="sent" style="background:rgba(210,96,26,.16)">지난달보다 삼만 원이나 올랐거든요.</span>
+                관리사무소에 전화해서 물어봤더니, 겨울철 난방비가 많이 올랐다고 했어요.
+              </div>
+            </div>
+            <div class="player">
+              <span class="pp" style="background:rgba(255,255,255,.22)"><svg width="12" height="13" viewBox="0 0 12 14" fill="currentColor"><rect x="1" y="1" width="3.4" height="12" rx="1.2"/><rect x="7.6" y="1" width="3.4" height="12" rx="1.2"/></svg></span>
+              <span class="track"></span>
+              <span class="sp">1.0×</span>
+            </div>
+            <span class="homebar" style="color:#17161a"></span>
+          </div>
+        </div>
+        <div class="phone-cap">Reader — la couleur revient en filet et en surlignage</div>
+      </div>
+
+      <!-- A · Word sheet -->
+      <div class="phone-slot">
+        <div class="phone">
+          <div class="screen" style="--s-bg:#fbf9f5;--s-ink:#17161a;--s-dim:#8d8579;--s-sep:#e6e1d6;--s-sheet:#fff">
+            <div class="statusbar"><span>9:41</span><span class="sb-icons"><i></i><i></i><i></i><i></i><span class="sb-bat"></span></span></div>
+            <div class="body">
+              <div style="height:5px;background:#d2601a"></div>
+              <div class="rd-nav" style="padding-top:12px"><span style="color:#d2601a">‹ Daily life</span><span style="letter-spacing:0;font-size:14px;font-weight:600;color:#8d8579">Aa</span></div>
+              <div class="rd-text" style="opacity:.42;padding-top:14px">
+                이번 달 <span style="background:rgba(210,96,26,.2);border-radius:4px;padding:1px 3px">관리비</span> 고지서를 받고 깜짝 놀랐어요. 지난달보다 삼만 원이나 올랐거든요.
+              </div>
+              <div class="sheet-scrim">
+                <div class="sheet">
+                  <div class="grabber"></div>
+                  <div class="w-kr">관리비</div>
+                  <div class="w-rom">gwan-ri-bi · noun</div>
+                  <div class="w-def">maintenance fee — the monthly charge for a building's shared costs</div>
+                  <div class="w-acts">
+                    <span style="color:#8d8579">← I knew this</span>
+                    <span style="color:#8d8579">Examples ⌃</span>
+                  </div>
+                  <div style="display:flex;justify-content:flex-end;margin-top:12px">
+                    <span class="pill" style="background:#d2601a;color:#fff">Keep →</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <span class="homebar" style="color:#17161a"></span>
+          </div>
+        </div>
+        <div class="phone-cap">Panneau de mot — étage 1, le sens et rien d'autre</div>
+      </div>
+    </div>
+
+    <div class="dir-body">
+      <div class="panel">
+        <h3>Le geste signature</h3>
+        <p style="color:var(--ink-2);font-size:16px">Le <b style="color:var(--ink)">filet blanc à 7 pt du bord</b>, à l'intérieur de chaque pan de couleur. C'est exactement la grammaire du 단청 : la bande peinte est toujours cernée d'un trait clair qui la détache du bois. Sur écran, ça donne aux cartes une présence d'objet peint plutôt que de bloc CSS — et personne d'autre ne fait ça.</p>
+        <p style="color:var(--ink-2);font-size:16px;margin-top:14px">Le hanja de l'univers apparaît en très grand, à 14 % de blanc, débordant du coin bas-droit. Décoratif au sens noble : c'est le sujet du texte, écrit dans la langue de sa racine.</p>
+      </div>
+      <div class="panel">
+        <h3>Le risque, honnêtement</h3>
+        <p style="color:var(--ink-2);font-size:16px">Trois pans saturés chaque matin, ça peut peser. La parade est déjà dans la maquette : <b style="color:var(--ink)">la couleur ne va jamais dans le lecteur</b>. Dès qu'on ouvre un texte, on est sur blanc et encre, et la couleur se réduit à un filet de 5 pt en haut et au surlignage de la phrase lue. La couleur sert à <em>choisir</em>, jamais à <em>lire</em>.</p>
+        <p style="color:var(--ink-2);font-size:16px;margin-top:14px">Second risque : que les trois couleurs se lisent comme des « étiquettes de rubrique » d'une app d'actualité. C'est le filet et l'absence totale d'ombre qui font la différence.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ DIRECTION B ============ -->
+  <section class="dir">
+    <div class="dir-head">
+      <span class="dir-tag" style="background:#c2622f">Direction B</span>
+      <h2><span class="kr">조각보</span> Jogakbo — l'étoffe rapiécée</h2>
+      <p class="dir-thesis">Les carrés de tissu cousus ensemble par les femmes coréennes à partir de chutes, sans plan préétabli. Champs inégaux, teintures végétales, matière mate. Le plus doux des trois — et celui qui donne à la mémoire une image sans jamais faire un compteur.</p>
+    </div>
+
+    <div class="swatches">
+      <div class="sw" style="background:#d9743c"><span class="n">홍시 Hongsi</span><span class="h">#D9743C · kaki · marque</span></div>
+      <div class="sw" style="background:#3a4e7a"><span class="n">쪽 Jjok</span><span class="h">#3A4E7A · indigo</span></div>
+      <div class="sw" style="background:#7a8b5a"><span class="n">쑥 Ssuk</span><span class="h">#7A8B5A · armoise</span></div>
+      <div class="sw" style="background:#b5545f"><span class="n">홍화 Honghwa</span><span class="h">#B5545F · carthame</span></div>
+      <div class="sw pale" style="background:#efece3"><span class="n">모시 Mosi</span><span class="h">#EFECE3 · ramie · fond</span></div>
+      <div class="sw" style="background:#2a2724"><span class="n">먹 Meok</span><span class="h">#2A2724 · encre</span></div>
+    </div>
+
+    <div class="phones">
+      <!-- B · Library -->
+      <div class="phone-slot">
+        <div class="phone">
+          <div class="screen" style="--s-bg:#efece3;--s-ink:#2a2724;--s-dim:#928a7c;--s-sep:#e0dbd0;--s-bar:#efece3ee;--s-tint:#d9743c">
+            <div class="statusbar"><span>9:41</span><span class="sb-icons"><i></i><i></i><i></i><i></i><span class="sb-bat"></span></span></div>
+            <div class="body">
+              <div class="navbar"><span class="lt">Library</span><span class="avatar" style="background:#d9743c">P</span></div>
+              <div class="scroll">
+                <div class="daylabel">Saturday 27 July</div>
+
+                <div class="card" style="background:#3a4e7a;border-radius:16px;min-height:112px">
+                  <div class="uni">Tech &amp; Science</div>
+                  <div class="ttl">Why Korean chipmakers are betting everything on HBM4</div>
+                  <div class="meta">4 min</div>
+                </div>
+
+                <div style="display:flex;gap:11px;margin-bottom:11px">
+                  <div class="card" style="background:#7a8b5a;border-radius:16px;margin:0;flex:1.25;display:flex;flex-direction:column;justify-content:space-between">
+                    <div><div class="uni">Korea</div><div class="ttl" style="font-size:15px">Seoul raises the jeonse ceiling</div></div>
+                    <div class="meta" style="margin-top:14px">4 min · a stretch</div>
+                  </div>
+                  <div class="card" style="background:#d9743c;border-radius:16px;margin:0;flex:1;display:flex;flex-direction:column;justify-content:space-between">
+                    <div><div class="uni">Daily</div><div class="ttl" style="font-size:15px">The 8 a.m. call</div></div>
+                    <div class="meta" style="margin-top:14px">3 min</div>
+                  </div>
+                </div>
+
+                <div class="earlier">Earlier</div>
+                <div class="row"><span class="dot" style="background:#7a8b5a"></span><span class="t">The rice price everyone is arguing about</span><span class="c">Fri</span></div>
+                <div class="row"><span class="dot" style="background:#3a4e7a"></span><span class="t">Chip exports, month eleven</span><span class="c">Fri</span></div>
+              </div>
+              <div class="tabbar">
+                <span class="tab on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10v16H5.5A1.5 1.5 0 0 1 4 18.5zM14 4h4.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H14z"/></svg>Library</span>
+                <span class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h11a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6zM6 3v18M9.5 8.5h6M9.5 12.5h4"/></svg>Notebook</span>
+              </div>
+            </div>
+            <span class="homebar" style="color:#2a2724"></span>
+          </div>
+        </div>
+        <div class="phone-cap">Library — les trois pans ne font pas la même taille</div>
+      </div>
+
+      <!-- B · Notebook patchwork -->
+      <div class="phone-slot">
+        <div class="phone">
+          <div class="screen" style="--s-bg:#efece3;--s-ink:#2a2724;--s-dim:#928a7c;--s-sep:#e0dbd0;--s-bar:#efece3ee;--s-tint:#d9743c">
+            <div class="statusbar"><span>9:41</span><span class="sb-icons"><i></i><i></i><i></i><i></i><span class="sb-bat"></span></span></div>
+            <div class="body">
+              <div class="navbar"><span class="lt">Notebook</span><span class="avatar" style="background:#d9743c">P</span></div>
+              <div class="scroll">
+                <div style="font-size:12px;color:#928a7c;margin-bottom:12px">148 words kept · 1 240 known</div>
+                <div class="patchgrid">
+                  <span style="background:#d9743c"></span><span style="background:#3a4e7a"></span><span style="background:#7a8b5a"></span><span style="background:#b5545f"></span><span style="background:#d9743c"></span><span style="background:#e0dbd0"></span>
+                  <span style="background:#7a8b5a"></span><span style="background:#d9743c"></span><span style="background:#b5545f"></span><span style="background:#3a4e7a"></span><span style="background:#e0dbd0"></span><span style="background:#7a8b5a"></span>
+                  <span style="background:#3a4e7a"></span><span style="background:#b5545f"></span><span style="background:#d9743c"></span><span style="background:#e0dbd0"></span><span style="background:#3a4e7a"></span><span style="background:#d9743c"></span>
+                </div>
+                <div class="earlier" style="margin-top:18px">Yesterday · from a photo</div>
+                <div class="nb-item">
+                  <span class="nb-ico" style="background:#d9743c;color:#fff">🧾</span>
+                  <span><span class="nb-kr">관리비</span><br><span class="nb-en">maintenance fee</span></span>
+                </div>
+                <div class="nb-item">
+                  <span class="nb-ico" style="background:#b5545f;color:#fff">⏱</span>
+                  <span><span class="nb-kr">연체료</span><br><span class="nb-en">late payment fee</span></span>
+                </div>
+                <div class="nb-item">
+                  <span class="nb-ico" style="background:#7a8b5a;color:#fff">🍶</span>
+                  <span><span class="nb-kr">회식</span><br><span class="nb-en">company dinner</span></span>
+                </div>
+              </div>
+              <div class="tabbar">
+                <span class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10v16H5.5A1.5 1.5 0 0 1 4 18.5zM14 4h4.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H14z"/></svg>Library</span>
+                <span class="tab on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h11a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6zM6 3v18M9.5 8.5h6M9.5 12.5h4"/></svg>Notebook</span>
+              </div>
+            </div>
+            <span class="homebar" style="color:#2a2724"></span>
+          </div>
+        </div>
+        <div class="phone-cap">Notebook — un carré par mot gardé, l'étoffe grandit</div>
+      </div>
+    </div>
+
+    <div class="dir-body">
+      <div class="panel">
+        <h3>Le geste signature</h3>
+        <p style="color:var(--ink-2);font-size:16px">L'<b style="color:var(--ink)">étoffe du Notebook</b>. Chaque mot gardé pose un carré de couleur ; la couleur vient de l'univers où il a été rencontré. Au bout de trois mois, on a une pièce de tissu personnelle et unique — sans jamais afficher un chiffre, une série, ni une progression à tenir.</p>
+        <p style="color:var(--ink-2);font-size:16px;margin-top:14px">C'est l'idée la plus proche de ce qui te plaît chez Gentler Streak : rendre visible ce qu'on a fait, sans jamais en faire une dette.</p>
+      </div>
+      <div class="panel">
+        <h3>Le risque, honnêtement</h3>
+        <p style="color:var(--ink-2);font-size:16px">Des cartes de tailles différentes chaque jour, c'est joli et c'est un piège : la spec dit <b style="color:var(--ink)">trois cartes égales</b>, précisément pour qu'aucun texte ne paraisse plus important qu'un autre. Cette direction contredit une décision déjà prise — c'est assumable, mais c'est à rouvrir consciemment.</p>
+        <p style="color:var(--ink-2);font-size:16px;margin-top:14px">Et le fond ramie tire vers l'écru : c'est exactement la zone où le « joli calme lettré » devient générique. Il faudra tenir les couleurs saturées.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ DIRECTION C ============ -->
+  <section class="dir">
+    <div class="dir-head">
+      <span class="dir-tag" style="background:#e2662a">Direction C</span>
+      <h2><span class="kr">민화</span> Minhwa — l'estampe populaire</h2>
+      <p class="dir-thesis">La peinture populaire coréenne : la pie et le tigre, les pivoines, les caractères-bonheur. Formes naïves cernées d'un trait d'encre épais, couleurs franches, et un humour tranquille. C'est la piste ouvertement joueuse — et la seule qui autorise un dessin.</p>
+    </div>
+
+    <div class="swatches">
+      <div class="sw" style="background:#e2662a"><span class="n">주황 Juhwang</span><span class="h">#E2662A · marque</span></div>
+      <div class="sw" style="background:#1d4e89"><span class="n">청 Cheong</span><span class="h">#1D4E89</span></div>
+      <div class="sw" style="background:#2f7d5b"><span class="n">녹 Nok</span><span class="h">#2F7D5B</span></div>
+      <div class="sw" style="background:#e8b53c"><span class="n">황 Hwang</span><span class="h">#E8B53C</span></div>
+      <div class="sw pale" style="background:#fdfaf2"><span class="n">한지 Hanji</span><span class="h">#FDFAF2 · fond</span></div>
+      <div class="sw" style="background:#141210"><span class="n">먹선 Meokseon</span><span class="h">#141210 · le trait</span></div>
+    </div>
+
+    <div class="phones">
+      <!-- C · Library -->
+      <div class="phone-slot">
+        <div class="phone">
+          <div class="screen" style="--s-bg:#fdfaf2;--s-ink:#141210;--s-dim:#8a8175;--s-sep:#eae4d6;--s-bar:#fdfaf2ee;--s-tint:#e2662a">
+            <div class="statusbar"><span>9:41</span><span class="sb-icons"><i></i><i></i><i></i><i></i><span class="sb-bat"></span></span></div>
+            <div class="body">
+              <div class="navbar"><span class="lt">Library</span><span class="avatar" style="background:#e2662a;border:2px solid #141210">P</span></div>
+              <div class="scroll">
+                <div class="daylabel">Saturday 27 July</div>
+
+                <div class="card" style="background:#1d4e89;border:2.5px solid #141210;border-radius:20px">
+                  <svg style="position:absolute;right:8px;bottom:-6px;width:78px;height:78px;opacity:.9" viewBox="0 0 100 100" fill="none" stroke="#141210" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="50" cy="42" r="24" fill="#e8b53c"/><circle cx="42" cy="38" r="3.4" fill="#141210" stroke="none"/><circle cx="58" cy="38" r="3.4" fill="#141210" stroke="none"/>
+                    <path d="M40 52c4 5 16 5 20 0" /><path d="M26 42c-6-6-6-14-2-18M74 42c6-6 6-14 2-18"/>
+                  </svg>
+                  <div class="uni">Tech &amp; Science</div>
+                  <div class="ttl" style="max-width:74%">Why chipmakers bet on HBM4</div>
+                  <div class="meta">4 min</div>
+                </div>
+
+                <div class="card" style="background:#2f7d5b;border:2.5px solid #141210;border-radius:20px">
+                  <svg style="position:absolute;right:10px;bottom:-2px;width:66px;height:66px;opacity:.9" viewBox="0 0 100 100" fill="none" stroke="#141210" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M50 22c12 0 20 9 20 20s-9 26-20 34c-11-8-20-22-20-34s8-20 20-20z" fill="#e2662a"/><path d="M50 30v34M38 44h24"/>
+                  </svg>
+                  <div class="uni">Korea</div>
+                  <div class="ttl" style="max-width:74%">Seoul raises the jeonse ceiling</div>
+                  <div class="meta">4 min · a bit of a stretch</div>
+                </div>
+
+                <div class="card" style="background:#e2662a;border:2.5px solid #141210;border-radius:20px">
+                  <svg style="position:absolute;right:10px;bottom:-4px;width:70px;height:70px;opacity:.92" viewBox="0 0 100 100" fill="none" stroke="#141210" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="28" y="20" width="44" height="58" rx="4" fill="#fdfaf2"/><path d="M36 34h28M36 46h28M36 58h18"/>
+                  </svg>
+                  <div class="uni">Daily life</div>
+                  <div class="ttl" style="max-width:70%">The 8 a.m. call</div>
+                  <div class="meta">3 min</div>
+                </div>
+
+                <div class="earlier">Earlier</div>
+                <div class="row"><span class="dot" style="background:#2f7d5b;border:1.5px solid #141210"></span><span class="t">The rice price everyone argues about</span><span class="c">Fri</span></div>
+              </div>
+              <div class="tabbar">
+                <span class="tab on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10v16H5.5A1.5 1.5 0 0 1 4 18.5zM14 4h4.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H14z"/></svg>Library</span>
+                <span class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h11a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6zM6 3v18M9.5 8.5h6M9.5 12.5h4"/></svg>Notebook</span>
+              </div>
+            </div>
+            <span class="homebar" style="color:#141210"></span>
+          </div>
+        </div>
+        <div class="phone-cap">Library — un motif dessiné par univers, cerné d'encre</div>
+      </div>
+
+      <!-- C · Quiz -->
+      <div class="phone-slot">
+        <div class="phone">
+          <div class="screen" style="--s-bg:#fdfaf2;--s-ink:#141210;--s-dim:#8a8175;--s-sep:#eae4d6">
+            <div class="statusbar"><span>9:41</span><span class="sb-icons"><i></i><i></i><i></i><i></i><span class="sb-bat"></span></span></div>
+            <div class="body">
+              <div class="rd-nav" style="padding-top:12px"><span style="color:#8a8175">✕</span><span style="color:#8a8175;letter-spacing:.08em">2 / 3</span></div>
+              <div style="padding:26px 20px 0;font-size:16px;line-height:1.75">
+                지난달보다 삼만 원이나 <span style="display:inline-block;min-width:64px;border-bottom:2.5px solid #141210;text-align:center">&nbsp;</span> 거든요.
+              </div>
+              <div style="padding:26px 20px 0;display:grid;gap:10px">
+                <span style="border:2.5px solid #141210;border-radius:16px;padding:13px 16px;font-size:15px;font-weight:600;background:#fff">올랐</span>
+                <span style="border:2.5px solid #141210;border-radius:16px;padding:13px 16px;font-size:15px;font-weight:600;background:#e2662a;color:#fff">내렸</span>
+                <span style="border:2.5px solid #141210;border-radius:16px;padding:13px 16px;font-size:15px;font-weight:600;background:#fff">늘렸</span>
+                <span style="border:2.5px solid #141210;border-radius:16px;padding:13px 16px;font-size:15px;font-weight:600;background:#fff">줄었</span>
+              </div>
+              <div style="padding:22px 20px 0;font-size:12.5px;color:#8a8175">Right or wrong, the sentence comes back whole and you move on.</div>
+            </div>
+            <span class="homebar" style="color:#141210"></span>
+          </div>
+        </div>
+        <div class="phone-cap">Quiz — le trait d'encre remplace l'ombre et le remplissage</div>
+      </div>
+    </div>
+
+    <div class="dir-body">
+      <div class="panel">
+        <h3>Le geste signature</h3>
+        <p style="color:var(--ink-2);font-size:16px">Le <b style="color:var(--ink)">trait d'encre de 2,5 pt</b> autour de tout : cartes, boutons, pastilles, icônes. C'est ce qui donne l'air d'une estampe plutôt que d'une app — et c'est le contraire exact du réflexe iOS (fond gris clair, pas de bordure). Zéro ombre, jamais, puisque tout est cerné.</p>
+        <p style="color:var(--ink-2);font-size:16px;margin-top:14px">Un motif dessiné par univers, jamais un personnage : pas de mascotte, pas d'yeux qui te regardent quand tu n'as pas lu.</p>
+      </div>
+      <div class="panel">
+        <h3>Le risque, honnêtement</h3>
+        <p style="color:var(--ink-2);font-size:16px">C'est la piste la plus proche de tes images d'inspiration — et donc la plus proche de <b style="color:var(--ink)">l'app pour enfants</b>. Or l'utilisateur est un adulte qui vit en Corée depuis huit ans et qui travaille dans la tech ; un produit qui a l'air de s'adresser à un débutant enfreint le principe « le contenu est le produit ».</p>
+        <p style="color:var(--ink-2);font-size:16px;margin-top:14px">C'est jouable, mais ça exige une discipline féroce : gros textes coréens sérieux, aucun émoji, aucune animation de récompense.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ VERDICT ============ -->
+  <section>
+    <div class="sec-head"><span class="num">03</span><h2>Ma recommandation</h2></div>
+    <p class="sec-sub"><b>Direction A — 단청 Dancheong.</b> Voici pourquoi, sur les critères que tu as posés.</p>
+
+    <div class="verdict">
+      <div class="vrow"><span class="k">Orange</span><span class="v">Le 장단 est <b>l'orange dominant du dancheong</b>. On ne pose pas un orange à la mode sur un produit coréen : on prend celui qui est déjà là depuis six siècles. C'est vérifiable, et c'est ce qui le rend impossible à confondre avec un accent Tailwind.</span></div>
+      <div class="vrow"><span class="k">Culturel</span><span class="v">La source est nommable et se voit : <b>les avant-toits des palais</b>. Pas un « mood coréen », un système graphique réel avec ses règles (aplats, filet clair, pas d'ombre).</span></div>
+      <div class="vrow"><span class="k">Joueur</span><span class="v">Le jeu vient du <b>rythme des couleurs</b> et du hanja géant, pas d'un personnage. Il tient huit ans ; une mascotte, non.</span></div>
+      <div class="vrow"><span class="k">Rassurant</span><span class="v">Les trois pigments sont des <b>terres</b> — orange brûlé, bleu ardoise, vert feuille. Chaleur sans sucre. Et le lecteur, lui, est blanc et calme.</span></div>
+      <div class="vrow"><span class="k">Accès facile</span><span class="v">Trois cibles de la largeur de l'écran, en bas du pouce. On distingue les trois textes <b>à la couleur avant de lire le titre</b> — c'est la promesse des « 5 secondes à l'ouverture ».</span></div>
+      <div class="vrow"><span class="k">Anti-slop</span><span class="v">Fond clair, aucun dégradé, aucun verre, aucune ombre, aucune carte identique répétée. Rien de ce qu'un modèle produit par défaut.</span></div>
+      <div class="vrow"><span class="k">Compatible</span><span class="v">C'est la seule des trois qui <b>ne rouvre aucune décision produit</b> : trois cartes égales, pas de compteur, pas de mascotte. B rouvre l'égalité des cartes ; C flirte avec le registre enfant.</span></div>
+    </div>
+  </section>
+
+  <!-- ============ REFS ============ -->
+  <section>
+    <div class="sec-head"><span class="num">04</span><h2>Ce que j'ai regardé</h2></div>
+    <p class="sec-sub">Des écrans réels, pas des moodboards. Chaque lien ouvre l'écran sur Mobbin.</p>
+
+    <div class="refs">
+      <a class="ref" href="https://mobbin.com/screens/b759043c-84d1-4745-9ce1-324c2e87272c" target="_blank" rel="noopener"><b>Gentler Streak — accueil</b><span>La référence de ton. Une phrase d'état en gros (« You Seem Rested »), jamais un chiffre en gros. C'est ce qu'on reprend : le produit parle, il ne note pas.</span></a>
+      <a class="ref" href="https://mobbin.com/screens/633320e0-b7fc-4791-b65e-c250e82c7b06" target="_blank" rel="noopener"><b>ElevenReader — lecture audio</b><span>Le modèle le plus proche du lecteur Molago : phrase surlignée qui suit la voix, barre de lecture en bas. Le surlignage vert y est trop vif — le nôtre sera un teint de l'univers à 16 %.</span></a>
+      <a class="ref" href="https://mobbin.com/screens/2d5f2c31-b892-4de9-bb19-46e40c6652d5" target="_blank" rel="noopener"><b>Atoms — cartes de lecture</b><span>Des cartes en aplat coloré avec la durée de lecture. Confirme que « X minutes to read » suffit comme seule information.</span></a>
+      <a class="ref" href="https://mobbin.com/screens/e26c1325-cf4f-4dde-a1f1-633945e72f15" target="_blank" rel="noopener"><b>informed News — le fil du jour</b><span>Un en-tête « Today » daté puis le contenu. Sans compteur de non-lus : exactement notre modèle d'archive.</span></a>
+      <a class="ref" href="https://mobbin.com/screens/6cda687c-0218-4908-9d4c-86fa22cfc242" target="_blank" rel="noopener"><b>Speak — panneau de mot</b><span>Une feuille avec le mot, la nature, la définition, puis les exemples. Trop de sections d'un coup ; le nôtre s'ouvre au sens seul et se tire vers le haut.</span></a>
+      <a class="ref" href="https://mobbin.com/screens/75cab2bc-d7e2-4d02-9fce-ed9854d12874" target="_blank" rel="noopener"><b>Babbel — leçon</b><span>À voir comme contre-exemple : gros bouton orange « Continue », bandeau de progression, encart d'astuce. Trois choses qu'on n'aura pas.</span></a>
+    </div>
+
+    <div class="sources">
+      Recherche « AI slop » :
+      <a href="https://vibecodekit.dev/ai-slop-design" target="_blank" rel="noopener">vibecodekit</a> ·
+      <a href="https://superdesign.dev/blog/why-ai-design-looks-generic" target="_blank" rel="noopener">Superdesign</a> ·
+      <a href="https://smoothui.dev/blog/ai-design-slop" target="_blank" rel="noopener">SmoothUI</a> ·
+      <a href="https://www.925studios.co/blog/ai-slop-design-tells" target="_blank" rel="noopener">925 Studios</a>.
+      Gentler Streak :
+      <a href="https://developer.apple.com/news/?id=3m0ht22s" target="_blank" rel="noopener">Behind the Design (Apple)</a> ·
+      <a href="https://www.sketch.com/blog/gentler-streak/" target="_blank" rel="noopener">Sketch</a>.
+    </div>
+  </section>
+
+  <!-- ============ CLOSE ============ -->
+  <div class="close">
+    <h2>Un mot suffit</h2>
+    <p>Dis-moi <b>A</b>, <b>B</b> ou <b>C</b> — ou bien ce qui manque, et je relance un tour.</p>
+    <ol>
+      <li><b>Si c'est A</b> — j'écris le système complet (couleurs nommées, échelle typographique, rayons, états, mode sombre) dans <code>DESIGN.md</code>, et je maquette les écrans restants : quiz, capture, calibration du premier jour, jauge de confiance.</li>
+      <li><b>Si c'est B ou C</b> — même chose, et pour B on rouvre d'abord la décision « trois cartes égales ».</li>
+      <li><b>Si aucune</b> — dis-moi seulement ce qui cloche (trop sage, trop coloré, trop coréen, pas assez), et je repars d'autres sources.</li>
+    </ol>
+  </div>
+
+</div>

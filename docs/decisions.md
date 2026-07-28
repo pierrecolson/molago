@@ -346,3 +346,142 @@ sur le téléphone à la notification. Lecture entièrement hors ligne, zéro at
 - Contrôle de la vitesse de lecture, avec le **mot en cours** surligné (pas seulement
   la phrase) — pour se pousser progressivement plus vite.
 - Transformer un article capturé en texte du jour.
+
+---
+
+## Essai M0 — 27 juillet 2026
+
+*Décisions 32 à 35, issues de l'essai comparatif à l'aveugle prévu en §14 de la spec.
+Cinq modèles réécrivant le même article coréen, jugés à l'aveugle par trois modèles en
+trois passages chacun. Outillage : `tools/m0-blind-test/`.*
+
+### 32 — Génération : GPT-5.1
+
+**Retenu.** Meilleure note de naturalité (8,8/10 de moyenne, ±0 de dispersion sur trois
+passages chez deux juges sur trois) **et** le moins cher du haut de tableau : 1,31 €/mois
+contre 4,14 € pour GPT-5.5, qui suivait à 8,5. Le pari initial de la spec est confirmé
+par la mesure, pas par l'intuition.
+
+### 33 — Voix : Google Cloud TTS, voix Chirp3-HD
+
+**Retenu.** Meilleur à l'oreille de l'utilisateur, sans hésitation, contre ElevenLabs.
+Et **0 €/mois** : la consommation réelle est de ~93 000 caractères par mois, le palier
+gratuit de Google est à 1 million, sans expiration. ElevenLabs aurait coûté 22 €/mois
+pour un résultat jugé moins bon.
+
+### 34 — Le vérificateur coréen natif est supprimé
+
+**Écarté.** `upstage/solar-pro-3`, seul modèle coréen natif à licence commerciale
+disponible, finit **dernier** à écrire du coréen (4,3/10) : anglicismes, argot de jeu
+collé à des verbes formels, et une hallucination franche. Il est aussi le juge le moins
+fiable des trois (±2,5 à ±3 points de dispersion contre ±0 pour les autres).
+
+Un vérificateur qui écrit moins bien que le générateur et dont les verdicts ne sont pas
+reproductibles n'apporte rien. **Un fournisseur, un contrat, une étape et de la latence
+nocturne en moins.**
+
+### 35 — Toute évaluation par modèle se fait en plusieurs passages
+
+**Règle de méthode.** Découverte en cours d'essai : le même juge, sur le même texte et le
+même prompt, a rendu 4/10 puis 9/10. Un appel unique est du bruit, pas une mesure.
+S'applique partout où un modèle évalue quelque chose dans le pipeline.
+
+### Ce qui a été invalidé dans la spec
+
+- **§9.1** — la répartition « natif juge, frontière corrige » : les deux moitiés sont
+  fausses en pratique. Section réécrite.
+- **§14, point 5** — « l'utilisateur lit, écoute, tranche ». Il tranche l'audio en une
+  écoute, et ne peut pas juger l'écrit : c'est précisément ce que le produit doit lui
+  apporter. Le niveau se vérifie par le calcul de l'étape 5 (P2), jamais par sa lecture.
+
+### 36 — La voix passe à Neural2 B, et le mot en cours est surligné
+
+**Décidé le 27 juillet 2026, en utilisant l'app.** En lisant le premier texte,
+l'utilisateur a demandé si les mots pouvaient être surlignés comme les phrases —
+c'est-à-dire, sans le savoir, l'idée mise au parking en §15 de la spec.
+
+Le surlignage mot à mot exige de savoir à quelle seconde chaque 어절 est prononcé.
+Test fait sur l'API : **Chirp3-HD accepte les marqueurs SSML mais renvoie une liste
+de repères vide.** Neural2, Wavenet et Standard les renvoient tous les trois.
+
+L'arbitrage n'était donc pas « précision contre estimation » mais **la voix contre la
+fonction**. Plutôt que de trancher à sa place, on a resynthétisé le même paragraphe
+avec les six voix candidates et il a écouté : **Neural2 B tient la comparaison**. Il
+avait préféré Chirp3-HD face à ElevenLabs, jamais face aux autres voix Google — la
+comparaison n'avait simplement jamais été faite.
+
+Conséquences : même fournisseur, toujours 0 €/mois (Neural2 est même moins cher au
+million), et le surlignage à deux niveaux — la phrase en teinte claire dit *où on en
+est*, le mot en teinte soutenue dit *ce qu'on entend*.
+
+**Effet de bord relevé au passage** : le débit du MP3 dépend de la famille de voix,
+64 kbps pour Neural2 contre 32 pour Chirp3-HD. La durée annoncée sur les cartes,
+calculée depuis la taille du fichier, s'est mise à afficher le double. Les repères
+SSML servent désormais de contre-mesure indépendante : si les deux estimations
+divergent de plus d'un quart, la fabrique le signale plutôt que de laisser la carte
+mentir en silence.
+
+### 37 — Le mot est global, la relation au mot est personnelle
+
+**Confirmé le 27 juillet 2026.** Une seule base pour tout le monde : un mot coréen n'est
+stocké qu'une fois, jamais cinquante.
+
+C'est déjà la forme du modèle en §10 de la spec, mais elle méritait d'être dite
+explicitement, parce que la phrase « chaque table porte un `user_id` » pouvait laisser
+croire le contraire :
+
+| Table | Portée |
+|---|---|
+| `lexemes` | **Globale.** Forme, nature, fréquence, hanja et famille, traduction, tags de domaine, icône Thiings. Le mot 관리비 est le même pour tout le monde. |
+| `lexeme_state` | **Par utilisateur et par mot.** État, confiance, échéance, expositions. C'est *ma* relation à 관리비 qui m'appartient, pas le mot. |
+
+**Ce que ça économise, et ce n'est pas mince.** Tout ce qui coûte cher à établir pour un
+mot — la famille hanja, les trois exemples d'usage, la correspondance avec une icône
+Thiings, la traduction — est calculé **une fois pour toujours**, pas une fois par
+utilisateur. Le millième utilisateur qui croise 관리비 ne déclenche aucun appel de modèle.
+
+**La question ouverte, c'est celle des textes**, pas celle des mots. Un texte est
+aujourd'hui taillé sur un profil, donc personnel. S'il devient mutualisable par niveau
+(§13 de la spec, explicitement en suspens), les slots 1 et 2 se partagent et le coût de
+génération cesse de croître avec le nombre d'utilisateurs. Seul le slot 3, né des
+captures, reste irréductiblement personnel.
+
+---
+
+## §38 — Un quatrième pigment : ce que j'attrape moi-même n'est pas « du quotidien »
+
+**28 juillet 2026.**
+
+Les trois couleurs de l'app ne sont pas décoratives, elles **portent un sens** : 삼청 bleu
+pour la tech, 하엽 vert pour la Corée, 장단 orange pour le quotidien. L'écran de capture,
+lui, empruntait l'orange pour son bouton principal et le bleu pour le second — et rangeait
+les mots photographiés dans l'univers « quotidien ».
+
+Pierre l'a vu tout de suite : *« on utilise ces couleurs pour le type d'article »*. Le bleu
+du bouton « Choose a photo » **mentait** — il ne parlait pas de tech —, et un mot attrapé
+sur une facture d'immeuble n'est pas un mot d'un des trois textes du matin. Il ne vient
+d'aucun article. Il vient de la vie de celui qui lit.
+
+**Verdict : 자주, le pourpre, quatrième pigment, réservé à la capture.**
+
+| | |
+|---|---|
+| Couleur | `Color(red: 0.400, green: 0.243, blue: 0.451)` |
+| Hanja | 捉 — *attraper* |
+| Slot | `"capture"` |
+| Où | le `+` de la barre, tout l'écran de capture, les surlignages sur la photo, et la fiche des mots capturés au carnet |
+
+**Pourquoi le pourpre et pas le 석간주.** Le rouge de fer était le candidat le plus
+« culturel » — c'est le pigment qui voisine le 장단 sur les poutres de palais. Mis en
+situation sur une photo de facture, ses surlignages **se lisaient encore comme de
+l'orange** : exactement le problème qu'on cherchait à supprimer. Le 먹 (encre), lui, était
+juste sémantiquement mais éteignait les mots — ils ne donnaient plus envie d'être attrapés.
+Le 자주 est le seul de la palette qu'on ne confonde avec aucun des trois du coin de l'œil,
+et il reste chaud.
+
+**La règle qui en sort, et qui vaut pour la suite : une couleur de Molago dit d'où vient
+un mot, jamais « ceci est un bouton important ».** Un bouton secondaire ne prend donc pas
+un autre pigment — il prend le même, creusé. Cinq pigments du 단청 restent libres
+(석간주, 양록, 치자, 뇌록, 먹) pour de futurs univers ; aucun ne doit servir d'accent.
+
+Page de comparaison : `docs/design/couleur-capture.html`.

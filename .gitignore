@@ -5,3 +5,17 @@ node_modules/
 .DS_Store
 *.log
 .superpowers/
+
+# sortie de l'essai M0 (audio + page locale)
+docs/m0/
+
+# sortie du pipeline (JSON du jour + audio)
+pipeline/out/
+
+# projet Xcode généré par xcodegen (voir app/project.yml) et artefacts de build
+app/Molago.xcodeproj/
+app/build/
+app/Resources/
+app/shot-*.png
+
+app/Sources/Config.swift
