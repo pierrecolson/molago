@@ -23,8 +23,13 @@ import ImageIO
 final class CaptureFlow {
     enum Step {
         case choosing
+        /// La reconnaissance du texte, sur l'appareil. Quelques secondes.
         case reading
-        case marked(UIImage, [Word])
+        /// La mise en forme, sur le serveur. C'est l'étape longue, et c'est
+        /// celle qui vaut l'attente : remettre en ordre, recoller, traduire.
+        case filing
+        /// Le document est devenu un article, rangé dans la journée.
+        case filed(title: String)
         case nothing(String)
     }
 
@@ -43,6 +48,27 @@ final class CaptureFlow {
     }
 
     private(set) var step: Step = .choosing
+
+    /// Envoie les lignes lues au serveur, qui en fait un article.
+    ///
+    /// Les lignes brutes, pas les mots : c'est le serveur qui décide de l'ordre
+    /// de lecture, et il lui faut le document entier pour ça. L'app ne
+    /// comprend rien à ce qu'elle a photographié, et c'est très bien ainsi.
+    private static func file(_ lines: [String]) async throws -> String {
+        var request = URLRequest(url: Config.baseURL.appending(path: "document"))
+        request.httpMethod = "POST"
+        // Long, et volontairement : la mise en forme par le bon modèle prend
+        // une bonne minute sur un document dense. C'est le prix d'un texte
+        // juste, et on a choisi de l'accepter plutôt que de rendre une bouillie.
+        request.timeoutInterval = 180
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        request.httpBody = try JSONEncoder().encode(["lines": lines])
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+        struct Reply: Decodable { let title: String }
+        return try JSONDecoder().decode(Reply.self, from: data).title
+    }
 
     func reset() { step = .choosing }
 
@@ -81,15 +107,16 @@ final class CaptureFlow {
             return
         }
 
+        // Les lignes distinctes, dans l'ordre où l'OCR les a vues. Le doublon
+        // est fréquent : un mot et sa ligne remontent séparément.
+        var lines: [String] = []
+        for item in seen where !lines.contains(item.line) { lines.append(item.line) }
+
+        step = .filing
         do {
-            let glossed = try await Self.gloss(seen)
-            guard !glossed.isEmpty else {
-                step = .nothing("Nothing worth keeping in there.")
-                return
-            }
-            step = .marked(image, glossed)
+            step = .filed(title: try await Self.file(lines))
         } catch {
-            step = .nothing("Couldn't look those words up. Try again in a moment.")
+            step = .nothing("Couldn't turn that into an article. Try again in a moment.")
         }
     }
 

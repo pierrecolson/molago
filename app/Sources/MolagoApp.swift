@@ -105,6 +105,13 @@ struct MolagoApp: App {
                     }
                 }
             }
+            // Revenir de la capture doit montrer l'article qu'on vient d'y
+            // ranger. Il a été écrit côté serveur, donc rien ne l'annonce à
+            // l'app : c'est le retour dans une section qui vaut signal.
+            .onChange(of: tab) { old, new in
+                guard old == Self.captureTab, new != Self.captureTab else { return }
+                Task { await store.load() }
+            }
             .task {
                 await store.load()
                 if ProcessInfo.processInfo.arguments.contains("--open-notebook") { tab = 1 }

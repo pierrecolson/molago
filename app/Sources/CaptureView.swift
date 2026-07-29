@@ -38,9 +38,11 @@ struct CaptureView: View {
             case .choosing:
                 chooser
             case .reading:
-                waiting
-            case .marked(let image, let words):
-                marked(image, words)
+                waiting("Reading the photo…")
+            case .filing:
+                waiting("Putting it in order…")
+            case .filed(let title):
+                filed(title)
             case .nothing(let message):
                 empty(message)
             }
@@ -79,7 +81,7 @@ struct CaptureView: View {
     /// Le fond 호분 revient dès qu'il n'y a plus d'image à regarder.
     private var backdrop: some View {
         Group {
-            if case .marked = flow.step { Color.black } else { Dancheong.ground }
+            Dancheong.ground
         }
         .ignoresSafeArea()
     }
@@ -126,15 +128,44 @@ struct CaptureView: View {
         }
     }
 
-    private var waiting: some View {
+    /// Ce qu'on dit pendant l'attente.
+    ///
+    /// « Reading the Korean » décrivait ce que la MACHINE faisait, et ne disait
+    /// rien de ce qui allait sortir. On annonce l'étape en cours, en langue de
+    /// tous les jours — lire la photo, puis la remettre en ordre.
+    private func waiting(_ label: String) -> some View {
         VStack(spacing: 16) {
             ProgressView()
                 .controlSize(.large)
                 .tint(Dancheong.jaju)
-            Text("Reading the Korean…")
+            Text(label)
                 .font(.system(size: 15))
                 .foregroundStyle(Dancheong.inkSoft)
+            Text("This can take a minute. The voice comes later.")
+                .font(.footnote)
+                .foregroundStyle(Dancheong.inkSoft.opacity(0.7))
         }
+    }
+
+    /// Le document est devenu un article. On ne le montre pas ici : il est dans
+    /// la bibliothèque, avec les textes du matin, et c'est là qu'on le lit.
+    private func filed(_ title: String) -> some View {
+        VStack(spacing: 18) {
+            Image("UniverseCapture")
+                .resizable().scaledToFit().frame(width: 76, height: 76)
+            Text(title)
+                .font(.title3.weight(.semibold))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Added to your library, with today's texts.")
+                .font(.subheadline)
+                .foregroundStyle(Dancheong.inkSoft)
+            Button("Read it") { close() }
+                .font(.system(size: 17, weight: .semibold))
+                .tint(Dancheong.jaju)
+                .padding(.top, 4)
+        }
+        .padding(.horizontal, 32)
     }
 
     private func empty(_ message: String) -> some View {

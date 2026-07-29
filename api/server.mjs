@@ -117,6 +117,47 @@ const dayFile = (user, date) => join(DATA, 'u', user, `${date}.json`)
 // Le fuseau du lecteur, comme la fabrique : le serveur tourne en UTC, et à
 // 6 h du matin à Séoul c'est déjà le lendemain là-bas mais pas ici.
 const READER_TZ = process.env.MOLAGO_TZ || 'Asia/Seoul'
+// La même voix que la fabrique nocturne, et ce n'est pas un détail : entendre
+// sa facture lue par quelqu'un d'autre que celui qui lit les textes du matin
+// ferait de la capture une pièce rapportée.
+const VOICE = 'ko-KR-Chirp3-HD-Achernar'
+const audioDir = (user) => join(DATA, 'u', user, 'audio')
+
+/// Fabrique la voix d'un article déjà publié, phrase par phrase.
+///
+/// Lancée sans être attendue : l'article est lisible dès qu'il est écrit, et
+/// c'est ce qui compte devant une facture — la voix, c'est pour le relire dans
+/// le métro plus tard. Une phrase qui échoue ne fait pas tomber les autres : le
+/// lecteur saute simplement les pistes absentes.
+async function speak(user, day, slot) {
+  const text = day.texts.find((t) => t.slot === slot)
+  if (!text || !process.env.GOOGLE_TTS_API_KEY) return
+  mkdirSync(audioDir(user), { recursive: true })
+
+  for (const sentence of text.sentences) {
+    const file = join(audioDir(user), sentence.audio)
+    if (existsSync(file)) continue
+    try {
+      const r = await fetch(
+        `https://texttospeech.googleapis.com/v1beta1/text:synthesize?key=${process.env.GOOGLE_TTS_API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            input: { text: sentence.ko },
+            voice: { languageCode: 'ko-KR', name: VOICE },
+            audioConfig: { audioEncoding: 'MP3', speakingRate: 0.95 },
+          }),
+          signal: AbortSignal.timeout(45000),
+        },
+      )
+      const j = await r.json()
+      if (!j.audioContent) continue
+      writeFileSync(file, Buffer.from(j.audioContent, 'base64'))
+    } catch { /* une phrase muette vaut mieux qu'un article perdu */ }
+  }
+  console.log(`voix : ${text.sentences.length} phrases pour ${slot}`)
+}
 
 const readDay = (user, date) => {
   try { return JSON.parse(readFileSync(dayFile(user, date), 'utf8')) } catch { return null }
@@ -209,6 +250,10 @@ createServer(async (req, res) => {
 
       day.texts = [...day.texts.filter((t) => t.slot !== slot), text]
       writeDay(user, day)
+      // On répond tout de suite : le texte est ce qui est urgent. La voix se
+      // fabrique derrière, et les pistes apparaissent au fur et à mesure — le
+      // lecteur les trouvera au prochain passage sans qu'on ait à le prévenir.
+      speak(user, day, slot).catch(() => {})
       return json(res, 200, { date, slot, title: text.title, sentences: sentences.length })
     }
 
