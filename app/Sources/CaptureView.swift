@@ -14,6 +14,12 @@ import PhotosUI
 /// décision de Molago par-dessus : garder, ou laisser.
 struct CaptureView: View {
     @Environment(\.dismiss) private var dismiss
+    /// Comment on s'en va. Vide quand l'écran est présenté par-dessus, rempli
+    /// quand il EST un onglet — auquel cas il n'y a rien à refermer, il faut
+    /// rendre la main à la section d'où l'on vient.
+    var onClose: (() -> Void)?
+
+    private func close() { if let onClose { onClose() } else { dismiss() } }
     @Environment(\.modelContext) private var context
     @Query private var notebook: [KeptWord]
 
@@ -72,7 +78,7 @@ struct CaptureView: View {
         VStack(spacing: 0) {
             HStack {
                 Spacer()
-                CloseButton(onDark: false) { dismiss() }
+                CloseButton(onDark: false) { close() }
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
@@ -127,7 +133,7 @@ struct CaptureView: View {
                 .tint(Dancheong.jaju)
         }
         .overlay(alignment: .topTrailing) {
-            CloseButton(onDark: false) { dismiss() }
+            CloseButton(onDark: false) { close() }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
         }
@@ -220,7 +226,7 @@ struct CaptureView: View {
         // par la fermeture de l'écran, et son échec ne doit rien coûter — le
         // carnet local, lui, est déjà écrit.
         Task { await CaptureFlow.report(words) }
-        dismiss()
+        close()
     }
 }
 

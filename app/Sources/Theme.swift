@@ -34,13 +34,28 @@ enum Dancheong {
     /// confonde avec aucun des trois du coin de l'œil.
     static let jaju = Color(red: 0.400, green: 0.243, blue: 0.451)
 
-    /// La couleur d'un univers, et le caractère chinois qui le désigne.
-    static func universe(_ slot: String) -> (color: Color, hanja: String) {
+    /// 소황 — le jaune d'or, le quatrième pigment. Il arrive avec l'univers Fun,
+    /// et c'est le seul de la palette qui reste lisible à côté des trois autres
+    /// sans virer au brun.
+    static let sohwang = Color(red: 0.722, green: 0.525, blue: 0.169)
+
+    /// Un univers : sa couleur, son nom, et l'icône qui le désigne.
+    ///
+    /// L'icône est **fixe par univers**, plus cherchée par article. Une image qui
+    /// tente d'illustrer un texte demande de déchiffrer un dessin ; cinq icônes
+    /// qui ne changent jamais se reconnaissent sans les lire. C'est aussi une
+    /// recherche de moins par article chaque nuit.
+    ///
+    /// `korea` et `daily` sont les anciens noms de News et Life : les journées
+    /// déjà fabriquées les portent encore, et une journée passée ne se réécrit
+    /// pas. Les deux graphies mènent donc au même univers.
+    static func universe(_ slot: String) -> (color: Color, name: String, icon: String) {
         switch slot {
-        case "tech": (samcheong, "科")
-        case "korea": (hayeop, "韓")
-        case "capture": (jaju, "捉")
-        default: (jangdan, "常")
+        case "tech":              (samcheong, "Tech", "UniverseTech")
+        case "korea", "news":     (hayeop, "News", "UniverseNews")
+        case "fun":               (sohwang, "Fun", "UniverseFun")
+        case "capture":           (jaju, "Capture", "UniverseCapture")
+        default:                  (jangdan, "Life", "UniverseLife")
         }
     }
 
@@ -54,7 +69,8 @@ enum Dancheong {
     static func highlight(_ slot: String) -> Color {
         switch slot {
         case "tech": Color(red: 0.784, green: 0.867, blue: 0.933)
-        case "korea": Color(red: 0.796, green: 0.890, blue: 0.808)
+        case "korea", "news": Color(red: 0.796, green: 0.890, blue: 0.808)
+        case "fun": Color(red: 0.965, green: 0.886, blue: 0.706)
         case "capture": Color(red: 0.878, green: 0.831, blue: 0.906)
         default: Color(red: 0.973, green: 0.855, blue: 0.749)
         }
@@ -68,7 +84,8 @@ enum Dancheong {
     static func wordHighlight(_ slot: String) -> Color {
         switch slot {
         case "tech": Color(red: 0.553, green: 0.729, blue: 0.855)
-        case "korea": Color(red: 0.565, green: 0.780, blue: 0.596)
+        case "korea", "news": Color(red: 0.565, green: 0.780, blue: 0.596)
+        case "fun": Color(red: 0.914, green: 0.792, blue: 0.514)
         case "capture": Color(red: 0.729, green: 0.647, blue: 0.784)
         default: Color(red: 0.949, green: 0.671, blue: 0.451)
         }
