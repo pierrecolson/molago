@@ -178,15 +178,6 @@ struct NotebookView: View {
             .background(Dancheong.ground)
             .navigationTitle("Notebook")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    // Le quiz vit là où sont les mots : il est fait d'eux. Deux
-                    // appuis depuis le métro, sans avoir rien lu.
-                    NavigationLink { QuizView(words: words) } label: {
-                        Image(systemName: "checkmark.circle")
-                    }
-                    .accessibilityLabel("Quiz")
-                    .disabled(words.count < 4)
-                }
             }
             .task {
                 if ProcessInfo.processInfo.arguments.contains("--open-word"),
