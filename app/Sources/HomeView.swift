@@ -2,11 +2,12 @@ import SwiftUI
 
 /// L'accueil : ce qu'il y a à lire ce matin, puis tout le reste.
 ///
-/// Deux bandes et une règle. **Aujourd'hui** défile horizontalement — les textes
-/// du matin sont côte à côte, aucun plus important qu'un autre, et la quatrième
-/// carte ne coûte rien à l'œil puisqu'on fait glisser. **Previously** est une
-/// liste calme : ce qui est passé reste disponible sans réclamer l'attention de
-/// ce qui vient d'arriver.
+/// Trois bandes et une règle. **Aujourd'hui** défile horizontalement — les
+/// textes du matin sont côte à côte, aucun plus important qu'un autre. **My
+/// content** rassemble ce que l'utilisateur a capturé lui-même, tous jours
+/// confondus : c'est le sien, il ne doit pas se noyer dans le fil. **Previously**
+/// est une liste calme : ce qui est passé reste disponible sans réclamer
+/// l'attention de ce qui vient d'arriver.
 ///
 /// La règle : **un pan de couleur est un article, jamais un mot.** Elle vaut
 /// pour tout l'écran, et c'est elle qui rend le carnet impossible à confondre
@@ -20,24 +21,34 @@ struct HomeView: View {
     @State private var morning = MorningCall()
     @State private var showingMorning = false
     @State private var search = ""
-    @State private var capturesOnly = false
 
-    /// Les textes du matin. La capture du jour n'y est pas : elle a sa bande.
+    /// Les textes du matin. Les captures n'y sont pas : elles ont leur bande.
+    ///
+    /// `hasPrefix` et non l'égalité : chaque capture porte un identifiant
+    /// unique — `capture-ms5z0tto` — et l'égalité stricte ne trouvait jamais
+    /// rien. C'est le bug qui rendait l'ancien filtre All/Captures inerte.
     private var todayTexts: [Day.Text] {
-        day.texts.filter { $0.slot != "capture" }
+        day.texts.filter { !$0.slot.hasPrefix("capture") }
     }
 
-    private var todayCaptures: [Day.Text] {
-        day.texts.filter { $0.slot == "capture" }
+    /// Tout ce que l'utilisateur a capturé lui-même, tous jours confondus,
+    /// le plus récent d'abord.
+    private var myContent: [PastItem] {
+        ([day] + previously.filter { $0.date != day.date })
+            .flatMap { d in
+                d.texts.filter { $0.slot.hasPrefix("capture") }
+                    .map { PastItem(day: d, text: $0) }
+            }
     }
 
-    /// Une ligne de « Previously » par texte, la plus récente d'abord.
+    /// Une ligne de « Previously » par texte du matin, la plus récente d'abord.
+    /// Les captures n'y sont plus : elles vivent dans « My content ».
     private var past: [PastItem] {
         let q = search.trimmingCharacters(in: .whitespaces).lowercased()
         return previously
             .filter { $0.date != day.date }
             .flatMap { d in d.texts.map { PastItem(day: d, text: $0) } }
-            .filter { !capturesOnly || $0.text.slot == "capture" }
+            .filter { !$0.text.slot.hasPrefix("capture") }
             .filter { q.isEmpty || $0.text.title.lowercased().contains(q) }
     }
 
@@ -52,7 +63,9 @@ struct HomeView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 34) {
                     todaySection
-                    if !todayCaptures.isEmpty { captureSection }
+                    // Rien capturé : pas de bande vide qui réclame — la section
+                    // apparaît avec la première capture.
+                    if !myContent.isEmpty { myContentSection }
                     previouslySection
                 }
                 .padding(.bottom, 32)
@@ -100,36 +113,31 @@ struct HomeView: View {
         }
     }
 
-    private var captureSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(todayCaptures) { text in
-                NavigationLink { ReaderView(text: text) } label: {
-                    CaptureStrip(text: text)
+    // ── my content ───────────────────────────────────────────────────────────
+
+    private var myContentSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionLabel("My content")
+            VStack(spacing: 8) {
+                ForEach(myContent) { item in
+                    NavigationLink { ReaderView(text: item.text) } label: {
+                        CaptureRow(item: item)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
+            .padding(.horizontal, 18)
         }
-        .padding(.horizontal, 18)
     }
 
     // ── previously ───────────────────────────────────────────────────────────
 
     private var previouslySection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                SectionLabel("Previously", inset: false)
-                Spacer()
-                Picker("", selection: $capturesOnly) {
-                    Text("All").tag(false)
-                    Text("Captures").tag(true)
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 168)
-            }
-            .padding(.horizontal, 18)
+            SectionLabel("Previously")
 
             if past.isEmpty {
-                Text(capturesOnly ? "Nothing captured yet." : "Yesterday's texts will show up here.")
+                Text("Yesterday's texts will show up here.")
                     .font(.footnote)
                     .foregroundStyle(Dancheong.inkSoft)
                     .padding(.horizontal, 18)
@@ -143,7 +151,7 @@ struct HomeView: View {
                         .buttonStyle(.plain)
                         // Entre les lignes, jamais après la dernière : un filet
                         // qui pend sous le bloc annonce une ligne qui n'existe pas.
-                        if i < past.count - 1 { Divider().padding(.leading, 66) }
+                        if i < past.count - 1 { Divider().padding(.leading, 16) }
                     }
                 }
                 .background(Dancheong.paper)
@@ -227,15 +235,19 @@ private struct UniverseCard: View {
         .frame(width: 208, height: 176, alignment: .topLeading)
         .padding(16)
         .background(alignment: .bottomTrailing) {
-            // L'icône de l'univers, posée dans le coin. Fixe : cinq icônes
+            // L'icône de l'univers, en grand dans le coin. Fixe : cinq icônes
             // qu'on reconnaît sans les lire valent mieux qu'une image
             // différente par article, qu'il faut déchiffrer.
+            //
+            // Elle déborde volontairement du bord et le découpage la rogne :
+            // c'est ce rognage qui lui permet d'être un vrai pan de l'image
+            // sans voler la place du titre ni grandir la carte.
             Image(universe.icon)
                 .resizable()
                 .scaledToFit()
-                .frame(width: 60, height: 60)
+                .frame(width: 100, height: 100)
                 .shadow(color: .black.opacity(0.22), radius: 9, x: 0, y: 4)
-                .padding(11)
+                .offset(x: 14, y: 14)
         }
         .background(universe.color)
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -247,42 +259,86 @@ private struct UniverseCard: View {
     }
 }
 
-/// La capture du jour : même famille que les cartes, volume réduit.
+/// Une capture dans « My content » : la vignette du document, son titre, son jour.
 ///
-/// Elle est là, elle se lit comme un article, mais elle ne dispute pas
-/// l'attention aux textes du matin — c'est une bande, pas un pan.
-private struct CaptureStrip: View {
-    let text: Day.Text
+/// La vignette montre le document photographié lui-même, pas une icône : ce
+/// contenu vient de la vie de celui qui lit, et c'est en reconnaissant SA
+/// facture ou SON avis de copropriété qu'il le retrouve. Le liseré pourpre
+/// reste la marque de ce qui vient de lui (자주, comme partout dans l'app).
+private struct CaptureRow: View {
+    let item: HomeView.PastItem
 
     var body: some View {
-        HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("CAPTURE")
-                    .font(.caption2.weight(.heavy))
-                    .kerning(1.5)
-                    .foregroundStyle(.white.opacity(0.8))
-                Text(text.title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-            }
+        HStack(spacing: 12) {
+            thumbnail
+
+            Text(item.text.title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Dancheong.ink)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+
             Spacer(minLength: 8)
+
+            Text(item.day.shortLabel)
+                .font(.caption2)
+                .foregroundStyle(Dancheong.inkSoft)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Dancheong.paper)
+        // Le liseré est posé avant le découpage : c'est lui qui épouse l'arrondi.
+        .overlay(alignment: .leading) { Dancheong.jaju.frame(width: 5) }
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    /// La photo réduite, ou l'icône de capture quand il n'y a pas de photo
+    /// (une capture peut arriver par le partage de texte, sans image).
+    @ViewBuilder
+    private var thumbnail: some View {
+        if let url = Paths.captureImage(item.text.slot),
+           let image = UIImage(contentsOfFile: url.path()) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 44, height: 44)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        } else {
             Image("UniverseCapture")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 34, height: 34)
+                .frame(width: 30, height: 30)
+                .frame(width: 44, height: 44)
+                .background(Dancheong.jaju, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
-        .background(Dancheong.jaju)
-        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
     }
 }
 
+/// Une ligne de « Previously » : le titre et le jour, rien d'autre.
+///
+/// Plus d'icône d'univers à gauche : dans une liste où chaque ligne en portait
+/// une, elles ne distinguaient plus rien — elles faisaient du bruit. Le titre
+/// et la date suffisent, et l'œil file plus droit.
 private struct PastRow: View {
     let item: HomeView.PastItem
     var body: some View {
-        SourceRow(slot: item.text.slot, title: item.text.title, trailing: item.day.shortLabel)
+        HStack(spacing: 12) {
+            Text(item.text.title)
+                .font(.subheadline)
+                .foregroundStyle(Dancheong.ink)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+
+            Spacer(minLength: 8)
+
+            Text(item.day.shortLabel)
+                .font(.caption2)
+                .foregroundStyle(Dancheong.inkSoft)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 13)
+        .contentShape(Rectangle())
     }
 }
 
