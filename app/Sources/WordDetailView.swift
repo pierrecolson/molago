@@ -166,6 +166,12 @@ struct WordDetailView: View {
                     .lineSpacing(7)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            // Le contenu respire à l'intérieur du bloc. Ce rembourrage avait été
+            // emporté en supprimant le bouton d'écoute qui le suivait, et le
+            // texte s'est retrouvé collé aux bords sans que rien ne le signale :
+            // le bloc existait toujours, il était seulement vide de marge.
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
