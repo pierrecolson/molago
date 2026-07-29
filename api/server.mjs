@@ -9,6 +9,7 @@
 //
 //   POST /u/:id/gloss     { text }   → les mots du texte, avec leur sens
 //   POST /u/:id/captures  { words }  → ce qui est gardé, pour la nuit suivante
+//   POST /u/:id/document  { lines }  → un document photographié, rendu lisible
 //
 // Pas de framework : `node:http` suffit pour deux routes, et une dépendance de
 // moins est une dépendance de moins à tenir à jour sur un VPS.
@@ -18,12 +19,19 @@
 // utilisateur changera — pas les routes, pas l'app.
 
 import { createServer } from 'node:http'
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 
 const PORT = Number(process.env.PORT || 8080)
 const DATA = process.env.DATA_DIR || '/data'
 const CLERK = 'google/gemini-3.5-flash-lite'
+// Remettre en ordre un document photographié n'est pas mécanique : l'OCR rend
+// des lignes dans le désordre visuel, coupées par les colonnes et les encadrés,
+// et il faut décider ce qui est un titre, ce qui est une phrase, ce qui est du
+// bruit d'en-tête. Le modèle bon marché rend là une bouillie plausible. C'est
+// aussi ce qui justifie l'attente qu'on a acceptée : mieux vaut trente secondes
+// et un texte juste que deux secondes et un texte faux.
+const WRITER = 'openai/gpt-5.1'
 const USER = process.env.MOLAGO_USER_ID || process.env.MOLAGO_SECRET_PATH || ''
 
 // ── le glossaire d'un texte capturé ──────────────────────────────────────────
@@ -46,7 +54,23 @@ Règles :
 - L'OCR se trompe. Si un mot est manifestement mal reconnu et ne veut rien dire, saute-le plutôt que d'inventer.
 - Au plus 30 mots, et seulement ceux qui apprennent vraiment quelque chose.`
 
-async function llm(prompt) {
+const DOCUMENT = (lines) => `Voici les lignes d'un document coréen photographié — une affiche, une facture, un panneau, un avis de copropriété. Elles arrivent dans l'ordre où la reconnaissance de texte les a vues, ce qui n'est pas toujours l'ordre de lecture : les colonnes, les encadrés et les tableaux la désorientent.
+
+${lines.map((l, i) => `${i}. ${l}`).join('\n')}
+
+Rends ce document lisible comme un article.
+
+- Remets les phrases dans l'ordre où un humain les lirait.
+- Recolle ce qu'un retour à la ligne a coupé au milieu d'une phrase.
+- Jette les numéros de référence, les tampons, les numéros de téléphone isolés, les mentions légales — ce qui ne se lit pas à voix haute.
+- Garde les chiffres, les dates et les montants : c'est souvent l'information qu'on est venu chercher.
+- Ne réécris pas le coréen. C'est un document réel, pas un exercice : on le lit tel qu'il est écrit.
+- La traduction anglaise est **naturelle**, pas littérale : ce que dirait un anglophone qui explique le document à quelqu'un.
+
+Réponds en JSON :
+{"t":"un titre court en anglais, ce que le document est","s":[{"ko":"une phrase coréenne","en":"sa traduction anglaise"}]}`
+
+async function llm(prompt, model = CLERK) {
   const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -55,7 +79,7 @@ async function llm(prompt) {
       'x-title': 'Molago capture',
     },
     body: JSON.stringify({
-      model: CLERK,
+      model,
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 4000,
       response_format: { type: 'json_object' },
@@ -89,13 +113,30 @@ async function readBody(req, limit = 200_000) {
 }
 
 const capturesFile = (user) => join(DATA, 'u', user, 'captures.json')
+const dayFile = (user, date) => join(DATA, 'u', user, `${date}.json`)
+// Le fuseau du lecteur, comme la fabrique : le serveur tourne en UTC, et à
+// 6 h du matin à Séoul c'est déjà le lendemain là-bas mais pas ici.
+const READER_TZ = process.env.MOLAGO_TZ || 'Asia/Seoul'
+
+const readDay = (user, date) => {
+  try { return JSON.parse(readFileSync(dayFile(user, date), 'utf8')) } catch { return null }
+}
+/// Écriture atomique : l'app peut lire la journée à l'instant où on la complète,
+/// et une journée à moitié écrite ne se décode pas — l'écran afficherait alors
+/// « rien ce matin » alors que tout est là.
+const writeDay = (user, day) => {
+  mkdirSync(join(DATA, 'u', user), { recursive: true })
+  const file = dayFile(user, day.date)
+  writeFileSync(`${file}.tmp`, JSON.stringify(day))
+  renameSync(`${file}.tmp`, file)
+}
 
 // ── routes ───────────────────────────────────────────────────────────────────
 
 createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost')
-    const m = url.pathname.match(/^\/u\/([A-Za-z0-9_-]{8,64})\/(gloss|captures)$/)
+    const m = url.pathname.match(/^\/u\/([A-Za-z0-9_-]{8,64})\/(gloss|captures|document)$/)
 
     if (url.pathname === '/health') return json(res, 200, { ok: true })
     if (!m) return json(res, 404, { error: 'not found' })
@@ -130,6 +171,45 @@ createServer(async (req, res) => {
           en: w.e.trim(),
         }))
       return json(res, 200, { words })
+    }
+
+    if (route === 'document') {
+      const lines = (Array.isArray(body.lines) ? body.lines : [])
+        .map((l) => String(l).trim()).filter(Boolean).slice(0, 300)
+      if (lines.length < 1) return json(res, 400, { error: 'no text' })
+
+      const out = await llm(DOCUMENT(lines), WRITER)
+      const sentences = (out.s || [])
+        .filter((x) => x && typeof x.ko === 'string' && x.ko.trim()
+          && typeof x.en === 'string' && x.en.trim())
+        .map((x) => ({ ko: x.ko.trim(), en: x.en.trim() }))
+      if (!sentences.length) return json(res, 502, { error: 'unreadable' })
+
+      // La journée du lecteur, pas celle du serveur : c'est la même règle que
+      // pour la fabrique nocturne, et pour la même raison — l'app range sa
+      // capture dans le jour qu'affiche son téléphone.
+      const date = new Date().toLocaleDateString('en-CA', { timeZone: READER_TZ })
+      const day = readDay(user, date) || { date, texts: [] }
+
+      // Un identifiant par capture : on en photographie plusieurs par jour, et
+      // le slot seul ne suffirait pas à les distinguer.
+      const slot = `capture-${Date.now().toString(36)}`
+      const text = {
+        slot,
+        universe: 'Capture',
+        title: String(out.t || 'Captured document').trim().slice(0, 90),
+        // Le débit de lecture mesuré sur les textes du matin, appliqué au
+        // nombre de 어절 : la carte annonce la même durée que les autres, et
+        // pour la même raison.
+        minutes: Math.max(1, Math.round(sentences.reduce((n, s) => n + s.ko.split(/\s+/).length, 0) / 95)),
+        icon: null,
+        // Pas de piste audio : elle vient après, et l'article est lisible sans.
+        sentences: sentences.map((s, i) => ({ ...s, audio: `${date}-${slot}-${String(i + 1).padStart(2, '0')}.mp3` })),
+      }
+
+      day.texts = [...day.texts.filter((t) => t.slot !== slot), text]
+      writeDay(user, day)
+      return json(res, 200, { date, slot, title: text.title, sentences: sentences.length })
     }
 
     // Ce que l'utilisateur a gardé. La fabrique de la nuit suivante s'en sert
