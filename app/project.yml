@@ -42,6 +42,20 @@ targets:
     platform: iOS
     sources:
       - path: Sources
+    entitlements:
+      path: Sources/Molago.entitlements
+      properties:
+        # Les documents iCloud, pas CloudKit : ce qu'on synchronise est un
+        # fichier — la photo d'une capture — et le stockage de documents fait
+        # exactement ça sans base de données, sans schéma, et sans code de
+        # synchronisation à écrire. Les fichiers déposés dans le conteneur
+        # remontent et redescendent seuls.
+        com.apple.developer.icloud-services:
+          - CloudDocuments
+        com.apple.developer.icloud-container-identifiers:
+          - iCloud.com.molago.app
+        com.apple.developer.ubiquity-container-identifiers:
+          - iCloud.com.molago.app
     settings:
       base:
         # iPhone seul. Par défaut la cible vise aussi l'iPad, et l'App Store
@@ -67,6 +81,14 @@ targets:
         # une fois pour toutes, sinon App Store Connect repose la question à
         # chaque envoi et bloque la distribution aux testeurs en attendant.
         ITSAppUsesNonExemptEncryption: false
+        # Sans cette déclaration, le conteneur existe mais reste invisible dans
+        # l'app Fichiers et dans les réglages iCloud : l'utilisateur ne peut ni
+        # voir ce qui est stocké, ni le supprimer.
+        NSUbiquitousContainers:
+          iCloud.com.molago.app:
+            NSUbiquitousContainerIsDocumentScopePublic: true
+            NSUbiquitousContainerName: Molago
+            NSUbiquitousContainerSupportedFolderLevels: Any
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         # La voix continue quand l'écran s'éteint : on lit dans le métro,
