@@ -149,7 +149,7 @@ pas de couche « architecture » — cinq écrans et un modèle.
 | Audio | **`AVQueuePlayer`** | Une piste par phrase → on empile les phrases, et le surlignage suit `currentItem`. |
 | OCR | **Vision, `VNRecognizeTextRequest` en `ko-KR`** | Natif, hors ligne, instantané, aucune dépendance. |
 | Téléchargement | **À l'ouverture de l'app**, avec un état de chargement soigné | Les modes d'arrière-plan font partie des capacités restreintes sur compte gratuit (§7). On ne parie pas dessus : ~2 Mo se téléchargent en trois secondes, et il ouvre l'app le matin de toute façon. `BGAppRefreshTask` revient avec le compte payant, en bonus. |
-| Notification | **`UNUserNotificationCenter`, locale** | Les notifications locales ne demandent aucun *entitlement* — seul le push distant en exige un. Formulation générique en V1 (« trois textes vous attendent ») : sans APNs, l'app ne peut pas connaître le titre du jour avant de l'avoir téléchargé. |
+| Notification | **`UNUserNotificationCenter`, locale** | Les notifications locales ne demandent aucun *entitlement* — seul le push distant en exige un. Formulation générique en V1 (« vos textes vous attendent ») : sans APNs, l'app ne peut pas connaître le titre du jour avant de l'avoir téléchargé. |
 | Sauvegarde | **Le Notebook remonte au serveur chaque jour** | iCloud est bloqué sur compte gratuit, et une réinstallation peut emporter les données locales. Le JSON de profil qu'on envoyait déjà pour calibrer le niveau porte aussi les mots gardés. Vingt lignes de plus, et une réinstallation devient sans conséquence. |
 
 ### Le seul morceau techniquement délicat, et il est déjà résolu
@@ -170,7 +170,7 @@ possible.
 
 ### Les cinq écrans
 
-1. **Library** — les trois cartes du jour (aplats dancheong, filet blanc), l'historique en dessous.
+1. **Library** — les cartes du jour, une par univers (aplats dancheong, filet blanc), l'historique en dessous.
 2. **Reader** — texte, phrase surlignée, barre de lecture.
 3. **Carte de mot flottante** — sens + exemples, swipe droite `Keep` / gauche `I knew this`.
    `DragGesture` + `rotationEffect` + ressort. Le même composant sert au tri après capture.
@@ -187,7 +187,7 @@ Chaque jalon se termine par quelque chose à ouvrir sur le téléphone.
 
 | # | Jalon | Ce qu'on peut tester | Taille |
 |---|---|---|---|
-| ~~**M0**~~ | ~~**L'essai à l'aveugle**~~ | ✅ **Fait le 27/07/2026.** GPT-5.1 pour générer, Google Neural2 B pour la voix, étape 6 supprimée. | ~~½ session~~ |
+| ~~**M0**~~ | ~~**L'essai à l'aveugle**~~ | ✅ **Fait le 27/07/2026.** GPT-5.1 pour générer, Google TTS pour la voix, étape 6 supprimée. | ~~½ session~~ |
 | ~~**M1**~~ | ~~**Trois textes, lus à voix haute**~~ | ✅ **Fait le 27/07/2026.** Fabrique nocturne sur le VPS, Library, lecteur, surlignage phrase **et** mot, notification du matin. | ~~2–3 sessions~~ |
 | **M2** | **Taper un mot** | Carte flottante, `Keep` / `I knew this`, le Notebook se remplit. Le moteur commence à apprendre de tes taps. | 2 sessions |
 | **M2b** | **Les 240 icônes** | Le script de correspondance tourne sur les 9 000, tu valides à l'œil, on embarque le catalogue. | ½ session + 2 h à toi |

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // La chaîne de fabrication nocturne — version M1.
 //
-// Produit la journée complète : trois textes coréens, découpés en phrases, avec
+// Produit la journée complète : quatre textes coréens, découpés en phrases, avec
 // une piste audio par phrase. Le découpage par phrase n'est pas un détail de
 // confort : c'est lui qui rend le surlignage suivant la voix trivial côté app
 // (spec §9, étape 9).
@@ -16,7 +16,7 @@
 //   · quiz                        → M4, dernier jalon.
 
 import { writeFileSync, mkdirSync, existsSync, readFileSync, renameSync } from 'node:fs'
-import { join, dirname } from 'node:path'
+import { join, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DOMAINS } from './domains.mjs'
 
@@ -41,22 +41,19 @@ const CLERK = 'google/gemini-3.5-flash-lite'
 // Ce que la nuit a coûté, en dollars. On mesure au lieu d'estimer : l'écart
 // entre les deux a été d'un facteur vingt.
 const spent = { writer: 0, clerk: 0 }
-// Neural2 B plutôt que Chirp3-HD : à l'écoute comparée elle tient, et surtout
-// c'est la seule famille qui renvoie les repères temporels des marqueurs SSML.
-// Chirp3-HD accepte le balisage mais rend une liste vide — donc pas de
-// surlignage mot à mot avec elle. Voir decisions.md §36.
-const VOICE = 'ko-KR-Neural2-B'
+// Chirp3-HD plutôt que Neural2 B : c'est la voix qu'il a préférée à l'écoute, et
+// on cesse de payer la qualité de la voix pour une fonction d'affichage.
+// Le prix : Chirp3-HD ne renvoie aucun repère temporel (liste vide, même avec le
+// balisage SSML), donc le début de chaque 어절 est désormais ESTIMÉ à partir de
+// la durée réelle de la phrase. Voir decisions.md §39, qui révise §36.
+// Achernar est une voix féminine, comme Neural2 B : l'oreille ne change pas de
+// personne en changeant de famille de voix.
+const VOICE = 'ko-KR-Chirp3-HD-Achernar'
 
 // La spec promet « 3 à 4 minutes » et affiche cette durée sur la carte. À la
 // vitesse de lecture mesurée, 380 어절 font quatre minutes : c'est le plafond
 // au-delà duquel la carte mentirait.
 const MAX_EOJEOL = 380
-
-// Le débit du MP3 dépend de la famille de voix : Neural2 rend du 64 kbps là où
-// Chirp3-HD rendait du 32. La durée annoncée sur la carte s'en déduit, donc une
-// valeur fausse ici fait mentir le contrat de durée — vérifiée à l'oreille et
-// recoupée plus bas avec les repères SSML.
-const MP3_KBPS = 64
 
 // L'API Thiings tourne sur la même machine : 9 000 icônes 3D, interrogeables en
 // local. On ne présélectionne donc rien — l'icône d'un mot est résolue le jour
@@ -67,23 +64,76 @@ const MP3_KBPS = 64
 const thiingsURL = () => env.THIINGS_URL || 'http://host.docker.internal:3088'
 const ICONS_OUT = '/icons-out'
 
-// Trois univers, trois couches de langue. C'est l'écart entre ces couches qui
+// La table des caractères vit hors du dossier de l'utilisateur, exactement pour
+// la raison qui y met déjà les icônes (decisions.md §37) : le hanja de 관리비
+// appartient au mot, pas à celui qui le lit. Un mot n'y est écrit qu'une fois et
+// n'est plus jamais redemandé — c'est ce qui rend la réponse stable d'une nuit à
+// l'autre, ce dont dépend le regroupement par famille du carnet, et ce qui fait
+// tendre le coût vers zéro.
+//
+// Ni péremption ni version : corriger un mot, c'est éditer le fichier ou en
+// retirer la clé, et c'est volontairement tout ce qu'il y a.
+//
+// Lue au moment de s'en servir comme l'adresse des icônes, et pour la même
+// raison : `env` n'existe pas encore ici.
+const hanjaTable = () => env.MOLAGO_HANJA_TABLE || '/words/hanja.json'
+
+// Les filtres mécaniques de titres. Ils vivent ici, avant les univers, parce que
+// chaque univers choisit désormais les siens : ce qui est du bruit pour l'un est
+// le sujet de l'autre.
+const SKIP = /날씨|부고|프로야구|프로축구|증시|환율|종합\s*\d|일지|인사|동정|사진|영상/
+const PRESS_RELEASE =
+  /[가-힣]+(군|시|도|청|공사|공단|재단)[,\s].*(확정|추진|착수|개최|위촉|기탁|협약|간담회|워크숍|선정|준공|개소|출범|시행|모집)/
+const GOSSIP = /연예|배우|가수|아이돌|드라마|예능|열애|결혼설|불화설|이혼|팬미팅|컴백|소속사/
+// La version courte, pour l'univers dont le divertissement est le sujet : on n'y
+// écarte que ce qui relève de la vie privée d'une personne.
+const GOSSIP_HARD = /열애|결별|결혼설|불화설|이혼|임신|사생활|악플|고소|음주운전|마약|학폭/
+
+// Quatre univers, quatre couches de langue. C'est l'écart entre ces couches qui
 // fait plafonner les résidents de longue durée (spec §8.2).
+//
+// L'ordre du tableau EST l'ordre des cartes du matin : l'app ne trie pas, elle
+// affiche ce qui vient. Et les identifiants entrent dans le nom des fichiers
+// audio, découpés sur le tiret côté app — donc jamais de tiret dans un `id`.
+//
+// `korea` et `daily` ont été renommés en `news` et `life` : les journées déjà
+// fabriquées les portent encore et restent lisibles (l'app accepte les deux
+// noms), mais une journée passée ne se réécrit pas.
 const SLOTS = [
   {
-    // Sources internationales, réécrites en coréen : c'est le slot « cerveau »,
-    // et c'est ce qui le distingue d'une troisième dose d'actualité coréenne.
-    id: 'tech', universe: 'Tech & Science', register: 'journalistique, sino-coréen dense',
-    hackerNews: true,
-    interest: "quelqu'un qui travaille dans la tech et lit Hacker News le matin",
-  },
-  {
-    id: 'korea', universe: 'Korea', register: 'journalistique courant',
+    id: 'news', universe: 'News', register: 'journalistique courant',
     feeds: ['https://rss.donga.com/total.xml', 'https://www.yna.co.kr/rss/news.xml'],
     interest: "un étranger installé à Séoul qui veut lire ce dont ses collègues parleront aujourd'hui",
   },
   {
-    id: 'daily', universe: 'Daily life', register: 'parlé, 해요체',
+    // Sources internationales, réécrites en coréen : c'est le slot « cerveau »,
+    // et c'est ce qui le distingue d'une seconde dose d'actualité coréenne.
+    id: 'tech', universe: 'Tech', register: 'journalistique, sino-coréen dense',
+    hackerNews: true,
+    interest: "quelqu'un qui travaille dans la tech et lit Hacker News le matin",
+  },
+  {
+    // Le divertissement, mais toujours à partir d'un vrai article (D2/D5) :
+    // culture et sorties se trouvent dans la presse comme le reste. Un second
+    // fonds de situations inventées aurait fait deux textes sur quatre sans
+    // source, ce qui est précisément ce que la règle interdit.
+    id: 'fun', universe: 'Fun', register: 'parlé et léger, 해요체',
+    feeds: ['https://www.yna.co.kr/rss/entertainment.xml', 'https://rss.donga.com/culture.xml'],
+    // Le filtre GOSSIP par défaut supprimerait ce slot en entier : 드라마 et
+    // 가수 sont exactement ce qu'on vient chercher ici. On ne rejette donc que
+    // les potins de personnes, pas le champ lexical du divertissement.
+    reject: [SKIP, GOSSIP_HARD],
+    rejectURL: /\/(Sports|Photo)\//i,
+    // Et l'inverse de la consigne par défaut : les sorties et les festivals
+    // sont le sujet, pas le bruit.
+    avoid: `Écarte sans hésiter : les potins de vie privée, les communiqués d'agence, les remises de prix,
+les classements d'audience, le publireportage, et les brèves sans substance.
+
+Un concert, une série, un film, un restaurant, un quartier où l'on sort : tout cela est bienvenu.`,
+    interest: "quelqu'un qui vit à Séoul et cherche de quoi parler le vendredi soir : séries, concerts, sorties, restaurants",
+  },
+  {
+    id: 'life', universe: 'Life', register: 'parlé, 해요체',
     situations: true,
   },
 ]
@@ -213,11 +263,6 @@ function bodyFrom(html, korean = true) {
     .map((t) => t.replace(/^\([^)]{2,30}\)\s*[^=]{0,20}=\s*/, ''))
 }
 
-const SKIP = /날씨|부고|프로야구|프로축구|증시|환율|종합\s*\d|일지|인사|동정|사진|영상/
-const PRESS_RELEASE =
-  /[가-힣]+(군|시|도|청|공사|공단|재단)[,\s].*(확정|추진|착수|개최|위촉|기탁|협약|간담회|워크숍|선정|준공|개소|출범|시행|모집)/
-const GOSSIP = /연예|배우|가수|아이돌|드라마|예능|열애|결혼설|불화설|이혼|팬미팅|컴백|소속사/
-
 // Le choix du sujet est confié au modèle plutôt qu'à des expressions
 // régulières. Les filtres attrapent les cas connus ; ils ne sauront jamais
 // qu'un article sur la mascotte d'un canton n'a rien à faire en « Tech ». Une
@@ -226,9 +271,9 @@ const CHOOSE = (slot, items) => `Voici les titres du jour. Choisis le SEUL qui m
 
 ${items.map((it, i) => `${i}. ${it.title}`).join('\n')}
 
-Écarte sans hésiter : les communiqués d'entreprise et de collectivité, les remises de prix,
+${slot.avoid ?? `Écarte sans hésiter : les communiqués d'entreprise et de collectivité, les remises de prix,
 les annonces de festivals ou d'événements locaux, les mascottes, le publireportage, les
-brèves sans substance, et tout ce qui ne se raconterait pas à quelqu'un autour d'un café.
+brèves sans substance, et tout ce qui ne se raconterait pas à quelqu'un autour d'un café.`}
 
 Le critère est unique : « l'aurait-il lu si c'était dans sa langue ? »
 
@@ -261,10 +306,12 @@ async function pickArticle(slot, used) {
   }
   // Les filtres mécaniques ne font que dégrossir : ils écartent ce qui n'a
   // jamais d'intérêt, le modèle tranche sur le reste.
+  const reject = slot.reject ?? [SKIP, PRESS_RELEASE, GOSSIP]
+  const rejectURL = slot.rejectURL ?? /\/(Entertainment|Sports|Photo)\//i
   const cands = items
     .filter((i) => i.url && !used.has(i.url))
-    .filter((i) => !SKIP.test(i.title) && !PRESS_RELEASE.test(i.title) && !GOSSIP.test(i.title))
-    .filter((i) => !/\/(Entertainment|Sports|Photo)\//i.test(i.url))
+    .filter((i) => !reject.some((re) => re.test(i.title)))
+    .filter((i) => !rejectURL.test(i.url))
   if (!cands.length) return null
 
   // Si le modèle ne trouve rien de lisible, on ne force pas : mieux vaut deux
@@ -324,14 +371,14 @@ CONSIGNES
 - Phrases de longueur variée. Collocations naturelles.
 - Réponds UNIQUEMENT avec le texte coréen. Pas de titre, pas de commentaire, pas de balisage.`
 
-const FROM_SITUATION = (situation) => `Écris une courte scène en coréen pour un lecteur étranger de niveau intermédiaire-avancé qui vit à Séoul depuis huit ans.
+const FROM_SITUATION = (slot, situation) => `Écris une courte scène en coréen pour un lecteur étranger de niveau intermédiaire-avancé qui vit à Séoul depuis huit ans.
 
 SITUATION
 ${situation}
 
 CONSIGNES
 - **16 à 20 phrases**, chacune de 12 à 20 어절. Contrainte ferme.
-- Registre parlé naturel, 해요체. C'est une situation de la vie quotidienne, pas un article.
+- Registre : ${slot.register}. C'est une situation vécue, pas un article.
 - Le vocabulaire doit être celui qu'on emploie VRAIMENT dans cette situation à Séoul aujourd'hui — les mots qu'on lit sur les papiers, qu'on entend au guichet.
 - Enseigne les collocations en les employant, pas en les expliquant.
 - Ça doit être utile le soir même : des phrases réutilisables telles quelles.
@@ -383,48 +430,82 @@ Règles :
 
 // ── voix ─────────────────────────────────────────────────────────────────────
 
-const ssmlEscape = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-
-/// Synthétise une phrase et rend, en plus du son, l'instant où commence chaque
-/// 어절.
+/// Synthétise une phrase. Rien d'autre : Chirp3-HD ne dit pas quand elle
+/// prononce quoi, et on a cessé de le lui demander (decisions.md §39).
 ///
-/// On insère un marqueur SSML muet devant chaque mot et on demande à l'API de
-/// nous dire quand il est atteint. C'est ce qui permet de surligner le mot en
-/// cours plutôt que la phrase entière — l'idée du parking §15 de la spec.
+/// Le texte part brut, sans SSML : la voix ne le documente pas, et surtout plus
+/// rien n'en dépend depuis que les repères sont estimés.
 async function speak(text) {
-  const words = text.trim().split(/\s+/)
-  const ssml = '<speak>' +
-    words.map((w, i) => `<mark name="w${i}"/>${ssmlEscape(w)}`).join(' ') +
-    '</speak>'
-
   const r = await fetch(
     `https://texttospeech.googleapis.com/v1beta1/text:synthesize?key=${env.GOOGLE_TTS_API_KEY}`,
     {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        input: { ssml },
+        input: { text: text.trim() },
         voice: { languageCode: 'ko-KR', name: VOICE },
         audioConfig: { audioEncoding: 'MP3', speakingRate: 0.95 },
-        enableTimePointing: ['SSML_MARK'],
       }),
     },
   )
   const j = await r.json()
   if (!r.ok || j.error) throw new Error(j.error?.message || `HTTP ${r.status}`)
+  return Buffer.from(j.audioContent, 'base64')
+}
 
-  // Les repères reviennent dans l'ordre des marqueurs, mais on les réordonne
-  // sur le nom : un décalage silencieux ferait dériver tout le surlignage.
-  const marks = new Map((j.timepoints || []).map((t) => [t.markName, t.timeSeconds]))
-  const starts = words.map((_, i) => marks.get(`w${i}`))
-  const complete = starts.every((t) => typeof t === 'number')
-
-  return {
-    buf: Buffer.from(j.audioContent, 'base64'),
-    // Incomplet : on ne publie pas de repères à moitié faux, l'app retombera
-    // proprement sur le surlignage par phrase.
-    words: complete ? words.map((w, i) => ({ w, t: Number(starts[i].toFixed(3)) })) : null,
+/// La durée d'un MP3, lue dans l'en-tête de sa première trame.
+///
+/// Une constante de débit aurait suffi — jusqu'au prochain changement de voix,
+/// où elle serait devenue fausse en silence et où la carte aurait annoncé le
+/// double ou la moitié. C'est arrivé une fois (§36) ; le fichier sait ce qu'il
+/// pèse, on le lui demande.
+///
+/// Deux détails qui font échouer un lecteur naïf : Google rend du MPEG-2
+/// (24 kHz), qui n'a pas la même table de débits que le MPEG-1, et un éventuel
+/// en-tête ID3 précède la première synchro.
+export function mp3Seconds(buf) {
+  const V1 = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320]
+  const V2 = [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160]
+  for (let i = 0; i + 3 < buf.length; i++) {
+    if (buf[i] !== 0xff || (buf[i + 1] & 0xe0) !== 0xe0) continue
+    const version = (buf[i + 1] >> 3) & 3       // 3 = MPEG-1, 2 = MPEG-2, 0 = MPEG-2.5
+    const layer = (buf[i + 1] >> 1) & 3         // 1 = Layer III
+    if (version === 1 || layer !== 1) continue
+    const kbps = (version === 3 ? V1 : V2)[(buf[i + 2] >> 4) & 0xf]
+    if (!kbps) continue
+    // Débit constant : les octets suffisent une fois le débit connu.
+    return (buf.length - i) / (kbps * 125)
   }
+  return 0
+}
+
+/// Le début de chaque 어절, ESTIMÉ — ce n'est pas une mesure.
+///
+/// Chirp3-HD ne rend aucun repère, mais l'app exige un instant par mot (le champ
+/// n'est pas optionnel côté décodage : l'omettre rendrait la journée entière
+/// illisible). On répartit donc la durée réelle de la phrase au prorata du
+/// nombre de caractères de chaque 어절.
+///
+/// Une phrase synthétisée se termine par un silence — mesuré à six dixièmes de
+/// seconde. Sans le retirer, toute la phrase est étirée et le surlignage traîne
+/// derrière la voix. C'est le seul réglage de cette fonction, et il vaut la
+/// peine : mesuré contre les 1 876 repères réels des journées Neural2, l'erreur
+/// médiane passe de 0,27 s à **0,11 s** (p90 0,31 s) pour un mot qui dure
+/// environ 0,65 s. À revérifier après quelques nuits en Chirp3-HD : une autre
+/// voix ne respire pas pareil.
+///
+/// Le jour où l'app rendra ce champ facultatif, c'est cette fonction qui
+/// disparaît, pas le reste.
+export function estimateWords(text, seconds, tail = 0.6) {
+  const words = text.trim().split(/\s+/)
+  const total = words.reduce((a, w) => a + w.length, 0) || 1
+  const span = Math.max(0.1, seconds - tail)
+  let before = 0
+  return words.map((w) => {
+    const t = Number((span * before / total).toFixed(3))
+    before += w.length
+    return { w, t }
+  })
 }
 
 // ── icônes ───────────────────────────────────────────────────────────────────
@@ -675,50 +756,105 @@ Réponds en JSON :
 - \`f\` : trois à cinq mots courants de la même famille, le mot lui-même exclu.
 - Le lecteur ne lit pas le chinois : ce qui compte est le **sens partagé**, le caractère reste discret.`
 
+export function readHanjaTable(path = hanjaTable()) {
+  try { return JSON.parse(readFileSync(path, 'utf8')) } catch { return {} }
+}
+
+/// Fusionne ce qu'on vient d'apprendre, en RELISANT la table d'abord.
+///
+/// Elle est complétée quatre fois par nuit, et une fabrication lancée à la main
+/// peut croiser celle du cron : réécrire ce qu'on avait lu au démarrage
+/// effacerait une nuit entière d'apprentissage. Écriture atomique, comme le JSON
+/// du jour — personne ne doit jamais lire une table à moitié écrite.
+export function saveHanjaTable(learned, path = hanjaTable()) {
+  const table = { ...readHanjaTable(path), ...learned }
+  mkdirSync(dirname(path), { recursive: true })
+  writeFileSync(`${path}.tmp`, JSON.stringify(table))
+  renameSync(`${path}.tmp`, path)
+  return table
+}
+
+/// Ce qu'on accepte d'écrire dans la table, et sous quelle forme.
+///
+/// Le contrôle a lieu AVANT l'écriture, pas après : une famille rendue en
+/// tableau plutôt qu'en objets a déjà rendu une journée entière indécodable côté
+/// app, et une table est pour toujours — une réponse malformée s'y installerait
+/// définitivement.
+///
+/// Le hanja seul suffit à faire entrer un mot : l'app regroupe caractère par
+/// caractère, donc 管 rend déjà service même sans famille autour.
+export function cleanRoot(r) {
+  const h = typeof r?.h === 'string' ? r.h.trim() : ''
+  if (!/^[一-鿿]+$/.test(h)) return null
+  const f = (Array.isArray(r.f) ? r.f : []).filter((x) =>
+    x && typeof x === 'object' && !Array.isArray(x)
+    && typeof x.k === 'string' && x.k.trim()
+    && typeof x.e === 'string' && x.e.trim(),
+  ).map((x) => ({ k: x.k.trim(), h: typeof x.h === 'string' ? x.h : undefined, e: x.e.trim() }))
+  return { h, m: typeof r.m === 'string' ? r.m : '', f: f.slice(0, 5) }
+}
+
 /// L'étage 3 du panneau de mot : découvrir que 관리자 et 관리하다, employés tous
 /// les jours, sont le même bloc que le mot sur lequel on séchait. C'est là que
 /// le rangement mental se fait (spec §5.3).
+///
+/// Plus de plafond de quarante mots ni de filtre « noms seulement » : ils
+/// existaient parce qu'on repayait la même question chaque nuit. La table paie
+/// une fois. Ce qui reste, ce sont les mots qui n'ont de toute façon pas de
+/// racine — trop courts, pas hangul, ou vides de sens propre.
 async function attachRoots(sentences) {
-  // Seulement les noms, et pas plus de quarante. On produisait cent cinquante
-  // familles par nuit pour que l'utilisateur en voie cinq — celles des mots
-  // qu'il garde. Les verbes sino-coréens sont presque tous des noms + 하다,
-  // donc la famille du nom les couvre déjà.
+  const table = readHanjaTable()
   const lemmas = [...new Set(
     sentences.flatMap((s) => s.words ?? [])
-      .filter((w) => w.pos === 'noun' && w.lemma && w.lemma.length >= 2)
+      .filter((w) => w.lemma && w.lemma.length >= 2 && /^[가-힣]+$/.test(w.lemma)
+        && !EMPTY_WORDS.has(w.lemma))
       .map((w) => w.lemma),
-  )].slice(0, 40)
+  )]
   if (!lemmas.length) return 0
 
-  let found = 0
-  try {
-    const out = await llmJSON(ROOTS(lemmas), { model: CLERK, maxTokens: 12000 })
-    const byLemma = new Map()
-    for (const r of out.r || []) {
-      const lemma = lemmas[r.i]
-      if (!lemma || typeof r.h !== 'string' || !Array.isArray(r.f)) continue
-      // On vérifie la forme de chaque entrée au lieu de la supposer : une seule
-      // famille rendue en tableau plutôt qu'en objet a suffi à rendre toute une
-      // journée indécodable côté app. Ce qui sort d'un modèle se contrôle.
-      const family = r.f.filter((x) =>
-        x && typeof x === 'object' && !Array.isArray(x)
-        && typeof x.k === 'string' && x.k.trim()
-        && typeof x.e === 'string' && x.e.trim(),
-      ).map((x) => ({ k: x.k.trim(), h: typeof x.h === 'string' ? x.h : undefined, e: x.e.trim() }))
-      if (family.length) {
-        byLemma.set(lemma, { hanja: r.h, rootMeaning: typeof r.m === 'string' ? r.m : '', family: family.slice(0, 5) })
+  const unknown = lemmas.filter((l) => !(l in table))
+  const learned = {}
+  // Par lots de quarante : c'est le calibrage du plafond de tokens. Envoyer les
+  // trois cents inconnus d'un coup tronque la réponse, `JSON.parse` échoue, la
+  // seconde tentative échoue pareil — et la nuit ne produit aucune famille sans
+  // que rien n'ait l'air cassé.
+  for (let i = 0; i < unknown.length; i += 40) {
+    const batch = unknown.slice(i, i + 40)
+    try {
+      const out = await llmJSON(ROOTS(batch), { model: CLERK, maxTokens: 12000 })
+      for (const r of out.r || []) {
+        const lemma = batch[r?.i]
+        const entry = lemma ? cleanRoot(r) : null
+        if (entry) learned[lemma] = entry
       }
+    } catch (e) {
+      // Lot perdu, mais rien de négatif n'est écrit : ces mots seront redemandés
+      // demain. Marquer « sans hanja » un mot qu'on n'a pas su interroger le
+      // condamnerait pour toujours.
+      log(`    ⚠ racines indisponibles (${e.message.slice(0, 40)})`)
+      continue
     }
-    for (const s of sentences) {
-      for (const w of s.words ?? []) {
-        const r = byLemma.get(w.lemma)
-        if (r) { w.hanja = r.hanja; w.root = r.rootMeaning; w.family = r.family; found++ }
-      }
-    }
-    log(`    racines   : ${byLemma.size} mots sino-coréens sur ${lemmas.length}`)
-  } catch (e) {
-    log(`    ⚠ racines indisponibles (${e.message.slice(0, 40)})`)
+    // Le mot interrogé et non rendu est un mot SANS hanja : on l'écrit tel quel.
+    // Sans cette réponse négative, les 순우리말 et les emprunts — la majorité du
+    // vocabulaire — seraient redemandés chaque nuit pour l'éternité.
+    for (const l of batch) if (!(l in learned)) learned[l] = null
   }
+  if (Object.keys(learned).length) saveHanjaTable(learned)
+
+  const known = { ...table, ...learned }
+  let found = 0
+  for (const s of sentences) {
+    for (const w of s.words ?? []) {
+      const e = known[w.lemma]
+      if (!e) continue
+      w.hanja = e.h
+      if (e.m) w.root = e.m
+      if (e.f?.length) w.family = e.f
+      found++
+    }
+  }
+  const sino = lemmas.filter((l) => known[l]).length
+  log(`    racines   : ${sino} mots sino-coréens sur ${lemmas.length} · ${unknown.length} interrogés`)
   return found
 }
 
@@ -738,7 +874,7 @@ async function buildText(slot, date, used, outDir) {
     const i = [...date].reduce((a, c) => a + c.charCodeAt(0), 0) % SITUATIONS.length
     situation = SITUATIONS[i]
     log(`    situation : ${situation.slice(0, 60)}…`)
-    korean = await llm(FROM_SITUATION(situation))
+    korean = await llm(FROM_SITUATION(slot, situation))
   } else {
     const a = slot.hackerNews ? await pickHackerNews(slot, used) : await pickArticle(slot, used)
     if (!a) throw new Error('aucun sujet retenu')
@@ -775,7 +911,7 @@ async function buildText(slot, date, used, outDir) {
       .replace('**16 à 20 phrases**', '**13 à 15 phrases**')
     korean = article
       ? await llm(tighter(FROM_ARTICLE(slot, article)))
-      : await llm(tighter(FROM_SITUATION(situation)))
+      : await llm(tighter(FROM_SITUATION(slot, situation)))
   }
   if (count(korean) !== before) log(`    longueur : ${before} → ${count(korean)} 어절`)
   if (count(korean) > MAX_EOJEOL) {
@@ -793,19 +929,24 @@ async function buildText(slot, date, used, outDir) {
   // Une piste par phrase : c'est ce qui rend le surlignage trivial côté app.
   const audioDir = join(outDir, 'audio')
   mkdirSync(audioDir, { recursive: true })
-  let bytes = 0
+  let seconds = 0
   for (const [i, s] of sentences.entries()) {
     const file = `${date}-${slot.id}-${pad(i + 1)}.mp3`
-    const { buf, words } = await speak(s.ko)
+    const buf = await speak(s.ko)
     writeFileSync(join(audioDir, file), buf)
     s.audio = `audio/${file}`
-    if (words) s.words = words
-    bytes += buf.length
+    // Le découpage en 어절 vient du TEXTE, plus de la réponse de l'API. C'est ce
+    // qui fait survivre tout l'étage vocabulaire — glossaire, icônes, familles,
+    // domaines — au passage à une voix qui ne rend plus de repères : sans mots,
+    // rien n'est tappable, donc pas de carnet, donc pas de quiz.
+    const dur = mp3Seconds(buf)
+    s.words = estimateWords(s.ko, dur)
+    seconds += dur
   }
 
-  // Le glossaire : un appel pour tout le texte, aligné sur le découpage en
-  // 어절 déjà fait pour les repères. Un mot sans glose reste lisible, il n'est
-  // simplement pas tappable — mieux que de publier une traduction fausse.
+  // Le glossaire : un appel pour tout le texte, aligné sur le même découpage en
+  // 어절. Un mot sans glose reste lisible, il n'est simplement pas tappable —
+  // mieux que de publier une traduction fausse.
   const allWords = sentences.flatMap((s) => (s.words ?? []).map((w) => w.w))
   if (allWords.length) {
     try {
@@ -840,21 +981,29 @@ async function buildText(slot, date, used, outDir) {
     }
   }
 
-  // La durée annoncée vient du son réel, pas d'une estimation au nombre de mots.
-  // Le débit est constant, donc les octets suffisent — et les repères SSML
-  // servent de contre-mesure indépendante : s'ils divergent, c'est que le débit
-  // a changé sous nos pieds, et la carte se mettrait à mentir en silence.
-  const seconds = Math.round(bytes / (MP3_KBPS * 1000 / 8))
-  const marked = sentences.reduce((a, s) => a + (s.words?.at(-1)?.t ?? 0) + 0.6, 0)
-  if (marked > 0 && Math.abs(seconds - marked) / seconds > 0.25) {
-    log(`    ⚠ durée douteuse : ${seconds}s par les octets, ${Math.round(marked)}s par les repères`)
+  // La durée annoncée vient du son réel : les octets, divisés par le débit lu
+  // dans l'en-tête de chaque fichier.
+  //
+  // La contre-mesure ne peut plus être les repères SSML — il n'y en a plus, et
+  // surtout ils dériveraient des mêmes octets, donc se valideraient eux-mêmes.
+  // On recoupe donc avec une grandeur indépendante : le débit de PAROLE. Mesuré
+  // entre 1,5 et 1,7 어절/s en Neural2 ; la bande est large parce que son rôle
+  // n'est pas de mesurer au pourcent mais d'attraper une erreur d'un facteur
+  // deux. À resserrer après quelques nuits en Chirp3-HD — le tempo d'une voix
+  // n'est pas celui d'une autre, d'où la valeur journalisée à chaque texte.
+  const total = Math.round(seconds)
+  const eojeol = sentences.reduce((a, s) => a + (s.words?.length ?? 0), 0)
+  const rate = eojeol / Math.max(1, seconds)
+  log(`    débit     : ${rate.toFixed(2)} 어절/s sur ${total}s`)
+  if (rate < 1.0 || rate > 2.5) {
+    log(`    ⚠ durée douteuse : ${total}s pour ${eojeol} 어절 — débit hors de la bande attendue`)
   }
   const text = {
     slot: slot.id,
     universe: slot.universe,
     title: split.title || '(untitled)',
-    minutes: Math.max(1, Math.round(seconds / 60)),
-    seconds,
+    minutes: Math.max(1, Math.round(total / 60)),
+    seconds: total,
     source,
     sentences,
   }
@@ -864,41 +1013,50 @@ async function buildText(slot, date, used, outDir) {
 
 // ── main ─────────────────────────────────────────────────────────────────────
 
-const date = arg('date', new Date().toISOString().slice(0, 10))
-const outDir = arg('out', join(ROOT, 'pipeline', 'out'))
-const t0 = Date.now()
+// Le fichier ne fabrique que lorsqu'on l'appelle en ligne de commande. Importé,
+// il ne fait rien : c'est ce qui permet à `test-fabrique.mjs` de vérifier la
+// table des caractères et le calcul de durée sans toucher à une API payante.
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const date = arg('date', new Date().toISOString().slice(0, 10))
+  const outDir = arg('out', join(ROOT, 'pipeline', 'out'))
+  const t0 = Date.now()
 
-for (const k of ['OPENROUTER_API_KEY', 'GOOGLE_TTS_API_KEY']) {
-  if (!env[k]) { console.error(`✕ ${k} manquante dans .env`); process.exit(1) }
-}
-
-log(`\nMolago — fabrication du ${date}\n`)
-mkdirSync(outDir, { recursive: true })
-
-const used = new Set()
-const texts = []
-for (const slot of SLOTS) {
-  log(`  ▸ ${slot.universe}`)
-  try {
-    const t = await buildText(slot, date, used, outDir)
-    texts.push(t)
-    log(`    ✓ « ${t.title} » — ${t.sentences.length} phrases, ${t.minutes} min\n`)
-  } catch (e) {
-    // Un texte raté ne fait pas échouer la journée : on en publie deux.
-    // « Deux bons textes valent mieux que trois dont un mauvais » (spec §12).
-    log(`    ✕ ${e.message}\n`)
+  for (const k of ['OPENROUTER_API_KEY', 'GOOGLE_TTS_API_KEY']) {
+    if (!env[k]) { console.error(`✕ ${k} manquante dans .env`); process.exit(1) }
   }
+
+  log(`\nMolago — fabrication du ${date}\n`)
+  mkdirSync(outDir, { recursive: true })
+
+  const used = new Set()
+  const texts = []
+  for (const slot of SLOTS) {
+    log(`  ▸ ${slot.universe}`)
+    try {
+      const t = await buildText(slot, date, used, outDir)
+      texts.push(t)
+      log(`    ✓ « ${t.title} » — ${t.sentences.length} phrases, ${t.minutes} min\n`)
+    } catch (e) {
+      // Un texte raté ne fait pas échouer la journée : on en publie trois.
+      // « Deux bons textes valent mieux que trois dont un mauvais » (spec §12).
+      log(`    ✕ ${e.message}\n`)
+    }
+  }
+
+  if (!texts.length) { console.error('✕ aucun texte produit — rien n\'est publié.'); process.exit(1) }
+
+  // Écriture atomique : l'app ne peut jamais lire un fichier à moitié écrit.
+  // Sans indentation : depuis que la table des caractères couvre tout le
+  // vocabulaire, hanja et familles sont recopiés sur chaque occurrence et le
+  // fichier a triplé. Les espaces en représentent les deux tiers, et il est
+  // retéléchargé en entier chaque matin.
+  const day = { date, generatedAt: new Date().toISOString(), model: WRITER, voice: VOICE, texts }
+  const final = join(outDir, `${date}.json`)
+  writeFileSync(`${final}.tmp`, JSON.stringify(day))
+  renameSync(`${final}.tmp`, final)
+
+  const total = spent.writer + spent.clerk
+  log(`✓ ${texts.length}/${SLOTS.length} textes · ${((Date.now() - t0) / 1000).toFixed(0)} s`)
+  log(`  coût : ${total.toFixed(3)} $ (écriture ${spent.writer.toFixed(3)} · reste ${spent.clerk.toFixed(3)}) → ${(total * 30).toFixed(2)} $/mois`)
+  log(`  ${final}\n`)
 }
-
-if (!texts.length) { console.error('✕ aucun texte produit — rien n\'est publié.'); process.exit(1) }
-
-// Écriture atomique : l'app ne peut jamais lire un fichier à moitié écrit.
-const day = { date, generatedAt: new Date().toISOString(), model: WRITER, voice: VOICE, texts }
-const final = join(outDir, `${date}.json`)
-writeFileSync(`${final}.tmp`, JSON.stringify(day, null, 2))
-renameSync(`${final}.tmp`, final)
-
-const total = spent.writer + spent.clerk
-log(`✓ ${texts.length}/${SLOTS.length} textes · ${((Date.now() - t0) / 1000).toFixed(0)} s`)
-log(`  coût : ${total.toFixed(3)} $ (écriture ${spent.writer.toFixed(3)} · reste ${spent.clerk.toFixed(3)}) → ${(total * 30).toFixed(2)} $/mois`)
-log(`  ${final}\n`)

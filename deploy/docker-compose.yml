@@ -61,6 +61,10 @@ services:
       # Les icônes vivent hors du dossier de l'utilisateur : elles appartiennent
       # aux mots, pas aux comptes (decisions.md §37).
       - ./data/icons:/icons-out
+      # La table des caractères, pour la même raison — et dans SON volume, pas
+      # dans celui des icônes : vider un cache d'images ne doit pas emporter la
+      # chose la plus coûteuse à reconstituer du projet.
+      - ./data/words:/words
     networks:
       - n8n_default
     # L'API Thiings publie sur le port 3088 de l'hôte sans être sur ce réseau :

@@ -11,7 +11,7 @@ décrit la structure et le comportement, pas l'apparence finale.**
 
 ## 1. Le produit en une phrase
 
-Chaque matin, trois textes coréens sur des sujets qui intéressent réellement
+Chaque matin, quatre textes coréens sur des sujets qui intéressent réellement
 l'utilisateur, calibrés sur son vocabulaire, lus à voix haute — et les mots qu'il croise
 dans sa vie à Séoul reviennent dedans.
 
@@ -45,7 +45,7 @@ conversation à plusieurs, le téléphone, ou la nuance.
 ### 4.1 Pendant la nuit — invisible
 
 À une heure calculée pour finir avant l'heure choisie par l'utilisateur, la chaîne de
-fabrication produit **trois textes complets et leurs trois voix** (voir §9). Le résultat
+fabrication produit **quatre textes complets et leurs voix** (voir §9). Le résultat
 est déposé sur le serveur.
 
 ### 4.2 La notification
@@ -59,14 +59,14 @@ Elle annonce quelque chose à lire, elle ne réclame rien. Formulations proscrit
 « Don't forget », « Your streak », « You haven't read today ». **C'est la seule
 notification de l'application** — aucun rappel, aucune relance.
 
-Au moment où elle arrive, le téléphone télécharge les trois textes et leurs audios.
+Au moment où elle arrive, le téléphone télécharge les quatre textes et leurs audios.
 
 ### 4.3 L'ouverture — 5 secondes
 
-L'onglet **Library** s'ouvre sur les trois textes du jour, trois cartes égales, une par
+L'onglet **Library** s'ouvre sur les quatre textes du jour, quatre cartes égales, une par
 univers. Chacune porte :
 
-- une étiquette d'univers colorée (`Tech & Science`, `Korea`, `Daily life`) ;
+- une étiquette d'univers colorée (`News`, `Tech`, `Fun`, `Life`) ;
 - un titre en anglais ;
 - une ligne d'information : `4 min` — et rien d'autre si la difficulté est normale,
   `4 min · a bit of a stretch` ou `4 min · easy going` quand elle sort de l'ordinaire.
@@ -76,7 +76,7 @@ nombre de mots nouveaux (ambigu, et il fait faire un calcul faux), l'origine du 
 (« from your notebook » — la découverte en lisant vaut mieux qu'une annonce).
 
 En dessous, sans séparation ni changement d'écran, **l'historique** : les jours
-précédents, leurs trois textes chacun, indéfiniment. On descend dans le temps.
+précédents, leurs quatre textes chacun, indéfiniment. On descend dans le temps.
 
 ### 4.4 La lecture — 3 à 4 minutes
 
@@ -447,18 +447,19 @@ fait est la plus facile**. On place le risque là où il est le plus faible.
 **Règle impérative : on part toujours d'un vrai article.** Le modèle reçoit le texte
 source et le réécrit. Il ne raconte **jamais** l'actualité de mémoire — il inventerait.
 
-### 8.2 Les trois univers
+### 8.2 Les quatre univers *(trois jusqu'à §41 des décisions)*
 
 | Slot | Univers | Source | Rôle | Couche de langue |
 |---|---|---|---|---|
-| 1 | **Tech & Science** | Sources internationales (Hacker News, presse tech) | Le cerveau | Sino-coréen dense |
-| 2 | **Korea — actu & société** | Presse coréenne (Yonhap, KBS, 한겨레) | La conversation | Journalistique |
-| 3 | **Daily life in Seoul** | **Les mots capturés par l'utilisateur** | L'utile | Parlé, 해요체 |
+| 1 | **News** | Presse coréenne (Yonhap, 동아일보) | La conversation | Journalistique |
+| 2 | **Tech** | Sources internationales (Hacker News, presse tech) | Le cerveau | Sino-coréen dense |
+| 3 | **Fun** | Culture et divertissement (Yonhap, 동아일보) | La sortie | Parlé et léger, 해요체 |
+| 4 | **Life** | **Les mots capturés par l'utilisateur** | L'utile | Parlé, 해요체 |
 
-Le triplet est délibéré : il n'y a **pas trois fois de l'actualité**. Un slot pour le
-cerveau, un pour la conversation, un pour la vie. Et chacun travaille une couche
-différente du coréen — c'est précisément l'écart entre ces couches qui fait plafonner les
-résidents de longue durée.
+Le quatuor est délibéré : il n'y a **pas quatre fois de l'actualité**. Un slot pour le
+cerveau, un pour la conversation, un pour ce dont on parle le vendredi soir, un pour la
+vie. Et chacun travaille une couche différente du coréen — c'est précisément l'écart entre
+ces couches qui fait plafonner les résidents de longue durée.
 
 **Le slot 2 vise le rendement conversationnel** : lire ce que les gens autour de lui ont
 lu ce matin.
@@ -580,14 +581,14 @@ point.
 **Génération : `openai/gpt-5.1`.** Le pari initial de cette section est confirmé par
 l'essai. Meilleure note de naturalité (8,8/10 de moyenne, avec **±0 de dispersion** sur
 trois passages chez deux juges sur trois) *et* le moins cher du haut de tableau :
-**1,31 €/mois** pour trois textes par nuit, contre 4,14 € pour GPT-5.5 qui le suivait à
+**1,31 €/mois** pour trois textes par nuit (quatre depuis §41 des décisions), contre 4,14 € pour GPT-5.5 qui le suivait à
 8,5. Compatible avec un usage commercial.
 
 **Vérification : aucune.** Voir §9.1.
 
-**Voix : Google Cloud TTS, `ko-KR-Neural2-B`.** Retenue à l'écoute comparée, et seule
-famille à renvoyer les repères temporels qui permettent de surligner le mot en cours
-(§36 des décisions). **0 €/mois** : la consommation est de ~93 000 caractères par
+**Voix : Google Cloud TTS, `ko-KR-Chirp3-HD-Achernar`.** Retenue à l'écoute comparée. Elle
+ne renvoie aucun repère temporel : le début de chaque 어절 est estimé depuis la durée réelle
+de la phrase, à 0,11 s près (§39 des décisions, qui révise §36). **0 €/mois** : la consommation est de ~93 000 caractères par
 mois, le palier gratuit de Google est à 1 million, sans expiration.
 
 **Limite qui reste vraie** : KMMLU, CLIcK et KAIO mesurent ce qu'un modèle *sait* en
@@ -632,7 +633,7 @@ Repris tel quel du projet `to-day`, qui tourne déjà sur le même VPS.
 | **Planification** | Tâche périodique dans le conteneur, calée sur l'heure de chaque utilisateur |
 | **Génération** | **OpenRouter** — `openai/gpt-5.1` (§9.3) |
 | **Vérification** | *Aucune — étape supprimée (§9.1)* |
-| **Voix** | **Google Cloud TTS**, `ko-KR-Neural2-B` (§9.3) |
+| **Voix** | **Google Cloud TTS**, `ko-KR-Chirp3-HD-Achernar` (§9.3, décisions §39) |
 | **Icônes** | API Thiings existante, port 3088 |
 | **OCR** | Natif iOS (Vision) — aucun service |
 | **Morphologie** | Kiwi, en conteneur |
@@ -675,7 +676,7 @@ dans le plan précédent, tous rendus inutiles par le passage au natif et au VPS
 | Flashcards, même optionnelles | Dès qu'une pile révisable existe, elle produit une dette. « Optionnel » n'y change rien. |
 | Dictionnaire généraliste | Naver et Papago sont gratuits et ont vingt ans d'avance. |
 | Mode conversation / production orale | Vrai besoin, mais un second produit. Explicitement reporté. |
-| Sérialisation d'un sujet sur plusieurs jours | Mal compatible avec trois univers différents chaque matin. |
+| Sérialisation d'un sujet sur plusieurs jours | Mal compatible avec quatre univers différents chaque matin. |
 | Bouton « cette phrase sonne bizarre » | L'app avouerait ne pas se faire confiance ; le doute contaminerait tout le texte. |
 | Paiement, inscription publique, quotas, support | Rien de tout ça avant d'avoir un produit qui tienne. |
 | Mutualisation des textes par niveau | Ne se tranche pas avant de savoir si les gens aiment lire ces textes. |

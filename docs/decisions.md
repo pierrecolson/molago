@@ -485,3 +485,137 @@ un autre pigment — il prend le même, creusé. Cinq pigments du 단청 restent
 (석간주, 양록, 치자, 뇌록, 먹) pour de futurs univers ; aucun ne doit servir d'accent.
 
 Page de comparaison : `docs/design/couleur-capture.html`.
+
+---
+
+## §39 — La voix reprend le dessus, et le mot surligné devient une estimation *(révise §36)*
+
+**29 juillet 2026.**
+
+§36 avait tranché l'inverse : Neural2 B contre Chirp3-HD, parce que Neural2 est la seule
+famille qui renvoie les repères temporels des marqueurs SSML, et donc la seule qui permet
+de surligner le mot en cours. On payait la voix pour une fonction d'affichage.
+
+**Ce qui a changé l'arbitrage : le mot n'a pas besoin d'un repère mesuré, il a besoin d'un
+repère plausible.** Une phrase dure ce que pèse son MP3 ; répartir cette durée au prorata
+du nombre de caractères de chaque 어절 donne, mesuré contre les 1 876 repères réels des
+deux journées Neural2 déjà fabriquées, une **erreur médiane de 0,11 seconde** — pour un mot
+qui dure environ 0,65 seconde. Le mot surligné est le bon la plupart du temps, et son
+voisin sinon.
+
+Le seul réglage de cette estimation est le silence de fin de phrase, six dixièmes de
+seconde : sans le retirer, toute la phrase est étirée et le surlignage traîne derrière la
+voix (erreur médiane 0,27 s au lieu de 0,11 s). C'est un réglage de voix, pas une
+constante universelle — à revérifier après quelques nuits en Chirp3-HD.
+
+**Donc : `ko-KR-Chirp3-HD-Achernar`.** Féminine comme Neural2 B, pour que l'oreille ne
+change pas de personne en changeant de famille de voix. C'est aussi la voix exacte de
+l'essai M0 (§33), qui prenait la première de la liste.
+
+**Ce qui a fallu défaire pour que ce soit possible.** Le glossaire, les icônes, les
+familles et les domaines n'étaient calculés que si les repères étaient revenus complets :
+le découpage en 어절 venait de la réponse du TTS. Changer de voix sans découpler ça aurait
+publié des journées où **aucun mot n'est tappable** — donc pas de carnet, donc pas de quiz.
+Le découpage vient désormais du texte, qui est de toute façon ce qu'on envoie à l'API.
+
+**Et la contre-mesure de durée a dû être refaite.** §36 recoupait le poids du MP3 avec la
+somme des repères SSML ; sans repères, ce contrôle serait devenu muet — et l'estimer depuis
+les octets pour ensuite le recouper avec les octets, c'est se valider soi-même. Deux
+changements :
+
+- la durée ne vient plus d'une constante de débit mais de **l'en-tête de la première trame
+  du MP3**. Vérifié sur les fichiers déjà fabriqués : même résultat au millième près, et
+  auto-corrigé au prochain changement de voix. C'est précisément l'erreur de §36 qui ne peut
+  plus se reproduire ;
+- la contre-mesure devient le **débit de parole**, grandeur indépendante des octets : 1,53 à
+  1,65 어절/s mesurés en Neural2, bande d'alerte volontairement large (1,0 à 2,5). Son rôle
+  est d'attraper une erreur d'un facteur deux, pas de mesurer au pourcent. La valeur observée
+  est journalisée à chaque texte, pour la resserrer plus tard.
+
+**Reste à faire côté app** : rendre `Day.Word.t` facultatif. Le jour où il l'est, le
+pipeline peut cesser d'estimer et l'app cesse simplement de teinter le mot — c'est la vraie
+fin de l'histoire. En attendant, le champ est obligatoire au décodage, donc il est estimé.
+
+---
+
+## §40 — Le hanja d'un mot se demande une fois, pas chaque nuit
+
+**29 juillet 2026.**
+
+Chaque nuit, un modèle recevait au plus quarante lemmes (les noms seulement) et rendait
+leurs hanja, leur racine et leur famille. Deux défauts, tous deux visibles depuis que le
+carnet regroupe les mots par caractère :
+
+1. **129 mots sur 993 avaient une famille.** Le plafond de quarante était calibré pour un
+   coût payé chaque nuit.
+2. **Le même mot pouvait recevoir une réponse différente d'une nuit à l'autre** — et deux
+   hanja différents pour 관리비, c'est le regroupement du carnet qui se défait.
+
+**Verdict : une table partagée, remplie une fois par mot, jamais redemandée.** Exactement
+la mécanique des icônes (§37) et pour exactement la même raison — *le hanja appartient au
+mot, pas à celui qui le lit*. Un fichier JSON dans son propre volume (`./data/words`), à
+côté de celui des icônes mais pas dedans : vider un cache d'images ne doit pas emporter la
+chose la plus coûteuse à reconstituer du projet.
+
+Le plafond de quarante et le filtre « noms seulement » disparaissent avec le coût qui les
+justifiait. Trois choses les remplacent, et elles ne coûtent rien : deux caractères minimum,
+du hangul pur, et la liste des mots vides qui existait déjà pour les domaines.
+
+**Ce que la table doit contenir, et qu'on aurait pu rater** : le hanja, toujours, même sans
+famille autour. L'app regroupe **caractère par caractère** — 管理費 rend déjà service sous
+管 et sous 理, tout seul.
+
+**Deux pièges, notés parce qu'ils ne se voient pas :**
+
+- **Retirer le plafond sans découper en lots** enverrait trois cents lemmes en un appel, la
+  réponse serait tronquée, `JSON.parse` échouerait, et le `catch` avalerait tout en un
+  « racines indisponibles ». La première nuit produirait zéro famille sans que rien n'ait
+  l'air cassé. Les lots restent donc de quarante — c'est le calibrage du plafond de tokens.
+- **La réponse négative s'écrit aussi.** Un mot interrogé et non rendu est un mot sans
+  hanja : sans cette entrée, les 순우리말 et les emprunts — la majorité du vocabulaire —
+  seraient redemandés chaque nuit pour l'éternité. En revanche un lot *perdu* (appel en
+  échec) n'écrit rien : condamner un mot qu'on n'a pas su interroger serait définitif.
+
+**Ce que ça change en pratique** : quelques nuits plus chères (~20 appels au lieu de 3, et
+cinq à dix minutes de plus — le cron tourne à 4 h du matin), puis un coût qui tend vers zéro
+et une réponse qui ne bouge plus. Le glossaire, lui, **ne rejoindra jamais cette table** :
+il demande le sens du mot *dans cette phrase*, donc le mettre en cache figerait un sens faux
+sur tous les emplois suivants.
+
+Aucune péremption, aucun mécanisme de correction : corriger un mot, c'est éditer le fichier
+ou en retirer la clé. La table est publiquement téléchargeable, comme tout ce qui est sous
+`./data` — c'est du vocabulaire, il n'y a rien à y cacher.
+
+---
+
+## §41 — Quatre univers : le divertissement était le trou
+
+**29 juillet 2026.**
+
+Trois univers depuis le début : tech, actualité coréenne, vie quotidienne. Il manquait ce
+dont on parle réellement le vendredi soir — séries, concerts, restaurants, sorties. **Le
+quatrième univers est `fun`**, et les trois autres deviennent `news`, `tech`, `life`.
+
+**La source de `fun` vient de la presse comme les autres** (yna/entertainment et
+donga/culture, tous deux vérifiés à l'extraction). Un second fonds de situations inventées
+aurait fait **deux textes sur quatre sans source réelle**, ce que D2/D5 interdit
+explicitement : on part toujours d'un vrai article.
+
+**Le piège, et il était silencieux** : le filtre de titres écartait `연예|배우|가수|드라마|
+예능…`, c'est-à-dire exactement le contenu du nouvel univers. Appliqué tel quel, `fun`
+n'aurait jamais rien retenu et serait tombé chaque nuit avec un simple « aucun sujet
+retenu ». Les filtres sont donc devenus **le choix de chaque univers** : ce qui est du bruit
+pour l'un est le sujet de l'autre. Même chose pour la consigne donnée au modèle, qui disait
+d'écarter « les annonces de festivals ou d'événements locaux » — bienvenues ici.
+
+**Les identifiants `korea` et `daily` restent lus, jamais réécrits.** Ils sont dans le nom
+des fichiers audio des journées passées, et une journée passée ne se refabrique pas. L'app
+accepte déjà les deux noms.
+
+Le champ `universe` du JSON passe aux noms courts que l'app affiche déjà — `News`, `Tech`,
+`Fun`, `Life` — parce que la carte d'accueil et le titre du lecteur doivent dire **le même
+mot**. Les journées d'avant garderont `Korea` et `Daily life` en titre de lecteur ; c'est le
+prix, assumé, de ne jamais réécrire le passé.
+
+**À faire côté app** : la notification du matin annonce encore « Three texts for this
+morning ».
