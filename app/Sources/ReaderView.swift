@@ -33,6 +33,7 @@ struct ReaderView: View {
     /// s'y rend avant même qu'on ait lâché : on voit où l'on va, on n'y arrive
     /// pas par surprise.
     @State private var scrubbing: Int?
+    @State private var showingOriginal = false
     @Environment(\.modelContext) private var context
 
     init(text: Day.Text) {
@@ -41,6 +42,21 @@ struct ReaderView: View {
             urls: text.audioURLs,
             wordStarts: text.sentences.map { ($0.words ?? []).map(\.t) }
         ))
+    }
+
+    /// Le document d'origine, quand il y en a un.
+    ///
+    /// La photo n'a jamais quitté le téléphone : elle ne sert qu'à celui qui
+    /// l'a prise, et c'est la seule chose de cette app qui puisse contenir ce
+    /// qu'on n'a pas choisi de partager.
+    @ViewBuilder
+    private var originalButton: some View {
+        if Paths.captureImage(text.slot) != nil {
+            Button { showingOriginal = true } label: {
+                Image(systemName: "doc.text.image")
+            }
+            .accessibilityLabel("See the original document")
+        }
     }
 
     private var universe: (color: Color, name: String, icon: String) {
@@ -115,7 +131,8 @@ struct ReaderView: View {
         .navigationTitle(text.universe)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                originalButton
                 // Une pastille devient deux.
                 //
                 // L'ancien bouton demandait de garder le doigt appuyé : la main
@@ -152,6 +169,14 @@ struct ReaderView: View {
             // pas de son. Le bouton est là, il ne réclame rien.
         }
         .onDisappear { player.pause() }
+        .sheet(isPresented: $showingOriginal) {
+            if let url = Paths.captureImage(text.slot), let image = UIImage(contentsOfFile: url.path()) {
+                // Fond noir et zoom libre : une photo de document se lit en
+                // s'approchant, et un fond clair autour ferait concurrence au
+                // papier qu'elle montre.
+                ZoomableImage(image: image)
+            }
+        }
         .overlay {
             if let tapped {
                 WordCard(
@@ -466,6 +491,32 @@ private struct GlassPill: ViewModifier {
                     .background(.ultraThinMaterial,
                                 in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             }
+        }
+    }
+}
+
+
+/// La photo d'origine, qu'on peut approcher.
+private struct ZoomableImage: View {
+    let image: UIImage
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView([.horizontal, .vertical]) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity)
+            }
+            .background(.black)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .navigationTitle("Original")
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }

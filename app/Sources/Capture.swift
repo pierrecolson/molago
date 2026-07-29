@@ -42,9 +42,7 @@ final class CaptureFlow {
         /// La ligne entière où il a été lu. C'est ce qui deviendra sa phrase au
         /// carnet — un mot sans son contexte redevient une liste de vocabulaire.
         let line: String
-        /// Rectangle normalisé, origine en haut à gauche — comme une vue.
-        let box: CGRect
-        var id: String { "\(lemma)-\(box.minX)-\(box.minY)" }
+        var id: String { lemma }
     }
 
     private(set) var step: Step = .choosing
@@ -54,7 +52,7 @@ final class CaptureFlow {
     /// Les lignes brutes, pas les mots : c'est le serveur qui décide de l'ordre
     /// de lecture, et il lui faut le document entier pour ça. L'app ne
     /// comprend rien à ce qu'elle a photographié, et c'est très bien ainsi.
-    private static func file(_ lines: [String]) async throws -> String {
+    private static func file(_ lines: [String]) async throws -> (title: String, slot: String) {
         var request = URLRequest(url: Config.baseURL.appending(path: "document"))
         request.httpMethod = "POST"
         // Long, et volontairement : la mise en forme par le bon modèle prend
@@ -66,8 +64,9 @@ final class CaptureFlow {
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
-        struct Reply: Decodable { let title: String }
-        return try JSONDecoder().decode(Reply.self, from: data).title
+        struct Reply: Decodable { let title: String; let slot: String }
+        let reply = try JSONDecoder().decode(Reply.self, from: data)
+        return (reply.title, reply.slot)
     }
 
     func reset() { step = .choosing }
@@ -114,7 +113,14 @@ final class CaptureFlow {
 
         step = .filing
         do {
-            step = .filed(title: try await Self.file(lines))
+            let filed = try await Self.file(lines)
+            // La photo est rangée sous le nom que le serveur vient de donner à
+            // l'article : c'est ce qui les rattache l'un à l'autre sans qu'aucun
+            // des deux n'ait à connaître l'autre.
+            if let jpeg = image.jpegData(compressionQuality: 0.8) {
+                try? jpeg.write(to: Paths.captures.appending(path: "\(filed.slot).jpg"))
+            }
+            step = .filed(title: filed.title)
         } catch {
             step = .nothing("Couldn't turn that into an article. Try again in a moment.")
         }
@@ -125,7 +131,6 @@ final class CaptureFlow {
     private struct Seen {
         let text: String
         let line: String
-        let box: CGRect
     }
 
     /// `nonisolated` volontairement : le gestionnaire de Vision s'exécute sur une
@@ -151,7 +156,7 @@ final class CaptureFlow {
                         let token = String(line[range])
                         guard token.contains(where: { $0.isHangul }) else { continue }
                         guard let piece = try? candidate.boundingBox(for: range) else { continue }
-                        out.append(Seen(text: token, line: line, box: piece.boundingBox.flippedToViewSpace))
+                        out.append(Seen(text: token, line: line))
                     }
                 }
                 once.resume(out)
@@ -218,39 +223,6 @@ final class CaptureFlow {
 
     // ── le sens, tout de suite ───────────────────────────────────────────────
 
-    /// La spec §5.7 est explicite : « on capture souvent parce qu'on a besoin de
-    /// comprendre **maintenant**, devant sa facture. »
-    ///
-    /// Les mots partent numérotés et reviennent numérotés : c'est ce qui garde
-    /// le sens aligné sur le rectangle à surligner. Un appariement par forme se
-    /// casserait dès qu'un mot apparaît deux fois sur la photo.
-    private static func gloss(_ seen: [Seen]) async throws -> [Word] {
-        var request = URLRequest(url: Config.baseURL.appending(path: "gloss"))
-        request.httpMethod = "POST"
-        request.timeoutInterval = 45
-        request.setValue("application/json", forHTTPHeaderField: "content-type")
-        request.httpBody = try JSONEncoder().encode(["tokens": seen.map(\.text)])
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
-
-        struct Reply: Decodable {
-            struct Word: Decodable {
-                let index: Int
-                let surface: String
-                let lemma: String
-                let pos: String
-                let en: String
-            }
-            let words: [Word]
-        }
-        return try JSONDecoder().decode(Reply.self, from: data).words
-            .filter { seen.indices.contains($0.index) }
-            .map {
-                Word(surface: $0.surface, lemma: $0.lemma, pos: $0.pos, en: $0.en,
-                     line: seen[$0.index].line, box: seen[$0.index].box)
-            }
-    }
 
     /// Remonte au serveur ce qui a été gardé, pour que la fabrique de la nuit
     /// suivante en fasse le troisième texte. Sans `throws` : un envoi raté ne

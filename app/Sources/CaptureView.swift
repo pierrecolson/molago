@@ -184,76 +184,11 @@ struct CaptureView: View {
 
     // ── 2. la photo, avec ses mots allumés ───────────────────────────────────
 
-    private func marked(_ image: UIImage, _ words: [CaptureFlow.Word]) -> some View {
-        VStack(spacing: 0) {
-            HStack {
-                CloseButton(onDark: true) { finish() }
-                Spacer()
-                Text(kept.isEmpty ? count(words.count, "found") : count(kept.count, "kept"))
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .contentTransition(.numericText())
-                Spacer()
-                Button("Done") { finish() }
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(Dancheong.jaju)
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 10)
-
-            Photo(image: image, words: words, kept: Set(kept.map(\.lemma))) { word in
-                chosen = chosen?.id == word.id ? nil : word
-            }
-
-            // Le sens vient sous la photo, jamais par-dessus : ce qu'on veut
-            // voir en même temps que le mot, c'est le mot dans son papier.
-            //
-            // La hauteur est réservée d'avance, même quand rien n'est
-            // sélectionné. Sinon la photo rétrécit à l'ouverture de la fiche et
-            // le mot qu'on vient de toucher se déplace sous le doigt.
-            Group {
-                if let word = chosen {
-                    WordSheet(
-                        word: word,
-                        isKept: kept.contains { $0.lemma == word.lemma },
-                        keep: { keep(word) },
-                        drop: { drop(word) }
-                    )
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                } else {
-                    Text("Tap a highlighted word")
-                        .font(.system(size: 15))
-                        .foregroundStyle(.white.opacity(0.5))
-                }
-            }
-            .frame(height: 182, alignment: .bottom)
-            .frame(maxWidth: .infinity)
-        }
-    }
-
     private func count(_ n: Int, _ verb: String) -> String {
         "\(n) \(n == 1 ? "word" : "words") \(verb)"
     }
 
     // ── 3. garder ────────────────────────────────────────────────────────────
-
-    private func keep(_ word: CaptureFlow.Word) {
-        guard !kept.contains(where: { $0.lemma == word.lemma }) else { return }
-        kept.append(word)
-        // Écrit tout de suite : un mot gardé ne doit pas dépendre du fait qu'on
-        // pense ensuite à toucher « Done ».
-        context.insert(KeptWord(
-            lemma: word.lemma, meaning: word.en, pos: word.pos, icon: nil,
-            context: word.line, contextAudio: nil,
-            hanja: nil, root: nil, family: nil,
-            // Pas « quotidien » : ce mot ne vient d'aucun des trois textes du
-            // matin. Son propre pigment (捉, 자주) le dit d'un coup d'œil dans
-            // le carnet.
-            slot: "capture"
-        ))
-        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
-        chosen = nil
-    }
 
     private func drop(_ word: CaptureFlow.Word) {
         kept.removeAll { $0.lemma == word.lemma }
@@ -277,94 +212,6 @@ struct CaptureView: View {
 
 /// Les mots reconnus, posés sur l'image à leur place exacte.
 ///
-/// Deux états, et la même grammaire que partout ailleurs dans l'app : un mot
-/// disponible est un voile de 장단 cerné d'un filet ; un mot gardé est un **pan
-/// plein** avec le coréen redessiné en blanc par-dessus. On voit d'un coup d'œil
-/// ce qu'on a pris, sans avoir à lire une liste.
-private struct Photo: View {
-    let image: UIImage
-    let words: [CaptureFlow.Word]
-    let kept: Set<String>
-    let tap: (CaptureFlow.Word) -> Void
-
-    var body: some View {
-        GeometryReader { geo in
-            let frame = image.size.fitted(in: geo.size)
-            ZStack(alignment: .topLeading) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: geo.size.width, height: geo.size.height)
-
-                ForEach(words) { word in
-                    let box = word.box.placed(in: frame)
-                    let isKept = kept.contains(word.lemma)
-
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(Dancheong.jaju.opacity(isKept ? 1 : 0.34))
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .strokeBorder(isKept ? .white.opacity(0.5) : Dancheong.jaju, lineWidth: 1.5)
-                        if isKept {
-                            Text(word.surface)
-                                .font(.system(size: box.height * 0.68, weight: .semibold))
-                                .minimumScaleFactor(0.4)
-                                .lineLimit(1)
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 2)
-                        }
-                    }
-                    .frame(width: box.width, height: box.height)
-                    // La cible du doigt est plus grande que le mot, et posée
-                    // avant `position` : après, la vue occupe tout le cadre et
-                    // avalerait chaque tap. Sur une facture, un 어절 fait quatre
-                    // millimètres de haut.
-                    .contentShape(.rect.inset(by: -7))
-                    .onTapGesture { tap(word) }
-                    .position(x: box.midX, y: box.midY)
-                }
-            }
-        }
-    }
-}
-
-/// Ce que le mot veut dire, et la seule décision à prendre.
-private struct WordSheet: View {
-    let word: CaptureFlow.Word
-    let isKept: Bool
-    let keep: () -> Void
-    let drop: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(word.lemma)
-                    .font(.system(size: 30, weight: .semibold))
-                    .foregroundStyle(Dancheong.ink)
-                Text(word.en)
-                    .font(.system(size: 17))
-                    .foregroundStyle(Dancheong.inkSoft)
-            }
-
-            Button(action: isKept ? drop : keep) {
-                Text(isKept ? "Kept — remove" : "Keep this word")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(isKept ? Dancheong.jaju : .white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 15)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(isKept ? Dancheong.jaju.opacity(0.12) : Dancheong.jaju)
-                    )
-            }
-        }
-        .padding(20)
-        .frame(maxWidth: .infinity)
-        .background(Dancheong.paper)
-        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 26, topTrailingRadius: 26, style: .continuous))
-    }
-}
-
 private struct SourceBlock: View {
     let title: String
     let icon: String
