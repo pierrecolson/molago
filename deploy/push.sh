@@ -59,7 +59,7 @@ ssh "$VPS" '
     printf "THIINGS_API_KEY=%s\n" "$KEY" >> '"$REMOTE"'/.env
     echo "  clé Thiings reprise du conteneur voisin"
   fi
-  mkdir -p '"$REMOTE"'/data/icons
+  mkdir -p '"$REMOTE"'/data/icons '"$REMOTE"'/data/words
 '
 
 if [[ " $* " == *" --build "* || " $* " == *" --run "* ]]; then

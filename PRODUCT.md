@@ -45,9 +45,9 @@ cannot truthfully copy:
 - **The city.** Maintenance bills (관리비 고지서), pharmacy counters, building management
   offices, KakaoTalk threads, administrative paperwork, the subway. This is where capture
   happens: photo (native iOS Vision OCR), iOS share sheet, or manual entry.
-- **The three universes**, one per morning slot, each working a different layer of Korean:
-  Tech & Science (Sino-Korean, dense), Korea — news & society (journalistic), Daily life in
-  Seoul (spoken, 해요체).
+- **The four universes**, one per morning slot, each working a different layer of Korean:
+  News (journalistic), Tech (Sino-Korean, dense), Fun — culture and going out (spoken and
+  light, 해요체), Life in Seoul (spoken, 해요체).
 - **The nightly factory.** A pipeline runs before the notification hour: collect → choose
   subject → select vocabulary → generate → deterministic level check → naturalness check →
   annotate → quiz → voice → publish.
@@ -56,7 +56,7 @@ cannot truthfully copy:
 
 - **Two tabs only: Library and Notebook.** No settings tab (the avatar opens settings), no
   separate archive tab (history is the continuation of today's feed).
-- **Library**: today's three cards (universe label, English title, `4 min` and nothing else
+- **Library**: today's four cards (universe label, English title, `4 min` and nothing else
   unless difficulty is unusual: `· a bit of a stretch` / `· easy going`), then previous days
   below without a break, indefinitely. Never shown on a card: total word count, new-word
   count, or where the subject came from.
