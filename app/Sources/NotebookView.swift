@@ -177,8 +177,6 @@ struct NotebookView: View {
             .navigationDestination(for: KeptWord.self) { WordDetailView(word: $0) }
             .background(Dancheong.ground)
             .navigationTitle("Notebook")
-            .toolbar {
-            }
             .task {
                 if ProcessInfo.processInfo.arguments.contains("--open-word"),
                    let first = words.first { path = [first] }
