@@ -36,12 +36,22 @@ final class KeptWord {
     var hanja: String?
     var root: String?
     var family: [Day.Relative]?
-    /// L'univers d'où il vient — c'est lui qui donne sa couleur dans le carnet.
+    /// L'univers d'où il vient.
     var slot: String
+    /// Le titre du texte où on l'a croisé, et sa journée.
+    ///
+    /// Recopiés eux aussi plutôt que référencés : « Tech » ne dit rien de ce
+    /// qu'on lisait, alors que le titre ramène le souvenir de la lecture. La
+    /// date permet de retrouver le texte pour le rouvrir — et quand la journée
+    /// a été purgée du serveur, la fiche continue d'afficher le titre, elle perd
+    /// seulement le lien.
+    var sourceTitle: String?
+    var sourceDate: String?
     var keptAt: Date
 
     init(lemma: String, meaning: String, pos: String, icon: String?, context: String,
-         contextAudio: String?, hanja: String?, root: String?, family: [Day.Relative]?, slot: String) {
+         contextAudio: String?, hanja: String?, root: String?, family: [Day.Relative]?,
+         slot: String, sourceTitle: String? = nil, sourceDate: String? = nil) {
         self.contextAudio = contextAudio
         self.hanja = hanja
         self.root = root
@@ -52,6 +62,8 @@ final class KeptWord {
         self.icon = icon
         self.context = context
         self.slot = slot
+        self.sourceTitle = sourceTitle
+        self.sourceDate = sourceDate
         self.keptAt = .now
     }
 }

@@ -23,12 +23,18 @@ settings:
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: 7R46U8G25A
     ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-    # Écrit en toutes lettres plutôt que dérivé du nom de la cible : le premier
+    # Écrit en toutes lettres plutôt que dérivé du nom de la cible. Le premier
     # build s'était signé avec l'équipe personnelle gratuite, qui a enregistré
     # « com.pierrecolson.Molago » chez Apple — et un identifiant d'app ne
-    # revient jamais à une autre équipe. Celui-ci appartient au compte payant.
-    PRODUCT_BUNDLE_IDENTIFIER: com.pierrecolson.molago
+    # revient jamais à une autre équipe, majuscule ou pas : le compte payant
+    # s'est vu refuser « com.pierrecolson.molago » pour cause de collision.
+    # D'où ce nom-ci, enregistré au compte payant et utilisable sur TestFlight.
+    PRODUCT_BUNDLE_IDENTIFIER: com.molago.app
     ENABLE_USER_SCRIPT_SANDBOXING: YES
+    # Le numéro affiché aux testeurs, et le numéro de build qu'App Store Connect
+    # exige unique à chaque envoi. Bougés ici, ils suivent partout.
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
 
 targets:
   Molago:
@@ -36,11 +42,31 @@ targets:
     platform: iOS
     sources:
       - path: Sources
+    settings:
+      base:
+        # iPhone seul. Par défaut la cible vise aussi l'iPad, et l'App Store
+        # refuse alors une app en portrait strict : le multitâche iPad impose
+        # les quatre orientations. Molago se tient d'une main, dans le métro —
+        # c'est un téléphone. (Il tourne sur iPad, en mode compatibilité.)
+        #
+        # À écrire ici et pas dans les réglages généraux du projet : xcodegen
+        # pose « 1,2 » sur la cible elle-même, et ce qui est posé sur la cible
+        # l'emporte. Le même réglage plus haut est purement décoratif.
+        TARGETED_DEVICE_FAMILY: "1"
     info:
       path: Sources/Info.plist
       properties:
         CFBundleDisplayName: Molago
+        # Branchés sur les réglages plutôt qu'écrits en dur : sans ça, xcodegen
+        # fige « 1 » dans le plist et le numéro de build passé à la construction
+        # est ignoré — App Store Connect refuse alors le deuxième envoi.
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen: {}
+        # Molago ne chiffre rien de son cru (HTTPS seul, exempté). Répondu ici
+        # une fois pour toutes, sinon App Store Connect repose la question à
+        # chaque envoi et bloque la distribution aux testeurs en attendant.
+        ITSAppUsesNonExemptEncryption: false
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         # La voix continue quand l'écran s'éteint : on lit dans le métro,

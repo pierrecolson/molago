@@ -19,3 +19,6 @@ app/Resources/
 app/shot-*.png
 
 app/Sources/Config.swift
+
+# worktrees des workflows en arrière-plan
+.claude/worktrees/

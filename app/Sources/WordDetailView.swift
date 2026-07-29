@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import AVFoundation
 
 /// La fiche d'un mot du carnet (spec §5.6).
 ///
@@ -27,8 +26,35 @@ struct WordDetailView: View {
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
-    @State private var player: AVPlayer?
     @State private var confirmingDelete = false
+    @State private var opening: Day.Text?
+    @State private var previewing: Day.Relative?
+
+    /// Le texte d'où vient le mot, s'il est encore sur l'appareil.
+    ///
+    /// Les journées finissent purgées du serveur : la fiche doit continuer
+    /// d'afficher le titre quand le texte a disparu, elle perd seulement le lien.
+    private var sourceText: Day.Text? {
+        let days = DayStore.cachedDays()
+        if let date = word.sourceDate,
+           let text = days.first(where: { $0.date == date })?
+                          .texts.first(where: { $0.slot == word.slot }) {
+            return text
+        }
+        // Les mots gardés avant que le titre soit enregistré n'en ont pas. On
+        // les rattrape par leur phrase, qui est unique : plutôt que de leur
+        // afficher « Tech » pour toujours, on retrouve le texte qui la contient.
+        guard !word.context.isEmpty else { return nil }
+        return days.flatMap(\.texts).first { text in
+            text.sentences.contains { $0.ko == word.context }
+        }
+    }
+
+    /// Le titre à montrer : celui qu'on a enregistré, sinon celui du texte
+    /// retrouvé, et en dernier recours le nom de l'univers.
+    private var sourceLabel: String {
+        word.sourceTitle ?? sourceText?.title ?? Dancheong.universe(word.slot).name
+    }
 
     private var tint: Color { Dancheong.universe(word.slot).color }
 
@@ -36,7 +62,11 @@ struct WordDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 hero
-                metSection
+                // Un mot pris dans une famille n'a été rencontré nulle part :
+                // on l'a croisé en regardant les cousins d'un autre. Le bloc
+                // disparaît plutôt que d'inventer un contexte ou d'en montrer
+                // un vide.
+                if !word.context.isEmpty { metSection }
                 if let family = word.family, !family.isEmpty { familySection(family) }
                 footer
             }
@@ -68,92 +98,79 @@ struct WordDetailView: View {
         } message: {
             Text("It stays in the texts you've read — you just won't see it here.")
         }
-        .onDisappear { player?.pause() }
+        .navigationDestination(item: $opening) { ReaderView(text: $0) }
+        .sheet(item: $previewing) { RelativeSheet(relative: $0, slot: word.slot) }
     }
 
-    // ── le pan de couleur ────────────────────────────────────────────────────
+    // ── le mot ───────────────────────────────────────────────────────────────
 
-    /// Le mot, son icône et son sens sur un seul pan plein.
+    /// Le mot, sur du papier.
     ///
-    /// Aligné à gauche et non centré : centrer trois lignes de longueurs très
-    /// différentes donne une pile molle, et le coréen — qui se lit à gauche —
-    /// perd son point d'appui. L'icône occupe le coin opposé, ce qui tient la
-    /// diagonale du bloc.
+    /// Il était posé sur un pan de la couleur de son univers, et c'était faux :
+    /// 영역 a été croisé dans un texte tech, mais ce n'est pas un mot tech —
+    /// c'est un mot de la langue, qui resservira ailleurs. Le teindre en bleu
+    /// enfermait le mot dans le hasard de sa première rencontre.
+    ///
+    /// La couleur redescend donc là où elle dit vrai : dans « où tu l'as
+    /// rencontré », qui parle bien, lui, de ce texte-là. Ici il ne reste que le
+    /// mot, en grand, sur le papier de lecture — et c'est aussi ce qui rend une
+    /// fiche de mot impossible à confondre avec une carte d'article.
     private var hero: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top) {
-                if !word.pos.isEmpty {
-                    Text(word.pos.uppercased())
-                        .font(.caption2.weight(.bold))
-                        .kerning(1.2)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 11)
-                        .padding(.vertical, 5)
-                        .overlay(Capsule().strokeBorder(.white.opacity(0.45), lineWidth: 1))
-                }
-                Spacer(minLength: 12)
-                if word.icon != nil {
-                    IconTile(icon: word.icon, lemma: word.lemma, slot: word.slot, size: 76)
-                }
+        VStack(alignment: .leading, spacing: 6) {
+            if !word.pos.isEmpty {
+                Text(word.pos.uppercased())
+                    .font(.caption2.weight(.bold))
+                    .kerning(1.2)
+                    .foregroundStyle(Dancheong.inkSoft)
             }
 
-            Spacer(minLength: 24)
-
             Text(word.lemma)
-                .font(.system(size: 46, weight: .bold))
-                .foregroundStyle(.white)
+                .font(.system(size: 64, weight: .heavy))
+                .foregroundStyle(Dancheong.ink)
                 .minimumScaleFactor(0.55)
                 .lineLimit(1)
+                .padding(.top, 2)
 
             Text(word.meaning)
                 .font(.system(size: 19))
-                .foregroundStyle(.white.opacity(0.78))
+                .foregroundStyle(Dancheong.inkSoft)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 3)
         }
-        .padding(22)
-        .frame(maxWidth: .infinity, minHeight: 250, alignment: .leading)
-        .background(tint)
-        .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-        .dancheongKeyline(cornerRadius: 30)
-        .padding(.top, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 6)
+        .padding(.bottom, 10)
     }
 
     // ── où on l'a rencontré ──────────────────────────────────────────────────
 
     private var metSection: some View {
-        InsetSection(title: "Where you met it") {
+        InsetSection(title: "Where you met it", tint: tint) {
             VStack(alignment: .leading, spacing: 0) {
+                // Le même composant que dans « Previously » : les deux
+                // désignent un texte, et le dire de deux façons obligeait à
+                // réapprendre le même objet d'un écran à l'autre.
+                Button { opening = sourceText } label: {
+                    SourceRow(slot: word.slot,
+                              title: sourceLabel,
+                              chevron: sourceText != nil,
+                              padding: 0, verticalPadding: 0)
+                }
+                .buttonStyle(.plain)
+                .disabled(sourceText == nil)
+                .padding(.bottom, 10)
+
                 // Le mot est mis en évidence dans sa phrase : c'est ce qui fait
                 // le lien entre la fiche et le souvenir de la lecture.
                 Text(highlighted(word.context, around: word.lemma))
                     .font(.system(size: 17))
                     .lineSpacing(7)
                     .fixedSize(horizontal: false, vertical: true)
-
-                // On teste seulement qu'une piste est référencée, pas qu'elle
-                // est trouvable à l'instant du rendu : la vérification se fait
-                // au moment de jouer. Sinon le bouton disparaît sur un détail
-                // de chemin, sans explication.
-                if word.contextAudio != nil {
-                    Button {
-                        guard let name = word.contextAudio,
-                              let url = Paths.audioFile(name) else { return }
-                        let item = AVPlayer(url: url)
-                        player = item
-                        item.play()
-                    } label: {
-                        Label("Hear it again", systemImage: "speaker.wave.2.fill")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(tint)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(tint.opacity(0.12), in: Capsule())
-                    }
-                    .padding(.top, 16)
-                }
             }
-            .padding(18)
+            // Le contenu respire à l'intérieur du bloc. Ce rembourrage avait été
+            // emporté en supprimant le bouton d'écoute qui le suivait, et le
+            // texte s'est retrouvé collé aux bords sans que rien ne le signale :
+            // le bloc existait toujours, il était seulement vide de marge.
+            .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -189,31 +206,68 @@ struct WordDetailView: View {
     /// ce qu'on lui montre c'est le sens partagé. Le hanja est là pour ancrer,
     /// pas pour être appris.
     private func familySection(_ family: [Day.Relative]) -> some View {
-        InsetSection(title: "Same root", trailing: word.hanja, tint: tint, note: word.root) {
-            VStack(spacing: 0) {
-                ForEach(Array(family.enumerated()), id: \.offset) { i, relative in
-                    HStack(alignment: .firstTextBaseline, spacing: 12) {
-                        Text(relative.k)
-                            .font(.system(size: 17, weight: .medium))
-                        if let h = relative.h {
-                            Text(h)
-                                .font(.caption)
-                                .foregroundStyle(tint.opacity(0.7))
-                        }
-                        Spacer(minLength: 12)
-                        Text(relative.e)
+        // Le hanja passe à droite, grand et pâle, derrière le titre.
+        //
+        // Il était coincé entre « Same root » et le sens partagé, et les serrait
+        // l'un contre l'autre. Poussé au fond à droite, à la hauteur des deux
+        // lignes, il devient ce qu'il est — un ornement — et rend au titre l'air
+        // qui lui manquait. « Family » plutôt que « root » : c'est de la famille
+        // qu'on parle, et le mot « racine » demandait de savoir ce qu'est une
+        // racine sino-coréenne avant de comprendre le bloc.
+        VStack(alignment: .leading, spacing: 12) {
+            ZStack(alignment: .trailing) {
+                if let hanja = word.hanja {
+                    Text(hanja)
+                        .font(.system(size: 44, weight: .light))
+                        .foregroundStyle(tint.opacity(0.16))
+                        .lineLimit(1)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("SAME FAMILY")
+                        .font(.caption2.weight(.bold))
+                        .kerning(1.3)
+                        .foregroundStyle(tint)
+                    if let root = word.root, !root.isEmpty {
+                        Text(root)
                             .font(.subheadline)
                             .foregroundStyle(Dancheong.inkSoft)
-                            .multilineTextAlignment(.trailing)
-                    }
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 13)
-
-                    if i < family.count - 1 {
-                        Divider().padding(.leading, 18)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+
+            // Chaque mot de la famille s'ouvre : c'est là qu'on croise un mot
+            // qu'on ne connaissait pas et qu'on veut garder. Sans ça, la famille
+            // est une vitrine — on voit les mots, on ne peut rien en faire.
+            VStack(spacing: 0) {
+                ForEach(Array(family.enumerated()), id: \.offset) { i, relative in
+                    Button { previewing = relative } label: {
+                        HStack(alignment: .firstTextBaseline, spacing: 12) {
+                            Text(relative.k)
+                                .font(.system(size: 17, weight: .medium))
+                                .foregroundStyle(Dancheong.ink)
+                            if let h = relative.h {
+                                Text(h)
+                                    .font(.caption)
+                                    .foregroundStyle(tint.opacity(0.7))
+                            }
+                            Spacer(minLength: 12)
+                            Text(relative.e)
+                                .font(.subheadline)
+                                .foregroundStyle(Dancheong.inkSoft)
+                                .multilineTextAlignment(.trailing)
+                        }
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 13)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    if i < family.count - 1 { Divider().padding(.leading, 18) }
+                }
+            }
+            .background(Dancheong.paper)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
     }
 
@@ -253,7 +307,7 @@ private struct InsetSection<Content: View>: View {
                 Text(title.uppercased())
                     .font(.caption2.weight(.bold))
                     .kerning(1.3)
-                    .foregroundStyle(Dancheong.inkSoft)
+                    .foregroundStyle(tint)
                 if let trailing {
                     Text(trailing)
                         .font(.callout.weight(.medium))
@@ -274,5 +328,67 @@ private struct InsetSection<Content: View>: View {
             content
                 .background(Dancheong.paper, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
+    }
+}
+
+/// Un mot croisé dans une famille, qu'on peut garder au passage.
+///
+/// Il n'a pas de « où tu l'as rencontré » : on ne l'a rencontré nulle part, on
+/// l'a croisé en regardant la famille d'un autre. Lui inventer un contexte
+/// serait mentir, et un bloc vide serait pire — la fiche montre donc seulement
+/// ce qu'elle sait, et propose de le prendre.
+private struct RelativeSheet: View {
+    let relative: Day.Relative
+    let slot: String
+
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @Query private var existing: [KeptWord]
+
+    private var alreadyKept: Bool { existing.contains { $0.lemma == relative.k } }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let h = relative.h {
+                Text(h)
+                    .font(.system(size: 22))
+                    .foregroundStyle(Dancheong.universe(slot).color.opacity(0.5))
+            }
+            Text(relative.k)
+                .font(.system(size: 44, weight: .bold))
+                .foregroundStyle(Dancheong.ink)
+            Text(relative.e)
+                .font(.system(size: 18))
+                .foregroundStyle(Dancheong.inkSoft)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 18)
+
+            Button {
+                context.insert(KeptWord(
+                    lemma: relative.k, meaning: relative.e, pos: "", icon: nil,
+                    // Pas de phrase : ce mot n'a pas encore été lu quelque part.
+                    // La fiche le dira en n'affichant rien plutôt qu'en inventant.
+                    context: "", contextAudio: nil, hanja: relative.h,
+                    root: nil, family: nil, slot: slot
+                ))
+                try? context.save()
+                dismiss()
+            } label: {
+                Label(alreadyKept ? "Already in your notebook" : "Keep this word",
+                      systemImage: alreadyKept ? "checkmark" : "plus")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 15)
+                    .background(Dancheong.universe(slot).color, in: Capsule())
+            }
+            .disabled(alreadyKept)
+            .opacity(alreadyKept ? 0.5 : 1)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Dancheong.ground)
+        .presentationDetents([.height(320)])
     }
 }

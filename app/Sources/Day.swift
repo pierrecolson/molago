@@ -10,7 +10,7 @@ struct Day: Codable, Sendable {
     let date: String
     let texts: [Text]
 
-    struct Text: Codable, Sendable, Identifiable {
+    struct Text: Codable, Sendable, Identifiable, Hashable {
         let slot: String
         let universe: String
         let title: String
@@ -24,7 +24,7 @@ struct Day: Codable, Sendable {
         var id: String { slot }
     }
 
-    struct Sentence: Codable, Sendable, Identifiable {
+    struct Sentence: Codable, Sendable, Identifiable, Hashable {
         let ko: String
         let en: String
         let audio: String
@@ -36,13 +36,15 @@ struct Day: Codable, Sendable {
         var id: String { audio }
     }
 
-    struct Relative: Codable, Sendable, Hashable {
+    struct Relative: Codable, Sendable, Hashable, Identifiable {
         /// Le mot coréen.
         let k: String
         /// Ses hanja.
         let h: String?
         /// Son sens en anglais.
         let e: String
+
+        var id: String { k }
     }
 
     struct Word: Codable, Sendable, Hashable {
@@ -108,6 +110,21 @@ struct Day: Codable, Sendable {
 }
 
 extension Day.Text {
+    /// La journée d'où vient ce texte, lue dans le nom de sa première piste.
+    ///
+    /// Un texte ne porte pas sa date : elle vit sur la journée qui le contient,
+    /// et la lui faire descendre obligerait à la trimballer à travers tous les
+    /// écrans qui n'en ont que faire. Les pistes, elles, s'appellent
+    /// `<date>-<slot>-<nn>.mp3` — c'est la fabrique qui les nomme ainsi, et
+    /// c'est déjà ce qui garantit qu'elles ne se marchent pas dessus d'un jour
+    /// à l'autre. On s'appuie sur ce nom plutôt que d'en dupliquer l'information.
+    var day: String? {
+        guard let name = sentences.first?.audio.split(separator: "/").last else { return nil }
+        let parts = name.split(separator: "-")
+        guard parts.count >= 3 else { return nil }
+        return parts.prefix(3).joined(separator: "-")
+    }
+
     /// La ligne d'information sous le titre. `4 min` et rien d'autre quand la
     /// difficulté est ordinaire : le nombre de mots ne varie pas, et le nombre
     /// de mots nouveaux est ambigu (spec §4.3).
@@ -126,5 +143,21 @@ extension Day {
         out.locale = Locale(identifier: "en_US")
         out.dateFormat = "EEEE d MMMM"
         return out.string(from: d).uppercased()
+    }
+
+    /// `27 Jul` — la date au bout d'une ligne de « Previously ».
+    ///
+    /// Une forme courte, parce qu'elle est répétée sur chaque ligne : le libellé
+    /// complet y prendrait plus de place que le titre qu'il accompagne.
+    var shortLabel: String {
+        let parser = DateFormatter()
+        parser.dateFormat = "yyyy-MM-dd"
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        guard let d = parser.date(from: date) else { return date }
+
+        let out = DateFormatter()
+        out.locale = Locale(identifier: "en_US")
+        out.dateFormat = "d MMM"
+        return out.string(from: d)
     }
 }

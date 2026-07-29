@@ -65,6 +65,29 @@ final class DayStore {
 
     private(set) var state: State = .loading
 
+    /// La journée si on en a une, quel que soit l'état.
+    ///
+    /// La coquille de l'app s'en sert plutôt que de filtrer l'état : la barre
+    /// d'onglets doit exister même quand il n'y a rien à lire, sinon le carnet
+    /// devient inatteignable les matins où la fabrique n'a rien produit.
+    var day: Day? {
+        if case .ready(let d) = state { return d }
+        return nil
+    }
+
+    /// Les journées passées, pour « Previously ».
+    ///
+    /// Portée par le magasin plutôt que relue par l'écran : le rattrapage des
+    /// journées manquantes finit après le premier rendu, et un écran qui lit le
+    /// disque une fois ne voit jamais arriver ce qui vient d'être téléchargé.
+    private(set) var previously: [Day] = []
+
+    /// Ce qu'on dit à l'utilisateur quand il n'y a rien.
+    var message: String? {
+        if case .nothing(let m) = state { return m }
+        return nil
+    }
+
 
     func load() async {
         let today = Self.dateString(Date())
@@ -72,6 +95,18 @@ final class DayStore {
         // D'abord ce qu'on a. L'écran se remplit avant le moindre appel réseau.
         if let cached = Self.readCached(today) {
             state = .ready(cached)
+        }
+
+        // Le rattrapage tourne quoi qu'il arrive, y compris quand la journée du
+        // jour manque. C'est même là qu'il compte le plus : le matin où la
+        // fabrique n'a rien produit, « Previously » est tout ce qui reste à
+        // lire — le vider aussi ferait d'un incident une app vide.
+        previously = Self.cachedDays()
+        defer {
+            Task { [weak self] in
+                await Self.backfill(before: today)
+                self?.previously = Self.cachedDays()
+            }
         }
 
         do {
@@ -177,6 +212,42 @@ final class DayStore {
     private static func writeCached(_ day: Day) {
         guard let data = try? JSONEncoder().encode(day) else { return }
         try? data.write(to: file(day.date), options: .atomic)
+    }
+
+    /// Toutes les journées qu'on possède, la plus récente d'abord.
+    ///
+    /// C'est ce que « Previously » montre. On lit le disque et rien d'autre :
+    /// le serveur ne publie aucun index, et en réclamer un rendrait l'écran
+    /// dépendant du réseau pour afficher ce qui est déjà là.
+    static func cachedDays() -> [Day] {
+        let files = (try? FileManager.default.contentsOfDirectory(at: Paths.root, includingPropertiesForKeys: nil)) ?? []
+        return files
+            .filter { $0.pathExtension == "json" }
+            .sorted { $0.lastPathComponent > $1.lastPathComponent }
+            .compactMap { try? Data(contentsOf: $0) }
+            .compactMap { try? JSONDecoder().decode(Day.self, from: $0) }
+    }
+
+    /// Rattrape les journées récentes qu'on n'a pas encore.
+    ///
+    /// Sans ça, « Previously » est vide sur une installation neuve alors que le
+    /// serveur garde deux mois d'archives. On tente les jours précédents un par
+    /// un : il n'existe pas d'index, mais un 404 ne coûte rien et la boucle
+    /// s'arrête au premier jour déjà connu de bout en bout.
+    private static func backfill(before today: String, days: Int = 7) async {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        guard let start = f.date(from: today) else { return }
+        for back in 1...days {
+            guard let date = Calendar.current.date(byAdding: .day, value: -back, to: start) else { continue }
+            let key = f.string(from: date)
+            if readCached(key) != nil { continue }
+            guard let day = try? await fetch(date: key) else { continue }
+            writeCached(day)
+            // Le texte seul : l'audio d'une journée passée se télécharge quand
+            // on l'ouvre, pas en rafale au lancement.
+        }
     }
 
     /// La journée la plus récente qu'on possède.
