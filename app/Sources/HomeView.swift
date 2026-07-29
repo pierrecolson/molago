@@ -298,6 +298,10 @@ struct SourceRow: View {
     let title: String
     var trailing: String? = nil
     var chevron = false
+    /// La marge autour de la ligne. Réglable plutôt qu'annulée après coup : la
+    /// fiche du mot l'avait mise à zéro avec un rembourrage négatif, ce qui
+    /// collait l'icône au bord du bloc au lieu de la poser dedans.
+    var padding: CGFloat = 15
 
     private var universe: (color: Color, name: String, icon: String) {
         Dancheong.universe(slot)
@@ -305,13 +309,15 @@ struct SourceRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
+            // La forme est donnée AVEC le fond, et non découpée après : posé
+            // dans un bouton, un découpage séparé se fait écraser en rond par le
+            // style que le système applique aux commandes.
             Image(universe.icon)
                 .resizable()
                 .scaledToFit()
                 .frame(width: 26, height: 26)
                 .frame(width: 36, height: 36)
-                .background(universe.color)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(universe.color, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 
             Text(title)
                 .font(.subheadline)
@@ -332,7 +338,7 @@ struct SourceRow: View {
                     .foregroundStyle(Dancheong.inkSoft)
             }
         }
-        .padding(.horizontal, 15)
+        .padding(.horizontal, padding)
         .padding(.vertical, 11)
         .contentShape(Rectangle())
     }
