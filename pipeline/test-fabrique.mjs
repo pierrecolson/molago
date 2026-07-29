@@ -20,7 +20,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const { readHanjaTable, saveHanjaTable, cleanRoot, mp3Seconds, estimateWords } =
+const { readHanjaTable, saveHanjaTable, cleanRoot, mp3Seconds } =
   await import('./build-day.mjs')
 
 const dir = mkdtempSync(join(tmpdir(), 'molago-'))
@@ -87,20 +87,8 @@ assert.equal(mp3Seconds(mp3(32, 40000)), mp3Seconds(mp3(64, 80000)))
 assert.equal(mp3Seconds(mp3(32, 40000)), 10)
 assert.equal(mp3Seconds(Buffer.alloc(4096)), 0, 'pas de synchro, pas de durée inventée')
 
-// ── 3 · les repères estimés restent dans la phrase ───────────────────────────
-
-const phrase = '오늘 아침에 관리비 고지서를 받았는데 금액이 평소보다 훨씬 많았어요'
-const mots = estimateWords(phrase, 10)
-assert.equal(mots.length, phrase.split(' ').length, 'un repère par 어절, comme le glossaire les attend')
-assert.equal(mots[0].t, 0)
-for (const m of mots) assert.equal(typeof m.t, 'number', 'un t manquant rend la journée entière indécodable')
-for (let i = 1; i < mots.length; i++) {
-  assert.ok(mots[i].t > mots[i - 1].t, 'les repères doivent avancer')
-}
-assert.ok(mots.at(-1).t < 10, 'le dernier mot commence avant la fin du son')
-
 rmSync(dir, { recursive: true, force: true })
-console.log('✓ table stable, durée juste aux deux débits, repères dans la phrase')
+console.log('✓ table stable, durée juste aux deux débits')
 
 // ── les quatre défauts trouvés à la relecture ────────────────────────────────
 {

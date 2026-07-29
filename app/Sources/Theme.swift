@@ -74,7 +74,6 @@ enum Dancheong {
     /// couleur. Chaque univers a donc sa teinte claire propre, réglée pour être
     /// aussi présente que les deux autres.
     private static let captureHighlight = dancheong((0.878, 0.831, 0.906), (0.192, 0.137, 0.227))
-    private static let captureWordhighlight = dancheong((0.729, 0.647, 0.784), (0.310, 0.227, 0.365))
 
     static func highlight(_ slot: String) -> Color {
         if slot.hasPrefix("capture") { return captureHighlight }
@@ -87,21 +86,6 @@ enum Dancheong {
         }
     }
 
-    /// Le mot prononcé à l'instant même, dans la phrase déjà surlignée.
-    ///
-    /// Deux niveaux plutôt qu'un : la phrase claire dit *où on en est* dans le
-    /// texte, le mot plus soutenu dit *ce qu'on entend*. Avec un seul niveau on
-    /// perd l'un ou l'autre.
-    static func wordHighlight(_ slot: String) -> Color {
-        if slot.hasPrefix("capture") { return captureWordhighlight }
-        return switch slot {
-        case "tech": dancheong((0.553, 0.729, 0.855), (0.180, 0.322, 0.443))
-        case "korea", "news": dancheong((0.565, 0.780, 0.596), (0.192, 0.361, 0.239))
-        case "fun": dancheong((0.914, 0.792, 0.514), (0.373, 0.294, 0.118))
-        case "capture": dancheong((0.729, 0.647, 0.784), (0.310, 0.227, 0.365))
-        default: dancheong((0.949, 0.671, 0.451), (0.416, 0.251, 0.094))
-        }
-    }
 }
 
 
