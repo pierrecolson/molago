@@ -29,6 +29,28 @@ enum Paths {
         return dir
     }()
 
+    /// Les photos capturées, sur le téléphone et nulle part ailleurs.
+    ///
+    /// Le texte d'une capture part au serveur — il faut bien le mettre en forme
+    /// et le faire lire. La photo, non : elle ne sert qu'à celui qui l'a prise,
+    /// et c'est la seule chose de cette app qui puisse contenir un visage, une
+    /// adresse ou un montant qu'on n'a pas choisi de partager. Elle reste donc
+    /// là où elle a été prise.
+    ///
+    /// Le prix est assumé : réinstaller l'app les perd. Elles sont l'accessoire
+    /// du texte, et le texte, lui, revient du serveur.
+    static let captures: URL = {
+        let dir = root.appending(path: "captures", directoryHint: .isDirectory)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }()
+
+    /// La photo d'une capture, si on l'a encore.
+    static func captureImage(_ slot: String) -> URL? {
+        let url = captures.appending(path: "\(slot).jpg")
+        return FileManager.default.fileExists(atPath: url.path()) ? url : nil
+    }
+
     /// Une piste audio si elle est encore là. Les anciennes finissent purgées
     /// du serveur, donc un mot ancien peut avoir perdu sa voix.
     static func audioFile(_ name: String) -> URL? {
