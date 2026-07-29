@@ -29,26 +29,57 @@ enum Paths {
         return dir
     }()
 
-    /// Les photos capturées, sur le téléphone et nulle part ailleurs.
+    /// Le dossier iCloud de l'app, s'il est disponible.
+    ///
+    /// Interrogé une fois : la réponse demande un aller-retour au système, et
+    /// elle ne change pas en cours de session. Nul quand l'utilisateur n'est
+    /// pas connecté à iCloud ou l'a désactivé pour Molago — auquel cas tout
+    /// continue de fonctionner sur l'appareil seul, ce qui est le comportement
+    /// à préférer : une app qui refuse de capturer parce qu'iCloud est éteint
+    /// serait une app cassée pour une raison qui ne la regarde pas.
+    static let cloud: URL? = {
+        guard let root = FileManager.default.url(forUbiquityContainerIdentifier: nil) else { return nil }
+        let dir = root.appending(path: "Documents/captures", directoryHint: .isDirectory)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }()
+
+    /// Les photos capturées.
     ///
     /// Le texte d'une capture part au serveur — il faut bien le mettre en forme
     /// et le faire lire. La photo, non : elle ne sert qu'à celui qui l'a prise,
     /// et c'est la seule chose de cette app qui puisse contenir un visage, une
-    /// adresse ou un montant qu'on n'a pas choisi de partager. Elle reste donc
-    /// là où elle a été prise.
+    /// adresse ou un montant qu'on n'a pas choisi de partager.
     ///
-    /// Le prix est assumé : réinstaller l'app les perd. Elles sont l'accessoire
-    /// du texte, et le texte, lui, revient du serveur.
+    /// Elle va donc dans **son** iCloud, pas sur notre serveur : elle le suit
+    /// d'un appareil à l'autre, survit à une réinstallation, et reste chez lui.
+    /// Le stockage de documents fait ça sans base, sans schéma et sans code de
+    /// synchronisation — les fichiers déposés remontent et redescendent seuls.
     static let captures: URL = {
+        if let cloud { return cloud }
         let dir = root.appending(path: "captures", directoryHint: .isDirectory)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }()
 
     /// La photo d'une capture, si on l'a encore.
+    /// La photo d'une capture, si on l'a encore.
+    ///
+    /// On tente le téléchargement avant de répondre : un fichier venu d'un autre
+    /// appareil n'est d'abord qu'un espace réservé, et `fileExists` répond faux
+    /// dessus. Sans ça, le bouton du document disparaîtrait exactement là où la
+    /// synchronisation sert à quelque chose.
     static func captureImage(_ slot: String) -> URL? {
-        let url = captures.appending(path: "\(slot).jpg")
-        return FileManager.default.fileExists(atPath: url.path()) ? url : nil
+        let fm = FileManager.default
+        for dir in [cloud, captures].compactMap({ $0 }) {
+            let url = dir.appending(path: "\(slot).jpg")
+            if fm.fileExists(atPath: url.path()) { return url }
+            let placeholder = dir.appending(path: ".\(slot).jpg.icloud")
+            if fm.fileExists(atPath: placeholder.path()) {
+                try? fm.startDownloadingUbiquitousItem(at: url)
+            }
+        }
+        return nil
     }
 
     /// Une piste audio si elle est encore là. Les anciennes finissent purgées
