@@ -35,10 +35,25 @@ struct WordDetailView: View {
     /// Les journées finissent purgées du serveur : la fiche doit continuer
     /// d'afficher le titre quand le texte a disparu, elle perd seulement le lien.
     private var sourceText: Day.Text? {
-        guard let date = word.sourceDate else { return nil }
-        return DayStore.cachedDays()
-            .first { $0.date == date }?
-            .texts.first { $0.slot == word.slot }
+        let days = DayStore.cachedDays()
+        if let date = word.sourceDate,
+           let text = days.first(where: { $0.date == date })?
+                          .texts.first(where: { $0.slot == word.slot }) {
+            return text
+        }
+        // Les mots gardés avant que le titre soit enregistré n'en ont pas. On
+        // les rattrape par leur phrase, qui est unique : plutôt que de leur
+        // afficher « Tech » pour toujours, on retrouve le texte qui la contient.
+        guard !word.context.isEmpty else { return nil }
+        return days.flatMap(\.texts).first { text in
+            text.sentences.contains { $0.ko == word.context }
+        }
+    }
+
+    /// Le titre à montrer : celui qu'on a enregistré, sinon celui du texte
+    /// retrouvé, et en dernier recours le nom de l'univers.
+    private var sourceLabel: String {
+        word.sourceTitle ?? sourceText?.title ?? Dancheong.universe(word.slot).name
     }
 
     private var tint: Color { Dancheong.universe(word.slot).color }
@@ -110,7 +125,7 @@ struct WordDetailView: View {
             }
 
             Text(word.lemma)
-                .font(.system(size: 52, weight: .bold))
+                .font(.system(size: 64, weight: .heavy))
                 .foregroundStyle(Dancheong.ink)
                 .minimumScaleFactor(0.55)
                 .lineLimit(1)
@@ -129,44 +144,20 @@ struct WordDetailView: View {
     // ── où on l'a rencontré ──────────────────────────────────────────────────
 
     private var metSection: some View {
-        InsetSection(title: "Where you met it") {
+        InsetSection(title: "Where you met it", tint: tint) {
             VStack(alignment: .leading, spacing: 0) {
-                // La provenance vit ici, et nulle part ailleurs. Elle a été
-                // retirée de la liste du carnet : savoir qu'un mot vient de
-                // « tech » n'aide pas à le réviser. Sur la fiche, en revanche,
-                // c'est ce qui permet de remonter au texte d'origine.
-                // Le titre du texte, pas le nom de l'univers : « Tech » ne
-                // rappelle rien, « Visualizing Go Garbage Collector » ramène la
-                // lecture entière. Et il mène au texte — c'est le chemin de
-                // retour vers la voix, ce qui rend inutile un bouton d'écoute
-                // isolé qui ne rejouait qu'une phrase hors de son contexte.
-                Button {
-                    opening = sourceText
-                } label: {
-                    HStack(spacing: 9) {
-                        Image(Dancheong.universe(word.slot).icon)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 19, height: 19)
-                            .frame(width: 28, height: 28)
-                            .background(tint)
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        Text(word.sourceTitle ?? Dancheong.universe(word.slot).name)
-                            .font(.footnote.weight(.medium))
-                            .foregroundStyle(Dancheong.ink)
-                            .multilineTextAlignment(.leading)
-                            .lineLimit(2)
-                        Spacer(minLength: 4)
-                        if sourceText != nil {
-                            Image(systemName: "chevron.right")
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(Dancheong.inkSoft)
-                        }
-                    }
+                // Le même composant que dans « Previously » : les deux
+                // désignent un texte, et le dire de deux façons obligeait à
+                // réapprendre le même objet d'un écran à l'autre.
+                Button { opening = sourceText } label: {
+                    SourceRow(slot: word.slot,
+                              title: sourceLabel,
+                              chevron: sourceText != nil)
+                        .padding(.horizontal, -15)
                 }
                 .buttonStyle(.plain)
                 .disabled(sourceText == nil)
-                .padding(.bottom, 12)
+                .padding(.bottom, 10)
 
                 // Le mot est mis en évidence dans sa phrase : c'est ce qui fait
                 // le lien entre la fiche et le souvenir de la lecture.
@@ -310,7 +301,7 @@ private struct InsetSection<Content: View>: View {
                 Text(title.uppercased())
                     .font(.caption2.weight(.bold))
                     .kerning(1.3)
-                    .foregroundStyle(Dancheong.inkSoft)
+                    .foregroundStyle(tint)
                 if let trailing {
                     Text(trailing)
                         .font(.callout.weight(.medium))

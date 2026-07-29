@@ -8,29 +8,17 @@ struct MolagoApp: App {
     /// La dernière vraie section. La capture n'en est pas une : en revenir doit
     /// ramener là où on était, et pas sur la vue vide qui lui sert de coquille.
     @State private var lastSection = 0
-    @State private var capturing = false
 
-    /// Le lien vers l'onglet sélectionné, qui refuse celui de la capture.
+    /// Le lien vers l'onglet sélectionné, qui retient la dernière vraie section.
     ///
-    /// La capture est **un bouton, pas une section** : on intercepte sa
-    /// sélection, on ouvre l'écran modal, et on remet l'onglet précédent. Il n'a
-    /// donc jamais d'état sélectionné et n'affiche aucune vue — la règle « un
-    /// onglet est une section, jamais une action » reste tenue.
+    /// La capture n'en est pas une : en sortir doit rendre la main là où on
+    /// était, et le système ne s'en souvient pas tout seul.
     private var tabBinding: Binding<Int> {
         Binding(
             get: { tab },
             set: { new in
-                if new == Self.captureTab {
-                    capturing = true
-                    // On remet aussitôt la section précédente : selon la façon
-                    // dont le système applique la sélection d'un onglet à rôle,
-                    // elle peut passer outre ce lien — et l'écran vide de la
-                    // capture reste alors affiché en refermant l'appareil photo.
-                    tab = lastSection
-                } else {
-                    tab = new
-                    lastSection = new
-                }
+                if new != Self.captureTab { lastSection = new }
+                tab = new
             }
         )
     }
@@ -61,26 +49,11 @@ struct MolagoApp: App {
                         NavigationStack { ReaderView(text: text) }
                             .tint(Dancheong.jangdan)
                     } else {
-                        // Deux onglets, et c'est tout. Pas d'onglet réglages —
-                        // la cloche les ouvre. Pas d'onglet bibliothèque —
-                        // l'archive est la suite du fil d'aujourd'hui, et les
-                        // séparer créerait un endroit où s'accumule ce qu'on n'a
-                        // pas fait (spec §5.1).
-                        // Le bouton de capture est un onglet du milieu — mais
-                        // il ne sélectionne jamais rien : on intercepte la
-                        // sélection, on ouvre l'écran de capture, et on remet
-                        // l'onglet précédent.
-                        //
-                        // C'est la seule façon d'être vraiment AU MILIEU de la
-                        // barre d'iOS 26. Celle-ci est une pilule étroite que le
-                        // système centre lui-même : un bouton posé par-dessus la
-                        // chevauche, un bouton posé à côté la déséquilibre. À
-                        // l'intérieur, l'espacement est celui du système.
-                        //
-                        // La règle « un onglet est une section, jamais une
-                        // action » reste tenue : il n'a pas d'état sélectionné,
-                        // il n'affiche aucune vue, et il ouvre un écran modal
-                        // dont on revient exactement là où on était.
+                        // Trois sections, et la capture détachée à droite. Pas
+                        // d'onglet réglages — la cloche les ouvre. Pas d'onglet
+                        // archive — le passé est la suite du fil d'aujourd'hui,
+                        // et l'en séparer créerait un endroit où s'accumule ce
+                        // qu'on n'a pas fait (spec §5.1).
                         TabView(selection: tabBinding) {
                             Tab("Library", systemImage: "newspaper", value: 0) {
                                 // La journée manquante ne vide plus que cet
@@ -107,8 +80,16 @@ struct MolagoApp: App {
                                 SearchView(day: store.day, previously: store.previously)
                             }
                             // Détaché de la pilule, seul à droite.
+                            //
+                            // La capture est le contenu de l'onglet, et non une
+                            // feuille posée par-dessus une vue vide. C'est la vue
+                            // vide qui restait à l'écran en refermant l'appareil
+                            // photo : le lien de sélection ne suffisait pas à
+                            // reprendre la main, parce que le système gère seul
+                            // la sélection d'un onglet à rôle. En n'ayant plus
+                            // rien de vide à montrer, le problème n'existe plus.
                             Tab(value: Self.captureTab, role: .search) {
-                                Color.clear
+                                CaptureView(onClose: { tab = lastSection })
                             } label: {
                                 // Un symbole système, de la même encre que les
                                 // autres. Le glyphe orange dessiné à la main
@@ -120,9 +101,7 @@ struct MolagoApp: App {
                             }
                         }
                         .tint(Dancheong.jangdan)
-                        .fullScreenCover(isPresented: $capturing, onDismiss: { tab = lastSection }) {
-                            CaptureView()
-                        }
+
                     }
                 }
             }

@@ -90,7 +90,8 @@ struct ReaderView: View {
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 14)
-                    .padding(.bottom, 28)
+                    // De quoi lire la dernière phrase sans que la barre la couvre.
+                    .padding(.bottom, 78)
                 }
                 .onChange(of: player.index) { _, new in
                     guard scrubbing == nil else { return }
@@ -106,6 +107,8 @@ struct ReaderView: View {
                 }
             }
 
+        }
+        .overlay(alignment: .bottom) {
             PlayerBar(player: player, tint: universe.color, scrubbing: $scrubbing)
         }
         .background(Dancheong.paper)
@@ -321,8 +324,8 @@ private struct PlayerBar: View {
                 Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
-                    .background(.white.opacity(0.32), in: Circle())
+                    .frame(width: 36, height: 36)
+                    .background(.white.opacity(0.30), in: Circle())
             }
             .accessibilityLabel(player.isPlaying ? "Pause" : "Play")
 
@@ -345,16 +348,25 @@ private struct PlayerBar: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
                     .monospacedDigit()
-                    .frame(minWidth: 44, minHeight: 36)
+                    .frame(minWidth: 38, minHeight: 32)
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("Playback speed")
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(tint, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .padding(.horizontal, 12)
-        .padding(.bottom, 8)
+        .padding(.vertical, 8)
+        // Une pilule de verre teinté plutôt qu'un pan opaque. Le texte continue
+        // de défiler dessous et reste devinable : la barre se pose sur la
+        // lecture au lieu d'en amputer le bas. La teinte de l'univers reste,
+        // mais adoucie — à pleine opacité elle faisait un bloc de couleur aussi
+        // présent qu'une carte, alors qu'elle n'est qu'une commande.
+        .background {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(tint.opacity(0.86))
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        }
+        .padding(.horizontal, 14)
+        .padding(.bottom, 6)
     }
 }
 

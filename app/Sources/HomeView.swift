@@ -137,12 +137,14 @@ struct HomeView: View {
                     .padding(.top, 4)
             } else {
                 VStack(spacing: 0) {
-                    ForEach(past) { item in
+                    ForEach(Array(past.enumerated()), id: \.element.id) { i, item in
                         NavigationLink { ReaderView(text: item.text) } label: {
                             PastRow(item: item)
                         }
                         .buttonStyle(.plain)
-                        Divider().padding(.leading, 66)
+                        // Entre les lignes, jamais après la dernière : un filet
+                        // qui pend sous le bloc annonce une ligne qui n'existe pas.
+                        if i < past.count - 1 { Divider().padding(.leading, 66) }
                     }
                 }
                 .background(Dancheong.paper)
@@ -263,13 +265,28 @@ private struct CaptureStrip: View {
     }
 }
 
-/// Une ligne de « Previously ». Pas de pan de couleur : un carré qui porte
-/// l'icône de sa provenance, et c'est tout ce qu'il faut pour la reconnaître.
 private struct PastRow: View {
     let item: HomeView.PastItem
+    var body: some View {
+        SourceRow(slot: item.text.slot, title: item.text.title, trailing: item.day.shortLabel)
+    }
+}
+
+/// La ligne qui désigne un texte : son icône d'univers dans un carré de sa
+/// couleur, son titre, et de quoi le situer à droite.
+///
+/// Un seul composant pour les deux endroits où l'on désigne un texte — les
+/// lignes de « Previously » et la provenance d'un mot. Ils disaient la même
+/// chose de deux façons différentes, ce qui obligeait à réapprendre le même
+/// objet d'un écran à l'autre.
+struct SourceRow: View {
+    let slot: String
+    let title: String
+    var trailing: String? = nil
+    var chevron = false
 
     private var universe: (color: Color, name: String, icon: String) {
-        Dancheong.universe(item.text.slot)
+        Dancheong.universe(slot)
     }
 
     var body: some View {
@@ -282,7 +299,7 @@ private struct PastRow: View {
                 .background(universe.color)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
-            Text(item.text.title)
+            Text(title)
                 .font(.subheadline)
                 .foregroundStyle(Dancheong.ink)
                 .lineLimit(2)
@@ -290,9 +307,16 @@ private struct PastRow: View {
 
             Spacer(minLength: 8)
 
-            Text(item.day.shortLabel)
-                .font(.caption2)
-                .foregroundStyle(Dancheong.inkSoft)
+            if let trailing {
+                Text(trailing)
+                    .font(.caption2)
+                    .foregroundStyle(Dancheong.inkSoft)
+            }
+            if chevron {
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Dancheong.inkSoft)
+            }
         }
         .padding(.horizontal, 15)
         .padding(.vertical, 11)

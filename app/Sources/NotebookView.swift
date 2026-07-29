@@ -99,6 +99,19 @@ struct NotebookView: View {
                     }
                 } else {
                     List {
+                        // Dans le contenu, et non dans la barre du haut : posée
+                        // dans la barre elle se cognait au grand titre et prenait
+                        // l'apparence de verre des boutons système, ce qui la
+                        // faisait passer pour cassée. Elle ressemble maintenant
+                        // exactement à celle de « Previously ».
+                        Picker("", selection: $grouping) {
+                            ForEach(Grouping.allCases) { Text($0.rawValue).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 10, trailing: 0))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+
                         switch grouping {
                         case .families:
                             // Les mêmes mots, rangés autrement. Ce n'est pas un
@@ -165,12 +178,6 @@ struct NotebookView: View {
             .background(Dancheong.ground)
             .navigationTitle("Notebook")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Picker("", selection: $grouping) {
-                        ForEach(Grouping.allCases) { Text($0.rawValue).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                }
                 ToolbarItem(placement: .topBarLeading) {
                     // Le quiz vit là où sont les mots : il est fait d'eux. Deux
                     // appuis depuis le métro, sans avoir rien lu.
