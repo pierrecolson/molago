@@ -141,6 +141,10 @@ struct ReaderView: View {
             // `simctl` ne sait pas appuyer sur un bouton : sans ça, aucune
             // capture du lecteur traduit n'est possible en ligne de commande.
             if ProcessInfo.processInfo.arguments.contains("--english") { english = true }
+            // Un texte d'une journée passée n'a que son texte : son audio n'a
+            // jamais été téléchargé. On le récupère en ouvrant, sinon la voix
+            // reste muette sans rien dire.
+            await DayStore.downloadAudio(for: text)
             openCardForScreenshotIfAsked()
             // La voix ne démarre plus toute seule. La spec §4.4 la voulait
             // automatique, mais à l'usage c'est une agression : on ouvre parfois

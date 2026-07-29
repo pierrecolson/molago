@@ -153,6 +153,23 @@ final class DayStore {
     /// Sans `throws` : une piste qui échoue ne doit pas emporter la journée. Une
     /// piste déjà là n'est jamais reprise — son nom porte la date, donc son
     /// contenu ne change jamais.
+    /// Télécharge l'audio d'un seul texte, au moment où on l'ouvre.
+    ///
+    /// Le rattrapage des journées passées ne prend que le texte : télécharger
+    /// deux mois d'audio au lancement serait absurde. Mais rien ne le rattrapait
+    /// ensuite — un texte de « Previously » s'ouvrait donc muet, sans que rien
+    /// ne l'explique. Le manque se comble ici, à l'ouverture, et une seule fois.
+    static func downloadAudio(for text: Day.Text) async {
+        let fm = FileManager.default
+        let missing = text.sentences.filter {
+            !fm.fileExists(atPath: Paths.audio.appending(path: $0.fileName).path())
+        }
+        guard !missing.isEmpty else { return }
+        await fetchAll(missing.map {
+            (Config.baseURL.appending(path: $0.audio), Paths.audio.appending(path: $0.fileName))
+        })
+    }
+
     private static func downloadAudio(for day: Day) async {
         let fm = FileManager.default
         let missing = day.texts.flatMap(\.sentences).filter { sentence in
