@@ -44,8 +44,11 @@ struct MolagoApp: App {
                     // `simctl` ne sait pas taper sur un écran. Pour régler le
                     // lecteur depuis la ligne de commande, on l'ouvre
                     // directement : `simctl launch … --open-text daily`.
-                    if let slot = launchSlot, let day = store.day,
-                       let text = day.texts.first(where: { $0.slot == slot }) {
+                    // La recherche couvre aussi les journées passées : une
+                    // capture d'avant-hier doit pouvoir s'ouvrir pareil.
+                    if let slot = launchSlot,
+                       let text = ([store.day].compactMap { $0 } + store.previously)
+                           .flatMap(\.texts).first(where: { $0.slot == slot }) {
                         NavigationStack { ReaderView(text: text) }
                             .tint(Dancheong.jangdan)
                     } else {

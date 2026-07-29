@@ -263,8 +263,9 @@ private struct UniverseCard: View {
 ///
 /// La vignette montre le document photographié lui-même, pas une icône : ce
 /// contenu vient de la vie de celui qui lit, et c'est en reconnaissant SA
-/// facture ou SON avis de copropriété qu'il le retrouve. Le liseré pourpre
-/// reste la marque de ce qui vient de lui (자주, comme partout dans l'app).
+/// facture ou SON avis de copropriété qu'il le retrouve. Pas de liseré de
+/// couleur : la bande « My content » dit déjà la provenance, le répéter sur
+/// chaque ligne serait du bruit.
 private struct CaptureRow: View {
     let item: HomeView.PastItem
 
@@ -288,8 +289,6 @@ private struct CaptureRow: View {
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Dancheong.paper)
-        // Le liseré est posé avant le découpage : c'est lui qui épouse l'arrondi.
-        .overlay(alignment: .leading) { Dancheong.jaju.frame(width: 5) }
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
@@ -298,7 +297,7 @@ private struct CaptureRow: View {
     @ViewBuilder
     private var thumbnail: some View {
         if let url = Paths.captureImage(item.text.slot),
-           let image = UIImage(contentsOfFile: url.path()) {
+           let image = UIImage(contentsOfFile: url.path(percentEncoded: false)) {
             Image(uiImage: image)
                 .resizable()
                 .scaledToFill()
