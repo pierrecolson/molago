@@ -358,15 +358,19 @@ private struct PlayerBar: View {
             }
             .accessibilityLabel(player.isPlaying ? "Pause" : "Play")
 
-            Scrubber(
-                count: player.urls.count,
-                index: scrubbing ?? player.index,
-                onScrub: { scrubbing = $0 },
-                onCommit: { i in
-                    scrubbing = nil
-                    player.play(from: i)
-                }
-            )
+            // L'horloge ne bat que pendant la lecture : à l'arrêt, rien à animer.
+            TimelineView(.animation(minimumInterval: 0.25, paused: !player.isPlaying)) { _ in
+                Scrubber(
+                    count: player.urls.count,
+                    index: scrubbing ?? player.index,
+                    fraction: scrubbing == nil ? player.fraction : 0,
+                    onScrub: { scrubbing = $0 },
+                    onCommit: { i in
+                        scrubbing = nil
+                        player.play(from: i)
+                    }
+                )
+            }
 
             // La vitesse était affichée sans être cliquable, ce qui est pire
             // que de ne pas l'afficher : on croit pouvoir la changer.
@@ -409,13 +413,16 @@ private struct PlayerBar: View {
 private struct Scrubber: View {
     let count: Int
     let index: Int
+    /// L'avancement dans la phrase en cours — ce qui fait avancer la barre
+    /// ENTRE deux phrases, au lieu de sauter d'un cran à chaque changement.
+    let fraction: Double
     let onScrub: (Int) -> Void
     let onCommit: (Int) -> Void
 
     var body: some View {
         GeometryReader { geo in
             let width = geo.size.width
-            let progress = count > 1 ? Double(index) / Double(count - 1) : 0
+            let progress = count > 0 ? (Double(index) + fraction) / Double(count) : 0
 
             ZStack(alignment: .leading) {
                 // La partie non lue est SOMBRE, pas blanche : sur le verre teinté,
