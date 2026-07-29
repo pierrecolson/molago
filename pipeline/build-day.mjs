@@ -864,7 +864,15 @@ async function buildText(slot, date, used, outDir) {
 
 // ── main ─────────────────────────────────────────────────────────────────────
 
-const date = arg('date', new Date().toISOString().slice(0, 10))
+// La date du LECTEUR, pas celle du serveur. `toISOString()` est toujours en UTC,
+// et le cron tourne à 21 h UTC — soit 6 h du matin à Séoul, déjà le lendemain.
+// La fabrique du 29 au matin écrivait donc « 2026-07-28.json » pendant que l'app,
+// qui date sa journée sur le fuseau du téléphone, réclamait « 2026-07-29.json ».
+// Personne n'avait tort ; les deux ne parlaient pas du même calendrier.
+// `en-CA` donne AAAA-MM-JJ, et le fuseau est explicite : le résultat ne dépend
+// plus de l'heure du serveur ni de sa configuration.
+const READER_TZ = process.env.MOLAGO_TZ || 'Asia/Seoul'
+const date = arg('date', new Date().toLocaleDateString('en-CA', { timeZone: READER_TZ }))
 const outDir = arg('out', join(ROOT, 'pipeline', 'out'))
 const t0 = Date.now()
 
