@@ -301,7 +301,12 @@ struct SourceRow: View {
     /// La marge autour de la ligne. Réglable plutôt qu'annulée après coup : la
     /// fiche du mot l'avait mise à zéro avec un rembourrage négatif, ce qui
     /// collait l'icône au bord du bloc au lieu de la poser dedans.
+    ///
+    /// Les deux axes se règlent séparément parce qu'ils ne servent pas la même
+    /// chose : dans une liste, la marge verticale sépare deux lignes ; dans un
+    /// bloc qui a déjà la sienne, elle s'y ajoute et creuse un trou en haut.
     var padding: CGFloat = 15
+    var verticalPadding: CGFloat = 11
 
     private var universe: (color: Color, name: String, icon: String) {
         Dancheong.universe(slot)
@@ -339,7 +344,7 @@ struct SourceRow: View {
             }
         }
         .padding(.horizontal, padding)
-        .padding(.vertical, 11)
+        .padding(.vertical, verticalPadding)
         .contentShape(Rectangle())
     }
 }

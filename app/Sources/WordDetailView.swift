@@ -153,7 +153,7 @@ struct WordDetailView: View {
                     SourceRow(slot: word.slot,
                               title: sourceLabel,
                               chevron: sourceText != nil,
-                              padding: 0)
+                              padding: 0, verticalPadding: 0)
                 }
                 .buttonStyle(.plain)
                 .disabled(sourceText == nil)
