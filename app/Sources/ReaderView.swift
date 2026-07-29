@@ -355,16 +355,17 @@ private struct PlayerBar: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        // Une pilule de verre teinté plutôt qu'un pan opaque. Le texte continue
-        // de défiler dessous et reste devinable : la barre se pose sur la
-        // lecture au lieu d'en amputer le bas. La teinte de l'univers reste,
-        // mais adoucie — à pleine opacité elle faisait un bloc de couleur aussi
-        // présent qu'une carte, alors qu'elle n'est qu'une commande.
-        .background {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(tint.opacity(0.86))
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        }
+        // Du verre, pas un pan opaque. Le texte continue de défiler dessous et
+        // reste devinable : la barre se pose sur la lecture au lieu d'en amputer
+        // le bas. La teinte de l'univers est adoucie — à pleine opacité elle
+        // faisait un bloc aussi présent qu'une carte, alors qu'elle n'est qu'une
+        // commande.
+        //
+        // Le verre du système sur iOS 26, qui réfracte et suit ce qui passe
+        // dessous ; ailleurs, un matériau translucide ordinaire. On ne remonte
+        // pas le socle de l'app pour un effet : mieux vaut qu'il soit un peu
+        // moins beau sur les versions plus anciennes que pas installable.
+        .modifier(GlassPill(tint: tint))
         .padding(.horizontal, 14)
         .padding(.bottom, 6)
     }
@@ -440,5 +441,27 @@ private struct LanguageToggle: View {
             }
         }
         .padding(.vertical, 4)
+    }
+}
+
+
+/// La pilule de verre de la barre de lecture.
+private struct GlassPill: ViewModifier {
+    let tint: Color
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.glassEffect(
+                .regular.tint(tint.opacity(0.72)).interactive(),
+                in: .rect(cornerRadius: 24)
+            )
+        } else {
+            content.background {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(tint.opacity(0.82))
+                    .background(.ultraThinMaterial,
+                                in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            }
+        }
     }
 }

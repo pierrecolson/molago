@@ -58,7 +58,6 @@ struct HomeView: View {
                 .padding(.bottom, 32)
             }
             .background(Dancheong.ground)
-            .navigationTitle(day.dayLabel)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -83,7 +82,7 @@ struct HomeView: View {
 
     private var todaySection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionLabel("Today")
+            SectionLabel("Today", date: day.shortLabel)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     ForEach(todayTexts) { text in
@@ -166,16 +165,31 @@ struct HomeView: View {
 /// fois 18 points, ce qui se voyait immédiatement contre les cartes.
 private struct SectionLabel: View {
     let title: String
+    var date: String? = nil
     var inset = true
-    init(_ title: String, inset: Bool = true) {
+    init(_ title: String, date: String? = nil, inset: Bool = true) {
         self.title = title
+        self.date = date
         self.inset = inset
     }
     var body: some View {
-        Text(title)
-            .font(.title3.weight(.bold))
-            .foregroundStyle(Dancheong.ink)
-            .padding(.leading, inset ? 18 : 0)
+        // La date se range derrière le mot, en gris, sur la même ligne.
+        //
+        // Elle occupait une barre à elle en capitales centrées — MARDI 28 JUILLET
+        // — ce qui donnait à un simple repère le poids d'un titre. Le titre, lui,
+        // est « Today » : c'est ce qu'on vient chercher. La date le précise sans
+        // le disputer, et une barre entière disparaît de l'écran.
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(title)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(Dancheong.ink)
+            if let date {
+                Text(date)
+                    .font(.title3)
+                    .foregroundStyle(Dancheong.inkSoft)
+            }
+        }
+        .padding(.leading, inset ? 18 : 0)
     }
 }
 
