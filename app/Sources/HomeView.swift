@@ -50,7 +50,7 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: 34) {
                     todaySection
                     if !todayCaptures.isEmpty { captureSection }
                     previouslySection
@@ -118,11 +118,11 @@ struct HomeView: View {
     private var previouslySection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                SectionLabel("Previously")
+                SectionLabel("Previously", inset: false)
                 Spacer()
                 Picker("", selection: $capturesOnly) {
                     Text("All").tag(false)
-                    Text("My captures").tag(true)
+                    Text("Captures").tag(true)
                 }
                 .pickerStyle(.segmented)
                 .frame(width: 168)
@@ -155,17 +155,25 @@ struct HomeView: View {
 
 /// Un titre de bande.
 ///
-/// Gros, gras, en casse normale — pas de petites capitales espacées. Un titre
-/// qui se lit d'un coup laisse le regard filer vers les cartes ; une étiquette
-/// en capitales grises se déchiffre, et vole une seconde à ce qu'elle annonce.
+/// Gros et gras, en casse normale — pas de petites capitales espacées : un titre
+/// qui se lit d'un coup laisse le regard filer vers les cartes, une étiquette en
+/// capitales grises se déchiffre et vole une seconde à ce qu'elle annonce.
+///
+/// `inset` existe parce que le titre est tantôt seul, tantôt dans une rangée qui
+/// porte déjà la marge — et l'appliquer aux deux décalait « Previously » de deux
+/// fois 18 points, ce qui se voyait immédiatement contre les cartes.
 private struct SectionLabel: View {
     let title: String
-    init(_ title: String) { self.title = title }
+    var inset = true
+    init(_ title: String, inset: Bool = true) {
+        self.title = title
+        self.inset = inset
+    }
     var body: some View {
         Text(title)
-            .font(.title2.weight(.bold))
+            .font(.title3.weight(.bold))
             .foregroundStyle(Dancheong.ink)
-            .padding(.horizontal, 18)
+            .padding(.leading, inset ? 18 : 0)
     }
 }
 

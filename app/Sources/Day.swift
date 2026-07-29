@@ -36,13 +36,15 @@ struct Day: Codable, Sendable {
         var id: String { audio }
     }
 
-    struct Relative: Codable, Sendable, Hashable {
+    struct Relative: Codable, Sendable, Hashable, Identifiable {
         /// Le mot coréen.
         let k: String
         /// Ses hanja.
         let h: String?
         /// Son sens en anglais.
         let e: String
+
+        var id: String { k }
     }
 
     struct Word: Codable, Sendable, Hashable {
