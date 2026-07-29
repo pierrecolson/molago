@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import PhotosUI
 import Vision
+import ImageIO
 
 /// La capture : photographier, voir, toucher.
 ///
@@ -44,6 +45,28 @@ final class CaptureFlow {
     private(set) var step: Step = .choosing
 
     func reset() { step = .choosing }
+
+    /// Lit une photo **sans jamais la décoder en entier**.
+    ///
+    /// C'est ici que l'app se faisait tuer. Une photo d'iPhone fait douze
+    /// mégapixels ; `UIImage(data:)` la décode à taille pleine avant qu'on ait
+    /// pu la réduire, et la reconnaissance en mode précis travaille ensuite sur
+    /// cette taille-là. Mesuré sur l'appareil au moment de l'exécution :
+    /// **114 727 pages, soit près de 1,8 Go** — iOS coupe bien avant.
+    ///
+    /// ImageIO sait produire directement une version réduite depuis les octets
+    /// du fichier : la version pleine n'existe à aucun moment. C'est la seule
+    /// façon de faire baisser le pic, réduire après coup ne sert à rien.
+    func read(data: Data) async {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                  kCGImageSourceCreateThumbnailFromImageAlways: true,
+                  kCGImageSourceThumbnailMaxPixelSize: 2000,
+                  kCGImageSourceCreateThumbnailWithTransform: true,
+              ] as CFDictionary)
+        else { return }
+        await read(UIImage(cgImage: cg))
+    }
 
     func read(_ photo: UIImage) async {
         step = .reading

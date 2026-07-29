@@ -55,18 +55,16 @@ struct CaptureView: View {
             // le chemin de la vraie capture, à la sélection près.
             let args = ProcessInfo.processInfo.arguments
             if let i = args.firstIndex(of: "--capture"), i + 1 < args.count,
-               let data = try? Data(contentsOf: URL(fileURLWithPath: args[i + 1])),
-               let image = UIImage(data: data) {
-                print("[molago] capture d'essai : \(data.count / 1024) Ko, \(Int(image.size.width))×\(Int(image.size.height))")
-                await flow.read(image)
+               let data = try? Data(contentsOf: URL(fileURLWithPath: args[i + 1])) {
+                print("[molago] capture d'essai : \(data.count / 1024) Ko")
+                await flow.read(data: data)
                 print("[molago] capture d'essai terminée")
             }
         }
         .task(id: picking) {
             guard let picking,
-                  let data = try? await picking.loadTransferable(type: Data.self),
-                  let image = UIImage(data: data) else { return }
-            await flow.read(image)
+                  let data = try? await picking.loadTransferable(type: Data.self) else { return }
+            await flow.read(data: data)
         }
         .fullScreenCover(isPresented: $shooting) {
             Camera { image in
