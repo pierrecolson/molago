@@ -5,6 +5,9 @@ import SwiftData
 struct MolagoApp: App {
     @State private var store = DayStore()
     @State private var tab = 0
+    /// La dernière vraie section. La capture n'en est pas une : en revenir doit
+    /// ramener là où on était, et pas sur la vue vide qui lui sert de coquille.
+    @State private var lastSection = 0
     @State private var capturing = false
 
     /// Le lien vers l'onglet sélectionné, qui refuse celui de la capture.
@@ -17,7 +20,17 @@ struct MolagoApp: App {
         Binding(
             get: { tab },
             set: { new in
-                if new == Self.captureTab { capturing = true } else { tab = new }
+                if new == Self.captureTab {
+                    capturing = true
+                    // On remet aussitôt la section précédente : selon la façon
+                    // dont le système applique la sélection d'un onglet à rôle,
+                    // elle peut passer outre ce lien — et l'écran vide de la
+                    // capture reste alors affiché en refermant l'appareil photo.
+                    tab = lastSection
+                } else {
+                    tab = new
+                    lastSection = new
+                }
             }
         )
     }
@@ -69,7 +82,7 @@ struct MolagoApp: App {
                         // il n'affiche aucune vue, et il ouvre un écran modal
                         // dont on revient exactement là où on était.
                         TabView(selection: tabBinding) {
-                            Tab("Articles", systemImage: "newspaper", value: 0) {
+                            Tab("Library", systemImage: "newspaper", value: 0) {
                                 // La journée manquante ne vide plus que cet
                                 // onglet. Le carnet est la seule chose
                                 // irremplaçable du produit : le rendre
@@ -97,17 +110,19 @@ struct MolagoApp: App {
                             Tab(value: Self.captureTab, role: .search) {
                                 Color.clear
                             } label: {
-                                // Une image dessinée à la main plutôt qu'un
-                                // symbole système : la barre impose sa taille et
-                                // sa teinte à `systemImage`, mais respecte une
-                                // image marquée « garde tes couleurs ». C'est le
-                                // seul moyen d'avoir un + orange et plein sans
-                                // sortir de la barre.
-                                Image(uiImage: .captureGlyph)
+                                // Un symbole système, de la même encre que les
+                                // autres. Le glyphe orange dessiné à la main
+                                // servait à exister AU MILIEU de la pilule, où
+                                // rien ne ressort ; détaché sur sa propre
+                                // pastille, il ressort déjà par sa position, et
+                                // la couleur en plus faisait un bouton qui crie.
+                                Label("Catch a word", systemImage: "plus")
                             }
                         }
                         .tint(Dancheong.jangdan)
-                        .fullScreenCover(isPresented: $capturing) { CaptureView() }
+                        .fullScreenCover(isPresented: $capturing, onDismiss: { tab = lastSection }) {
+                            CaptureView()
+                        }
                     }
                 }
             }

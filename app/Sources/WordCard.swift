@@ -108,7 +108,6 @@ struct WordCard: View {
                     }
                 }
                 Spacer(minLength: 0)
-                IconTile(icon: word.icon, lemma: word.lemma ?? word.w, slot: slot, size: 54)
             }
 
             Text(word.en ?? "—")
@@ -166,56 +165,3 @@ struct WordCard: View {
     }
 }
 
-/// L'icône d'un mot, ou sa première syllabe à défaut.
-///
-/// **Pas d'icône plutôt qu'une icône fausse** : un mot abstrait reçoit une tuile
-/// typographique, jamais une image approximative — celle-ci installerait une
-/// association erronée dans la mémoire de quelqu'un qui apprend (spec §5.5).
-struct IconTile: View {
-    let icon: String?
-    let lemma: String
-    let slot: String
-    var size: CGFloat = 40
-
-    /// Chargée dans une tâche plutôt qu'au rendu.
-    ///
-    /// L'icône peut arriver après le premier affichage — le téléchargement suit
-    /// celui de la journée. Une lecture faite pendant le calcul de la vue ne
-    /// serait jamais refaite, et la tuile resterait typographique jusqu'au
-    /// prochain lancement.
-    @State private var loaded: UIImage?
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
-                .fill(loaded == nil ? Dancheong.universe(slot).color : Dancheong.highlight(slot))
-
-            if let loaded {
-                Image(uiImage: loaded)
-                    .resizable()
-                    .scaledToFit()
-                    .padding(size * 0.1)
-            } else {
-                Text(String(lemma.prefix(1)))
-                    .font(.system(size: size * 0.44, weight: .semibold))
-                    .foregroundStyle(.white)
-            }
-        }
-        .frame(width: size, height: size)
-        .task(id: icon) {
-            guard let icon else { loaded = nil; return }
-            // Les icônes arrivent après la journée : elle est affichée dès
-            // qu'elle est lisible, les médias suivent. Une lecture unique au
-            // premier rendu laisserait donc la tuile jusqu'au prochain
-            // lancement. On réessaie le temps que le téléchargement passe.
-            for attempt in 0..<5 {
-                if attempt > 0 { try? await Task.sleep(for: .seconds(1.5)) }
-                let url = Paths.icons.appending(path: "\(icon).png")
-                if let data = try? Data(contentsOf: url), let image = UIImage(data: data) {
-                    loaded = image
-                    return
-                }
-            }
-        }
-    }
-}

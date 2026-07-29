@@ -201,7 +201,9 @@ struct ReaderView: View {
             hanja: word.hanja,
             root: word.root,
             family: word.family,
-            slot: text.slot
+            slot: text.slot,
+            sourceTitle: text.title,
+            sourceDate: text.day
         ))
         try? context.save()
     }

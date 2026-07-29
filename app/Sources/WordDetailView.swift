@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import AVFoundation
 
 /// La fiche d'un mot du carnet (spec §5.6).
 ///
@@ -27,8 +26,19 @@ struct WordDetailView: View {
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
-    @State private var player: AVPlayer?
     @State private var confirmingDelete = false
+    @State private var opening: Day.Text?
+
+    /// Le texte d'où vient le mot, s'il est encore sur l'appareil.
+    ///
+    /// Les journées finissent purgées du serveur : la fiche doit continuer
+    /// d'afficher le titre quand le texte a disparu, elle perd seulement le lien.
+    private var sourceText: Day.Text? {
+        guard let date = word.sourceDate else { return nil }
+        return DayStore.cachedDays()
+            .first { $0.date == date }?
+            .texts.first { $0.slot == word.slot }
+    }
 
     private var tint: Color { Dancheong.universe(word.slot).color }
 
@@ -68,55 +78,46 @@ struct WordDetailView: View {
         } message: {
             Text("It stays in the texts you've read — you just won't see it here.")
         }
-        .onDisappear { player?.pause() }
+        .navigationDestination(item: $opening) { ReaderView(text: $0) }
     }
 
-    // ── le pan de couleur ────────────────────────────────────────────────────
+    // ── le mot ───────────────────────────────────────────────────────────────
 
-    /// Le mot, son icône et son sens sur un seul pan plein.
+    /// Le mot, sur du papier.
     ///
-    /// Aligné à gauche et non centré : centrer trois lignes de longueurs très
-    /// différentes donne une pile molle, et le coréen — qui se lit à gauche —
-    /// perd son point d'appui. L'icône occupe le coin opposé, ce qui tient la
-    /// diagonale du bloc.
+    /// Il était posé sur un pan de la couleur de son univers, et c'était faux :
+    /// 영역 a été croisé dans un texte tech, mais ce n'est pas un mot tech —
+    /// c'est un mot de la langue, qui resservira ailleurs. Le teindre en bleu
+    /// enfermait le mot dans le hasard de sa première rencontre.
+    ///
+    /// La couleur redescend donc là où elle dit vrai : dans « où tu l'as
+    /// rencontré », qui parle bien, lui, de ce texte-là. Ici il ne reste que le
+    /// mot, en grand, sur le papier de lecture — et c'est aussi ce qui rend une
+    /// fiche de mot impossible à confondre avec une carte d'article.
     private var hero: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top) {
-                if !word.pos.isEmpty {
-                    Text(word.pos.uppercased())
-                        .font(.caption2.weight(.bold))
-                        .kerning(1.2)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 11)
-                        .padding(.vertical, 5)
-                        .overlay(Capsule().strokeBorder(.white.opacity(0.45), lineWidth: 1))
-                }
-                Spacer(minLength: 12)
-                if word.icon != nil {
-                    IconTile(icon: word.icon, lemma: word.lemma, slot: word.slot, size: 76)
-                }
+        VStack(alignment: .leading, spacing: 6) {
+            if !word.pos.isEmpty {
+                Text(word.pos.uppercased())
+                    .font(.caption2.weight(.bold))
+                    .kerning(1.2)
+                    .foregroundStyle(Dancheong.inkSoft)
             }
 
-            Spacer(minLength: 24)
-
             Text(word.lemma)
-                .font(.system(size: 46, weight: .bold))
-                .foregroundStyle(.white)
+                .font(.system(size: 52, weight: .bold))
+                .foregroundStyle(Dancheong.ink)
                 .minimumScaleFactor(0.55)
                 .lineLimit(1)
+                .padding(.top, 2)
 
             Text(word.meaning)
                 .font(.system(size: 19))
-                .foregroundStyle(.white.opacity(0.78))
+                .foregroundStyle(Dancheong.inkSoft)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 3)
         }
-        .padding(22)
-        .frame(maxWidth: .infinity, minHeight: 250, alignment: .leading)
-        .background(tint)
-        .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-        .dancheongKeyline(cornerRadius: 30)
-        .padding(.top, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 6)
+        .padding(.bottom, 10)
     }
 
     // ── où on l'a rencontré ──────────────────────────────────────────────────
@@ -128,19 +129,37 @@ struct WordDetailView: View {
                 // retirée de la liste du carnet : savoir qu'un mot vient de
                 // « tech » n'aide pas à le réviser. Sur la fiche, en revanche,
                 // c'est ce qui permet de remonter au texte d'origine.
-                HStack(spacing: 8) {
-                    Image(Dancheong.universe(word.slot).icon)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 17, height: 17)
-                        .frame(width: 25, height: 25)
-                        .background(tint)
-                        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    Text(Dancheong.universe(word.slot).name)
-                        .font(.footnote.weight(.medium))
-                        .foregroundStyle(Dancheong.inkSoft)
-                    Spacer()
+                // Le titre du texte, pas le nom de l'univers : « Tech » ne
+                // rappelle rien, « Visualizing Go Garbage Collector » ramène la
+                // lecture entière. Et il mène au texte — c'est le chemin de
+                // retour vers la voix, ce qui rend inutile un bouton d'écoute
+                // isolé qui ne rejouait qu'une phrase hors de son contexte.
+                Button {
+                    opening = sourceText
+                } label: {
+                    HStack(spacing: 9) {
+                        Image(Dancheong.universe(word.slot).icon)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 19, height: 19)
+                            .frame(width: 28, height: 28)
+                            .background(tint)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        Text(word.sourceTitle ?? Dancheong.universe(word.slot).name)
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(Dancheong.ink)
+                            .multilineTextAlignment(.leading)
+                            .lineLimit(2)
+                        Spacer(minLength: 4)
+                        if sourceText != nil {
+                            Image(systemName: "chevron.right")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(Dancheong.inkSoft)
+                        }
+                    }
                 }
+                .buttonStyle(.plain)
+                .disabled(sourceText == nil)
                 .padding(.bottom, 12)
 
                 // Le mot est mis en évidence dans sa phrase : c'est ce qui fait
@@ -149,31 +168,7 @@ struct WordDetailView: View {
                     .font(.system(size: 17))
                     .lineSpacing(7)
                     .fixedSize(horizontal: false, vertical: true)
-
-                // On teste seulement qu'une piste est référencée, pas qu'elle
-                // est trouvable à l'instant du rendu : la vérification se fait
-                // au moment de jouer. Sinon le bouton disparaît sur un détail
-                // de chemin, sans explication.
-                if word.contextAudio != nil {
-                    Button {
-                        guard let name = word.contextAudio,
-                              let url = Paths.audioFile(name) else { return }
-                        let item = AVPlayer(url: url)
-                        player = item
-                        item.play()
-                    } label: {
-                        Label("Hear it again", systemImage: "speaker.wave.2.fill")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(tint)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(tint.opacity(0.12), in: Capsule())
-                    }
-                    .padding(.top, 16)
-                }
             }
-            .padding(18)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

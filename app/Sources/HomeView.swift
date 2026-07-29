@@ -153,14 +153,18 @@ struct HomeView: View {
     }
 }
 
+/// Un titre de bande.
+///
+/// Gros, gras, en casse normale — pas de petites capitales espacées. Un titre
+/// qui se lit d'un coup laisse le regard filer vers les cartes ; une étiquette
+/// en capitales grises se déchiffre, et vole une seconde à ce qu'elle annonce.
 private struct SectionLabel: View {
     let title: String
     init(_ title: String) { self.title = title }
     var body: some View {
-        Text(title.uppercased())
-            .font(.caption.weight(.bold))
-            .kerning(1.4)
-            .foregroundStyle(Dancheong.inkSoft)
+        Text(title)
+            .font(.title2.weight(.bold))
+            .foregroundStyle(Dancheong.ink)
             .padding(.horizontal, 18)
     }
 }
@@ -212,6 +216,10 @@ private struct UniverseCard: View {
         .background(universe.color)
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .dancheongKeyline(cornerRadius: 22)
+        // Posée sur le fond, pas incrustée dedans. Le 단청 interdit les ombres
+        // DANS le pan — c'est peint à plat sur du bois — mais rien n'interdit
+        // que la planche elle-même projette la sienne.
+        .shadow(color: .black.opacity(0.16), radius: 14, x: 0, y: 7)
     }
 }
 

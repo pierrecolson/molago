@@ -36,7 +36,25 @@ struct NotebookView: View {
     /// `simctl` ne sait pas taper : sans ça, aucune capture de la fiche n'est
     /// possible en ligne de commande.
     @State private var path: [KeptWord] = []
-    @State private var byFamily = false
+    @State private var grouping = Grouping.words
+
+    /// Trois façons de regarder la même collection.
+    ///
+    /// Par mot, c'est le journal : ce qu'on a attrapé, quand. Par famille, c'est
+    /// le rangement de la langue. Par nature, c'est l'angle grammatical — voir
+    /// ses verbes ensemble ne dit pas la même chose que les voir dispersés dans
+    /// l'ordre où on les a croisés.
+    enum Grouping: String, CaseIterable, Identifiable {
+        case words = "Words", families = "Families", type = "Type"
+        var id: String { rawValue }
+    }
+
+    /// Groupé par nature grammaticale, le groupe le plus fourni en tête.
+    private var byType: [(type: String, words: [KeptWord])] {
+        Dictionary(grouping: filtered) { $0.pos.isEmpty ? "other" : $0.pos }
+            .map { (type: $0.key, words: $0.value) }
+            .sorted { $0.words.count == $1.words.count ? $0.type < $1.type : $0.words.count > $1.words.count }
+    }
 
     /// Les mots regroupés par caractère partagé.
     ///
@@ -81,7 +99,8 @@ struct NotebookView: View {
                     }
                 } else {
                     List {
-                        if byFamily {
+                        switch grouping {
+                        case .families:
                             // Les mêmes mots, rangés autrement. Ce n'est pas un
                             // autre carnet : c'est le même, vu par ce qu'il a de
                             // commun plutôt que par le jour où il est arrivé.
@@ -89,7 +108,7 @@ struct NotebookView: View {
                                 Section {
                                     ForEach(family.words) { word in
                                         NavigationLink { WordDetailView(word: word) } label: {
-                                            KeptRow(word: word, compact: true)
+                                            KeptRow(word: word)
                                         }
                                     }
                                 } header: {
@@ -100,12 +119,22 @@ struct NotebookView: View {
                                 Section("ON THEIR OWN") {
                                     ForEach(orphans) { word in
                                         NavigationLink { WordDetailView(word: word) } label: {
-                                            KeptRow(word: word, compact: true)
+                                            KeptRow(word: word)
                                         }
                                     }
                                 }
                             }
-                        } else {
+                        case .type:
+                            ForEach(byType, id: \.type) { group in
+                                Section(group.type.uppercased()) {
+                                    ForEach(group.words) { word in
+                                        NavigationLink { WordDetailView(word: word) } label: {
+                                            KeptRow(word: word)
+                                        }
+                                    }
+                                }
+                            }
+                        case .words:
                             ForEach(byDay, id: \.day) { group in
                                 Section(Self.dayLabel(group.day)) {
                                     ForEach(group.words) { word in
@@ -137,12 +166,10 @@ struct NotebookView: View {
             .navigationTitle("Notebook")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Picker("", selection: $byFamily) {
-                        Text("Words").tag(false)
-                        Text("Families").tag(true)
+                    Picker("", selection: $grouping) {
+                        ForEach(Grouping.allCases) { Text($0.rawValue).tag($0) }
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 168)
                 }
                 ToolbarItem(placement: .topBarLeading) {
                     // Le quiz vit là où sont les mots : il est fait d'eux. Deux
@@ -195,7 +222,6 @@ private struct FamilyHeader: View {
 
 private struct KeptRow: View {
     let word: KeptWord
-    var compact = false
 
     /// La première syllabe, posée grand.
     ///
@@ -207,13 +233,13 @@ private struct KeptRow: View {
     private var syllable: String { String(word.lemma.prefix(1)) }
 
     var body: some View {
-        HStack(alignment: compact ? .center : .top, spacing: 12) {
+        HStack(spacing: 12) {
             Text(syllable)
-                .font(.system(size: compact ? 19 : 23, weight: .semibold))
+                .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(Dancheong.ink)
-                .frame(width: compact ? 38 : 46, height: compact ? 38 : 46)
+                .frame(width: 40, height: 40)
                 .background(Dancheong.highlight(word.slot))
-                .clipShape(RoundedRectangle(cornerRadius: compact ? 11 : 13, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(word.lemma)
@@ -221,19 +247,13 @@ private struct KeptRow: View {
                 Text(word.meaning)
                     .font(.subheadline)
                     .foregroundStyle(Dancheong.inkSoft)
-                // La provenance ne figure plus ici : savoir qu'un mot vient de
-                // « tech » n'aide pas à le réviser. Elle réapparaît sur la fiche
-                // du mot, là où elle sert à retrouver le texte d'origine.
-                if !compact {
-                    Text(word.context)
-                        .font(.caption)
-                        .foregroundStyle(Dancheong.inkSoft.opacity(0.75))
-                        .lineLimit(1)
-                        .padding(.top, 1)
-                }
+                // Ni la provenance, ni la phrase de contexte. La provenance
+                // n'aide pas à réviser, et la phrase — qui fait tout le prix de
+                // la fiche du mot — ne tient pas sur une ligne : tronquée, elle
+                // n'apprend rien et alourdit chaque ligne de la liste.
             }
         }
-        .padding(.vertical, compact ? 2 : 5)
+        .padding(.vertical, 3)
         .listRowBackground(Dancheong.paper)
     }
 }
