@@ -10,7 +10,7 @@
 set -euo pipefail
 
 APP=/Users/pierre/Claude/code/molago/app
-BUNDLE=com.pierrecolson.molago
+BUNDLE=com.molago.app
 DEVICE="iPhone 17 Pro"
 
 step() { printf '\n\033[1m▸ %s\033[0m\n' "$1"; }
@@ -51,7 +51,7 @@ if [[ " $* " == *" --device "* ]]; then
 
   step "Installation"
   xcrun devicectl device install app --device "$CTL" "$APP_PATH" >/dev/null
-  xcrun devicectl device process launch --device "$CTL" com.pierrecolson.molago >/dev/null
+  xcrun devicectl device process launch --device "$CTL" "$BUNDLE" >/dev/null
 
   echo
   echo "  Molago est sur ton iPhone. Il y reste — le profil n'expire plus."
