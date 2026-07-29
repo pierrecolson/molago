@@ -127,4 +127,20 @@ extension Day {
         out.dateFormat = "EEEE d MMMM"
         return out.string(from: d).uppercased()
     }
+
+    /// `27 Jul` — la date au bout d'une ligne de « Previously ».
+    ///
+    /// Une forme courte, parce qu'elle est répétée sur chaque ligne : le libellé
+    /// complet y prendrait plus de place que le titre qu'il accompagne.
+    var shortLabel: String {
+        let parser = DateFormatter()
+        parser.dateFormat = "yyyy-MM-dd"
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        guard let d = parser.date(from: date) else { return date }
+
+        let out = DateFormatter()
+        out.locale = Locale(identifier: "en_US")
+        out.dateFormat = "d MMM"
+        return out.string(from: d)
+    }
 }

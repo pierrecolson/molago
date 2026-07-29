@@ -124,6 +124,25 @@ struct WordDetailView: View {
     private var metSection: some View {
         InsetSection(title: "Where you met it") {
             VStack(alignment: .leading, spacing: 0) {
+                // La provenance vit ici, et nulle part ailleurs. Elle a été
+                // retirée de la liste du carnet : savoir qu'un mot vient de
+                // « tech » n'aide pas à le réviser. Sur la fiche, en revanche,
+                // c'est ce qui permet de remonter au texte d'origine.
+                HStack(spacing: 8) {
+                    Image(Dancheong.universe(word.slot).icon)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 17, height: 17)
+                        .frame(width: 25, height: 25)
+                        .background(tint)
+                        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    Text(Dancheong.universe(word.slot).name)
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(Dancheong.inkSoft)
+                    Spacer()
+                }
+                .padding(.bottom, 12)
+
                 // Le mot est mis en évidence dans sa phrase : c'est ce qui fait
                 // le lien entre la fiche et le souvenir de la lecture.
                 Text(highlighted(word.context, around: word.lemma))
