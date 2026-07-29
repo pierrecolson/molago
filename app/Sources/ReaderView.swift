@@ -418,7 +418,11 @@ private struct Scrubber: View {
             let progress = count > 1 ? Double(index) / Double(count - 1) : 0
 
             ZStack(alignment: .leading) {
-                Capsule().fill(.white.opacity(0.28))
+                // La partie non lue est SOMBRE, pas blanche : sur le verre teinté,
+                // du blanc à 28 % et du blanc plein se confondaient — la
+                // progression était invisible. Le blanc ne dit plus qu'une chose :
+                // où on en est.
+                Capsule().fill(.black.opacity(0.32))
                 Capsule().fill(.white).frame(width: max(6, width * progress))
                 Circle()
                     .fill(.white)
