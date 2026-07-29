@@ -422,14 +422,19 @@ private struct Scrubber: View {
                 // du blanc à 28 % et du blanc plein se confondaient — la
                 // progression était invisible. Le blanc ne dit plus qu'une chose :
                 // où on en est.
-                Capsule().fill(.black.opacity(0.32))
-                Capsule().fill(.white).frame(width: max(6, width * progress))
+                // La hauteur est posée sur chaque capsule, pas sur la pile : posée
+                // sur la pile, elle se perdait et le trait sortait aussi épais que
+                // la boule.
+                Capsule().fill(.black.opacity(0.32)).frame(height: 3)
+                Capsule().fill(.white).frame(width: max(6, width * progress), height: 3)
+                // La boule fait cinq fois l'épaisseur du trait : c'est cet écart
+                // qui la rend attrapable à l'œil. À épaisseurs voisines, boule et
+                // barre fusionnaient en un seul boudin.
                 Circle()
                     .fill(.white)
-                    .frame(width: 13, height: 13)
-                    .offset(x: max(0, width * progress - 6.5))
+                    .frame(width: 15, height: 15)
+                    .offset(x: max(0, width * progress - 7.5))
             }
-            .frame(height: 5)
             .frame(maxHeight: .infinity)
             // La zone tapable fait toute la hauteur de la barre : viser un trait
             // de cinq points avec le pouce est un jeu d'adresse, pas une
