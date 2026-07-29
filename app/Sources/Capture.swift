@@ -83,8 +83,13 @@ final class CaptureFlow {
     /// main actor arrête l'app — Swift 6 vérifie l'isolation à l'exécution. Rien
     /// ici ne touche à l'état de la classe.
     private nonisolated static func recognise(_ image: UIImage) async -> [Seen] {
-        guard let cg = image.cgImage else { return [] }
+        guard let cg = downscaled(image) else { return [] }
         return await withCheckedContinuation { continuation in
+            // Reprise garantie une fois et une seule. Le gestionnaire de Vision
+            // n'est pas appelé quand `perform` échoue — sur une affiche dense,
+            // c'est la mémoire qui lâche — et la tâche restait alors suspendue
+            // pour toujours : l'écran de capture se figeait sur son chargement.
+            let once = OnceResume(continuation)
             let request = VNRecognizeTextRequest { request, _ in
                 var out: [Seen] = []
                 for observation in request.results as? [VNRecognizedTextObservation] ?? [] {
@@ -99,7 +104,7 @@ final class CaptureFlow {
                         out.append(Seen(text: token, line: line, box: piece.boundingBox.flippedToViewSpace))
                     }
                 }
-                continuation.resume(returning: out)
+                once.resume(out)
             }
             request.recognitionLanguages = ["ko-KR", "en-US"]
             request.recognitionLevel = .accurate
@@ -108,8 +113,56 @@ final class CaptureFlow {
             request.usesLanguageCorrection = false
 
             DispatchQueue.global(qos: .userInitiated).async {
-                try? VNImageRequestHandler(cgImage: cg, options: [:]).perform([request])
+                do {
+                    try VNImageRequestHandler(cgImage: cg, options: [:]).perform([request])
+                } catch {
+                    once.resume([])
+                }
             }
+        }
+    }
+
+    /// Réduit l'image avant de la lire.
+    ///
+    /// Une photo d'iPhone fait douze mégapixels ; décodée, elle occupe déjà une
+    /// cinquantaine de mégaoctets, et la reconnaissance en mode « précis » en
+    /// demande plusieurs fois autant. Sur une affiche couverte de texte — celle
+    /// qui a fait tomber l'app — le pic dépasse ce qu'iOS accorde et le système
+    /// tue l'application sans un mot.
+    ///
+    /// Deux mille pixels sur le grand côté suffisent largement : Vision lit du
+    /// texte de cette taille sans effort, et c'est la résolution à laquelle le
+    /// hangul d'un panneau photographié à un mètre reste net. En dessous, les
+    /// caractères composés commencent à se confondre.
+    private nonisolated static func downscaled(_ image: UIImage, max side: CGFloat = 2000) -> CGImage? {
+        guard let cg = image.cgImage else { return nil }
+        let longest = CGFloat(Swift.max(cg.width, cg.height))
+        guard longest > side else { return cg }
+        let scale = side / longest
+        let size = CGSize(width: CGFloat(cg.width) * scale, height: CGFloat(cg.height) * scale)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let small = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: size))
+        }
+        return small.cgImage
+    }
+
+    /// Une continuation qu'on ne peut reprendre qu'une fois.
+    ///
+    /// Reprendre deux fois arrête le programme, ne jamais reprendre le fige. Les
+    /// deux chemins d'erreur de Vision rendent les deux possibles, donc on ne
+    /// compte pas dessus.
+    private final class OnceResume: @unchecked Sendable {
+        private var continuation: CheckedContinuation<[Seen], Never>?
+        private let lock = NSLock()
+        init(_ c: CheckedContinuation<[Seen], Never>) { continuation = c }
+        func resume(_ value: [Seen]) {
+            lock.lock()
+            let c = continuation
+            continuation = nil
+            lock.unlock()
+            c?.resume(returning: value)
         }
     }
 
