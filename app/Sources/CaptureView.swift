@@ -48,6 +48,20 @@ struct CaptureView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(backdrop)
         .animation(.snappy(duration: 0.3), value: chosen)
+        .task {
+            // `simctl` ne sait pas choisir une photo dans le sélecteur. Pour
+            // rejouer un plantage signalé sur une image précise, on la dépose
+            // dans le conteneur de l'app et on la passe ici : c'est exactement
+            // le chemin de la vraie capture, à la sélection près.
+            let args = ProcessInfo.processInfo.arguments
+            if let i = args.firstIndex(of: "--capture"), i + 1 < args.count,
+               let data = try? Data(contentsOf: URL(fileURLWithPath: args[i + 1])),
+               let image = UIImage(data: data) {
+                print("[molago] capture d'essai : \(data.count / 1024) Ko, \(Int(image.size.width))×\(Int(image.size.height))")
+                await flow.read(image)
+                print("[molago] capture d'essai terminée")
+            }
+        }
         .task(id: picking) {
             guard let picking,
                   let data = try? await picking.loadTransferable(type: Data.self),
