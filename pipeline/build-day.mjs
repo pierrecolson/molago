@@ -756,8 +756,24 @@ Réponds en JSON :
 - \`f\` : trois à cinq mots courants de la même famille, le mot lui-même exclu.
 - Le lecteur ne lit pas le chinois : ce qui compte est le **sens partagé**, le caractère reste discret.`
 
+/// Lit la table, et dit la différence entre « pas encore de table » et
+/// « table illisible ».
+///
+/// Les deux rendaient un objet vide, et l'écriture repartait de là : une table
+/// de cinq mille mots devenait une table d'un seul, sans une ligne au journal.
+/// C'est la chose la plus coûteuse à reconstituer du projet — un mot n'y entre
+/// qu'une fois dans sa vie —, donc l'absence de fichier est le cas normal du
+/// premier jour, et tout le reste est un incident dont on refuse de tirer les
+/// conséquences.
 export function readHanjaTable(path = hanjaTable()) {
-  try { return JSON.parse(readFileSync(path, 'utf8')) } catch { return {} }
+  try {
+    return { table: JSON.parse(readFileSync(path, 'utf8')), readable: true }
+  } catch (e) {
+    if (e.code === 'ENOENT') return { table: {}, readable: true }
+    log(`    ⚠⚠ TABLE DES CARACTÈRES ILLISIBLE (${e.message.slice(0, 60)})`)
+    log('       rien ne sera écrit cette nuit : réparer ou restaurer le fichier.')
+    return { table: {}, readable: false }
+  }
 }
 
 /// Fusionne ce qu'on vient d'apprendre, en RELISANT la table d'abord.
@@ -767,10 +783,19 @@ export function readHanjaTable(path = hanjaTable()) {
 /// effacerait une nuit entière d'apprentissage. Écriture atomique, comme le JSON
 /// du jour — personne ne doit jamais lire une table à moitié écrite.
 export function saveHanjaTable(learned, path = hanjaTable()) {
-  const table = { ...readHanjaTable(path), ...learned }
+  const { table: existing, readable } = readHanjaTable(path)
+  // Écrire par-dessus une lecture ratée, c'est effacer. Mieux vaut une nuit sans
+  // nouveaux mots qu'une table perdue.
+  if (!readable) return existing
+  const table = { ...existing, ...learned }
   mkdirSync(dirname(path), { recursive: true })
-  writeFileSync(`${path}.tmp`, JSON.stringify(table))
-  renameSync(`${path}.tmp`, path)
+  // Le fichier temporaire porte le numéro du processus. Il était fixe — et la
+  // relecture ci-dessus existe précisément parce qu'une fabrication à la main
+  // peut croiser celle du cron : les deux ouvraient alors le MÊME temporaire,
+  // s'y entrelaçaient, et publiaient le mélange.
+  const tmp = `${path}.${process.pid}.tmp`
+  writeFileSync(tmp, JSON.stringify(table))
+  renameSync(tmp, path)
   return table
 }
 
@@ -803,10 +828,14 @@ export function cleanRoot(r) {
 /// une fois. Ce qui reste, ce sont les mots qui n'ont de toute façon pas de
 /// racine — trop courts, pas hangul, ou vides de sens propre.
 async function attachRoots(sentences) {
-  const table = readHanjaTable()
+  const { table } = readHanjaTable()
   const lemmas = [...new Set(
     sentences.flatMap((s) => s.words ?? [])
       .filter((w) => w.lemma && w.lemma.length >= 2 && /^[가-힣]+$/.test(w.lemma)
+        // Les noms propres restent dehors. L'app regroupe par caractère : 이재명
+        // rangerait un homme politique dans la famille de 明, à côté de 설명 et
+        // 명동. Ils ne reviennent jamais, et encombreraient la table pour rien.
+        && w.pos !== 'name'
         && !EMPTY_WORDS.has(w.lemma))
       .map((w) => w.lemma),
   )]
@@ -820,12 +849,20 @@ async function attachRoots(sentences) {
   // que rien n'ait l'air cassé.
   for (let i = 0; i < unknown.length; i += 40) {
     const batch = unknown.slice(i, i + 40)
+    const rejected = new Set()
     try {
       const out = await llmJSON(ROOTS(batch), { model: CLERK, maxTokens: 12000 })
+      // On note à part ce dont le modèle a parlé mais qu'on a refusé : du
+      // hangul là où on attend un hanja, un caractère hors du bloc unifié, une
+      // parenthèse de romanisation. Une réponse rejetée n'est pas une réponse
+      // « ce mot n'a pas de hanja » — et la table étant définitive, la confondre
+      // avec un négatif condamnerait le mot sans jamais lui redonner sa chance.
       for (const r of out.r || []) {
         const lemma = batch[r?.i]
-        const entry = lemma ? cleanRoot(r) : null
+        if (!lemma) continue
+        const entry = cleanRoot(r)
         if (entry) learned[lemma] = entry
+        else rejected.add(lemma)
       }
     } catch (e) {
       // Lot perdu, mais rien de négatif n'est écrit : ces mots seront redemandés
@@ -837,7 +874,10 @@ async function attachRoots(sentences) {
     // Le mot interrogé et non rendu est un mot SANS hanja : on l'écrit tel quel.
     // Sans cette réponse négative, les 순우리말 et les emprunts — la majorité du
     // vocabulaire — seraient redemandés chaque nuit pour l'éternité.
-    for (const l of batch) if (!(l in learned)) learned[l] = null
+    for (const l of batch) {
+      if (!(l in learned) && !rejected.has(l)) learned[l] = null
+    }
+    if (rejected.size) log(`    ↻ ${rejected.size} réponses refusées, à redemander`)
   }
   if (Object.keys(learned).length) saveHanjaTable(learned)
 

@@ -37,8 +37,8 @@ assert.equal(propre.h, '管理費')
 // de le redemander chaque nuit jusqu'à la fin des temps.
 saveHanjaTable({ 관리비: propre, 쓰레기: null }, table)
 
-const nuit1 = readHanjaTable(table)
-const nuit2 = readHanjaTable(table)
+const nuit1 = readHanjaTable(table).table
+const nuit2 = readHanjaTable(table).table
 assert.deepEqual(nuit1, nuit2, 'la table doit rendre la même chose à chaque lecture')
 assert.deepEqual(nuit1['관리비'], propre)
 
@@ -51,7 +51,7 @@ assert.deepEqual(inconnus, ['전세'], 'seul le mot jamais vu doit être redeman
 // Un mot appris ailleurs pendant qu'on travaillait ne doit pas être écrasé :
 // la table est relue avant d'être écrite.
 saveHanjaTable({ 전세: cleanRoot({ h: '傳貰', m: 'lease deposit', f: [] }) }, table)
-const nuit3 = readHanjaTable(table)
+const nuit3 = readHanjaTable(table).table
 assert.deepEqual(nuit3['관리비'], propre, 'la fusion ne doit rien perdre')
 assert.equal(nuit3['쓰레기'], null)
 assert.equal(nuit3['전세'].h, '傳貰')
@@ -101,3 +101,29 @@ assert.ok(mots.at(-1).t < 10, 'le dernier mot commence avant la fin du son')
 
 rmSync(dir, { recursive: true, force: true })
 console.log('✓ table stable, durée juste aux deux débits, repères dans la phrase')
+
+// ── les quatre défauts trouvés à la relecture ────────────────────────────────
+{
+  const { readHanjaTable, saveHanjaTable } = await import('./build-day.mjs')
+  const { writeFileSync, mkdtempSync, readFileSync } = await import('node:fs')
+  const { join } = await import('node:path')
+  const { tmpdir } = await import('node:os')
+  const dir = mkdtempSync(join(tmpdir(), 'molago-'))
+  const path = join(dir, 'hanja.json')
+
+  // Une table saine se complète.
+  writeFileSync(path, JSON.stringify({ 관리비: { h: '管理費' } }))
+  saveHanjaTable({ 학비: { h: '學費' } }, path)
+  assert(Object.keys(readHanjaTable(path).table).length === 2, 'la table se complète')
+
+  // Une table illisible n'est JAMAIS écrasée : c'était la perte définitive.
+  writeFileSync(path, '{"관리비":{"h":"管理費"')
+  saveHanjaTable({ 교통비: { h: '交通費' } }, path)
+  assert(readFileSync(path, 'utf8') === '{"관리비":{"h":"管理費"',
+         'une table illisible reste intacte plutôt que remplacée par une table vide')
+
+  // Une table absente est normale, pas un incident.
+  assert(readHanjaTable(join(dir, 'rien.json')).readable === true,
+         'un fichier absent se lit comme une table vide, sans alerte')
+  console.log('✓ la table ne se perd pas : illisible ≠ absente, et on refuse d\'écrire par-dessus')
+}
