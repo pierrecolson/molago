@@ -479,35 +479,6 @@ export function mp3Seconds(buf) {
   return 0
 }
 
-/// Le début de chaque 어절, ESTIMÉ — ce n'est pas une mesure.
-///
-/// Chirp3-HD ne rend aucun repère, mais l'app exige un instant par mot (le champ
-/// n'est pas optionnel côté décodage : l'omettre rendrait la journée entière
-/// illisible). On répartit donc la durée réelle de la phrase au prorata du
-/// nombre de caractères de chaque 어절.
-///
-/// Une phrase synthétisée se termine par un silence — mesuré à six dixièmes de
-/// seconde. Sans le retirer, toute la phrase est étirée et le surlignage traîne
-/// derrière la voix. C'est le seul réglage de cette fonction, et il vaut la
-/// peine : mesuré contre les 1 876 repères réels des journées Neural2, l'erreur
-/// médiane passe de 0,27 s à **0,11 s** (p90 0,31 s) pour un mot qui dure
-/// environ 0,65 s. À revérifier après quelques nuits en Chirp3-HD : une autre
-/// voix ne respire pas pareil.
-///
-/// Le jour où l'app rendra ce champ facultatif, c'est cette fonction qui
-/// disparaît, pas le reste.
-export function estimateWords(text, seconds, tail = 0.6) {
-  const words = text.trim().split(/\s+/)
-  const total = words.reduce((a, w) => a + w.length, 0) || 1
-  const span = Math.max(0.1, seconds - tail)
-  let before = 0
-  return words.map((w) => {
-    const t = Number((span * before / total).toFixed(3))
-    before += w.length
-    return { w, t }
-  })
-}
-
 // ── icônes ───────────────────────────────────────────────────────────────────
 
 // La question n'est pas « quelle icône ressemble à ce sens ? » mais
@@ -975,13 +946,11 @@ async function buildText(slot, date, used, outDir) {
     const buf = await speak(s.ko)
     writeFileSync(join(audioDir, file), buf)
     s.audio = `audio/${file}`
-    // Le découpage en 어절 vient du TEXTE, plus de la réponse de l'API. C'est ce
-    // qui fait survivre tout l'étage vocabulaire — glossaire, icônes, familles,
-    // domaines — au passage à une voix qui ne rend plus de repères : sans mots,
-    // rien n'est tappable, donc pas de carnet, donc pas de quiz.
-    const dur = mp3Seconds(buf)
-    s.words = estimateWords(s.ko, dur)
-    seconds += dur
+    // Le découpage en 어절 vient du TEXTE : c'est lui qui porte tout l'étage
+    // vocabulaire — glossaire, icônes, familles, domaines. Sans mots, rien
+    // n'est tappable, donc pas de carnet, donc pas de quiz.
+    s.words = s.ko.trim().split(/\s+/).map((w) => ({ w }))
+    seconds += mp3Seconds(buf)
   }
 
   // Le glossaire : un appel pour tout le texte, aligné sur le même découpage en

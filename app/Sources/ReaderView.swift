@@ -38,10 +38,7 @@ struct ReaderView: View {
 
     init(text: Day.Text) {
         self.text = text
-        _player = State(initialValue: SentencePlayer(
-            urls: text.audioURLs,
-            wordStarts: text.sentences.map { ($0.words ?? []).map(\.t) }
-        ))
+        _player = State(initialValue: SentencePlayer(urls: text.audioURLs))
     }
 
     /// Le document d'origine, quand il y en a un.
@@ -88,9 +85,7 @@ struct ReaderView: View {
                                     english: english,
                                     isCurrent: i == (scrubbing ?? player.index)
                                         && (player.isPlaying || scrubbing != nil),
-                                    wordIndex: scrubbing == nil && i == player.index ? player.wordIndex : -1,
                                     tint: Dancheong.highlight(text.slot),
-                                    wordTint: Dancheong.wordHighlight(text.slot),
                                     onTapSentence: { player.play(from: i) },
                                     onTapWord: { word in
                                         // Taper un mot met la voix en pause : on
@@ -251,9 +246,7 @@ private struct SentenceLine: View {
     let sentence: Day.Sentence
     let english: Bool
     let isCurrent: Bool
-    let wordIndex: Int
     let tint: Color
-    let wordTint: Color
     let onTapSentence: () -> Void
     let onTapWord: (Day.Word) -> Void
 
@@ -298,15 +291,11 @@ private struct SentenceLine: View {
                 // La disposition les coule comme un paragraphe, donc le texte se
                 // lit toujours comme du texte.
                 FlowLayout {
-                    ForEach(Array(words.enumerated()), id: \.offset) { i, word in
+                    ForEach(Array(words.enumerated()), id: \.offset) { _, word in
                         Text(word.w)
                             .font(.body)
                             .foregroundStyle(Dancheong.ink)
                             .padding(.horizontal, 2)
-                            .background(
-                                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                    .fill(isCurrent && i == wordIndex ? wordTint : .clear)
-                            )
                             // La zone tapable dépasse le mot sans écarter les
                             // lignes : au-delà, le texte cesse de se lire comme
                             // un paragraphe et devient une liste. Rater un mot

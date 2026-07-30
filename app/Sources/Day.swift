@@ -28,9 +28,8 @@ struct Day: Codable, Sendable {
         let ko: String
         let en: String
         let audio: String
-        /// L'instant où commence chaque 어절, mesuré par la synthèse vocale.
-        /// Absent quand les repères n'étaient pas complets : l'app retombe
-        /// alors sur le surlignage par phrase, plutôt que de surligner faux.
+        /// Les 어절 de la phrase, chacun avec sa glose : c'est ce qui rend
+        /// chaque mot tappable. Absent quand la fabrique n'a pas pu glosser.
         let words: [Word]?
 
         var id: String { audio }
@@ -50,8 +49,6 @@ struct Day: Codable, Sendable {
     struct Word: Codable, Sendable, Hashable {
         /// Le mot lui-même — sert à vérifier qu'on parle bien du même découpage.
         let w: String
-        /// Secondes depuis le début de la phrase.
-        let t: Double
         /// La forme de dictionnaire : taper 관리비를 doit donner 관리비.
         let lemma: String?
         let pos: String?
@@ -74,10 +71,9 @@ struct Day: Codable, Sendable {
         /// Écrire un décodeur sur mesure supprime l'initialiseur que Swift
         /// fabrique tout seul. Celui-ci le rend : la capture construit des mots
         /// qui ne viennent d'aucun JSON.
-        init(w: String, t: Double, lemma: String? = nil, pos: String? = nil, en: String? = nil,
+        init(w: String, lemma: String? = nil, pos: String? = nil, en: String? = nil,
              icon: String? = nil, hanja: String? = nil, root: String? = nil, family: [Relative]? = nil) {
             self.w = w
-            self.t = t
             self.lemma = lemma
             self.pos = pos
             self.en = en
@@ -97,7 +93,6 @@ struct Day: Codable, Sendable {
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             w = try c.decode(String.self, forKey: .w)
-            t = try c.decode(Double.self, forKey: .t)
             lemma = try? c.decodeIfPresent(String.self, forKey: .lemma)
             pos = try? c.decodeIfPresent(String.self, forKey: .pos)
             en = try? c.decodeIfPresent(String.self, forKey: .en)
