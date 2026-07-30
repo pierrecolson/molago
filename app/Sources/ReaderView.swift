@@ -46,13 +46,24 @@ struct ReaderView: View {
     /// La photo n'a jamais quitté le téléphone : elle ne sert qu'à celui qui
     /// l'a prise, et c'est la seule chose de cette app qui puisse contenir ce
     /// qu'on n'a pas choisi de partager.
+    private var originalImage: UIImage? {
+        guard let url = Paths.captureImage(text.slot) else { return nil }
+        return UIImage(contentsOfFile: url.path(percentEncoded: false))
+    }
+
+    /// La bascule texte ↔ document. Le document remplace la lecture, il ne se
+    /// pose pas dessus : on le regarde pour vérifier ce que disait le papier,
+    /// pas pour le lire avec la voix ou la traduction.
     @ViewBuilder
     private var originalButton: some View {
         if Paths.captureImage(text.slot) != nil {
-            Button { showingOriginal = true } label: {
-                Image(systemName: "doc.text.image")
+            Button {
+                withAnimation(.easeOut(duration: 0.22)) { showingOriginal.toggle() }
+                if showingOriginal { player.pause() }
+            } label: {
+                Image(systemName: showingOriginal ? "text.justify.left" : "doc.text.image")
             }
-            .accessibilityLabel("See the original document")
+            .accessibilityLabel(showingOriginal ? "Back to the text" : "See the original document")
         }
     }
 
@@ -64,6 +75,82 @@ struct ReaderView: View {
         VStack(spacing: 0) {
             universe.color.frame(height: 5)
 
+            if showingOriginal, let image = originalImage {
+                DocumentView(image: image)
+            } else {
+                readingView
+            }
+        }
+        .overlay(alignment: .bottom) {
+            // Pas de barre de lecture sur le document : on le regarde, la voix
+            // et la traduction appartiennent au texte.
+            if !showingOriginal {
+                PlayerBar(player: player, tint: universe.color, scrubbing: $scrubbing)
+            }
+        }
+        .background(Dancheong.paper)
+        .navigationTitle(text.universe)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                originalButton
+                // Une pastille devient deux.
+                //
+                // L'ancien bouton demandait de garder le doigt appuyé : la main
+                // occupait l'écran, on ne pouvait plus faire défiler en lisant,
+                // et la friction punissait au lieu d'aider.
+                //
+                // Il disait aussi la destination — « EN » — alors qu'activer la
+                // traduction ne donne pas l'anglais, ça donne **les deux**. Le
+                // bouton décrit donc l'état : un drapeau, tu lis en coréen ;
+                // deux drapeaux, les deux langues sont à l'écran.
+                if !showingOriginal {
+                    Button {
+                        withAnimation(.easeOut(duration: 0.22)) { english.toggle() }
+                    } label: {
+                        LanguageToggle(english: english)
+                    }
+                    .accessibilityLabel(english ? "Korean only" : "Show English too")
+                }
+            }
+        }
+        // On lit : la barre d'onglets n'a rien à faire là. Elle sert à changer
+        // de section, pas à meubler le bas de l'écran pendant qu'on est dedans.
+        .toolbar(.hidden, for: .tabBar)
+        .task {
+            // `simctl` ne sait pas appuyer sur un bouton : sans ça, aucune
+            // capture du lecteur traduit ou du document n'est possible en
+            // ligne de commande.
+            if ProcessInfo.processInfo.arguments.contains("--english") { english = true }
+            if ProcessInfo.processInfo.arguments.contains("--document") { showingOriginal = true }
+            // Un texte d'une journée passée n'a que son texte : son audio n'a
+            // jamais été téléchargé. On le récupère en ouvrant, sinon la voix
+            // reste muette sans rien dire.
+            await DayStore.downloadAudio(for: text)
+            openCardForScreenshotIfAsked()
+            // La voix ne démarre plus toute seule. La spec §4.4 la voulait
+            // automatique, mais à l'usage c'est une agression : on ouvre parfois
+            // un texte pour le parcourir des yeux, dans un endroit où on ne veut
+            // pas de son. Le bouton est là, il ne réclame rien.
+        }
+        .onDisappear { player.pause() }
+        .overlay {
+            if let tapped {
+                WordCard(
+                    word: tapped.word,
+                    context: tapped.sentence.ko,
+                    slot: text.slot,
+                    onKeep: { keep(tapped.word, from: tapped.sentence); close() },
+                    onKnew: { signal(tapped.word, "knew"); close() },
+                    onClose: { close() }
+                )
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.18), value: tapped?.word)
+    }
+
+    private var readingView: some View {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
@@ -117,75 +204,6 @@ struct ReaderView: View {
                     }
                 }
             }
-
-        }
-        .overlay(alignment: .bottom) {
-            PlayerBar(player: player, tint: universe.color, scrubbing: $scrubbing)
-        }
-        .background(Dancheong.paper)
-        .navigationTitle(text.universe)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                originalButton
-                // Une pastille devient deux.
-                //
-                // L'ancien bouton demandait de garder le doigt appuyé : la main
-                // occupait l'écran, on ne pouvait plus faire défiler en lisant,
-                // et la friction punissait au lieu d'aider.
-                //
-                // Il disait aussi la destination — « EN » — alors qu'activer la
-                // traduction ne donne pas l'anglais, ça donne **les deux**. Le
-                // bouton décrit donc l'état : un drapeau, tu lis en coréen ;
-                // deux drapeaux, les deux langues sont à l'écran.
-                Button {
-                    withAnimation(.easeOut(duration: 0.22)) { english.toggle() }
-                } label: {
-                    LanguageToggle(english: english)
-                }
-                .accessibilityLabel(english ? "Korean only" : "Show English too")
-            }
-        }
-        // On lit : la barre d'onglets n'a rien à faire là. Elle sert à changer
-        // de section, pas à meubler le bas de l'écran pendant qu'on est dedans.
-        .toolbar(.hidden, for: .tabBar)
-        .task {
-            // `simctl` ne sait pas appuyer sur un bouton : sans ça, aucune
-            // capture du lecteur traduit n'est possible en ligne de commande.
-            if ProcessInfo.processInfo.arguments.contains("--english") { english = true }
-            // Un texte d'une journée passée n'a que son texte : son audio n'a
-            // jamais été téléchargé. On le récupère en ouvrant, sinon la voix
-            // reste muette sans rien dire.
-            await DayStore.downloadAudio(for: text)
-            openCardForScreenshotIfAsked()
-            // La voix ne démarre plus toute seule. La spec §4.4 la voulait
-            // automatique, mais à l'usage c'est une agression : on ouvre parfois
-            // un texte pour le parcourir des yeux, dans un endroit où on ne veut
-            // pas de son. Le bouton est là, il ne réclame rien.
-        }
-        .onDisappear { player.pause() }
-        .sheet(isPresented: $showingOriginal) {
-            if let url = Paths.captureImage(text.slot), let image = UIImage(contentsOfFile: url.path()) {
-                // Fond noir et zoom libre : une photo de document se lit en
-                // s'approchant, et un fond clair autour ferait concurrence au
-                // papier qu'elle montre.
-                ZoomableImage(image: image)
-            }
-        }
-        .overlay {
-            if let tapped {
-                WordCard(
-                    word: tapped.word,
-                    context: tapped.sentence.ko,
-                    slot: text.slot,
-                    onKeep: { keep(tapped.word, from: tapped.sentence); close() },
-                    onKnew: { signal(tapped.word, "knew"); close() },
-                    onClose: { close() }
-                )
-                .transition(.opacity)
-            }
-        }
-        .animation(.easeOut(duration: 0.18), value: tapped?.word)
     }
 
     /// `simctl` ne sait pas taper sur un écran : sans ça, aucune capture de la
@@ -501,27 +519,18 @@ private struct GlassPill: ViewModifier {
 }
 
 
-/// La photo d'origine, qu'on peut approcher.
-private struct ZoomableImage: View {
+/// La photo d'origine, entière dans l'écran.
+///
+/// Fond noir : une photo de document est un objet qu'on regarde, et un fond
+/// clair autour ferait concurrence au papier qu'elle montre.
+private struct DocumentView: View {
     let image: UIImage
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
-            ScrollView([.horizontal, .vertical]) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: .infinity)
-            }
+        Image(uiImage: image)
+            .resizable()
+            .scaledToFit()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(.black)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                }
-            }
-            .navigationTitle("Original")
-            .navigationBarTitleDisplayMode(.inline)
-        }
     }
 }

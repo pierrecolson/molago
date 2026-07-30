@@ -73,9 +73,9 @@ enum Paths {
         let fm = FileManager.default
         for dir in [cloud, captures].compactMap({ $0 }) {
             let url = dir.appending(path: "\(slot).jpg")
-            if fm.fileExists(atPath: url.path()) { return url }
+            if fm.fileExists(atPath: url.path(percentEncoded: false)) { return url }
             let placeholder = dir.appending(path: ".\(slot).jpg.icloud")
-            if fm.fileExists(atPath: placeholder.path()) {
+            if fm.fileExists(atPath: placeholder.path(percentEncoded: false)) {
                 try? fm.startDownloadingUbiquitousItem(at: url)
             }
         }
@@ -86,14 +86,14 @@ enum Paths {
     /// du serveur, donc un mot ancien peut avoir perdu sa voix.
     static func audioFile(_ name: String) -> URL? {
         let url = audio.appending(path: name)
-        return FileManager.default.fileExists(atPath: url.path()) ? url : nil
+        return FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) ? url : nil
     }
 
     /// L'icône d'un mot si elle est déjà sur l'appareil, sinon rien : à défaut
     /// l'app affiche la tuile typographique, jamais une image d'attente.
     static func icon(_ slug: String) -> URL? {
         let url = icons.appending(path: "\(slug).png")
-        return FileManager.default.fileExists(atPath: url.path()) ? url : nil
+        return FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) ? url : nil
     }
 }
 
@@ -215,7 +215,7 @@ final class DayStore {
     static func downloadAudio(for text: Day.Text) async {
         let fm = FileManager.default
         let missing = text.sentences.filter {
-            !fm.fileExists(atPath: Paths.audio.appending(path: $0.fileName).path())
+            !fm.fileExists(atPath: Paths.audio.appending(path: $0.fileName).path(percentEncoded: false))
         }
         guard !missing.isEmpty else { return }
         await fetchAll(missing.map {
@@ -226,7 +226,7 @@ final class DayStore {
     private static func downloadAudio(for day: Day) async {
         let fm = FileManager.default
         let missing = day.texts.flatMap(\.sentences).filter { sentence in
-            !fm.fileExists(atPath: Paths.audio.appending(path: sentence.fileName).path())
+            !fm.fileExists(atPath: Paths.audio.appending(path: sentence.fileName).path(percentEncoded: false))
         }
         guard !missing.isEmpty else { return }
         await fetchAll(missing.map { (Config.baseURL.appending(path: $0.audio), Paths.audio.appending(path: $0.fileName)) })
@@ -263,7 +263,7 @@ final class DayStore {
         let slugs = Set(
             day.texts.compactMap(\.icon)
             + day.texts.flatMap(\.sentences).flatMap { $0.words ?? [] }.compactMap(\.icon))
-            .filter { !fm.fileExists(atPath: Paths.icons.appending(path: "\($0).png").path()) }
+            .filter { !fm.fileExists(atPath: Paths.icons.appending(path: "\($0).png").path(percentEncoded: false)) }
         guard !slugs.isEmpty else { return }
         await fetchAll(slugs.map {
             (Config.iconsURL.appending(path: "\($0).png"), Paths.icons.appending(path: "\($0).png"))
