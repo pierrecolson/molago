@@ -347,15 +347,19 @@ private struct PlayerBar: View {
             }
             .accessibilityLabel(player.isPlaying ? "Pause" : "Play")
 
-            Scrubber(
-                count: player.urls.count,
-                index: scrubbing ?? player.index,
-                onScrub: { scrubbing = $0 },
-                onCommit: { i in
-                    scrubbing = nil
-                    player.play(from: i)
-                }
-            )
+            // L'horloge ne bat que pendant la lecture : à l'arrêt, rien à animer.
+            TimelineView(.animation(minimumInterval: 0.25, paused: !player.isPlaying)) { _ in
+                Scrubber(
+                    count: player.urls.count,
+                    index: scrubbing ?? player.index,
+                    fraction: scrubbing == nil ? player.fraction : 0,
+                    onScrub: { scrubbing = $0 },
+                    onCommit: { i in
+                        scrubbing = nil
+                        player.play(from: i)
+                    }
+                )
+            }
 
             // La vitesse était affichée sans être cliquable, ce qui est pire
             // que de ne pas l'afficher : on croit pouvoir la changer.
@@ -398,23 +402,35 @@ private struct PlayerBar: View {
 private struct Scrubber: View {
     let count: Int
     let index: Int
+    /// L'avancement dans la phrase en cours — ce qui fait avancer la barre
+    /// ENTRE deux phrases, au lieu de sauter d'un cran à chaque changement.
+    let fraction: Double
     let onScrub: (Int) -> Void
     let onCommit: (Int) -> Void
 
     var body: some View {
         GeometryReader { geo in
             let width = geo.size.width
-            let progress = count > 1 ? Double(index) / Double(count - 1) : 0
+            let progress = count > 0 ? (Double(index) + fraction) / Double(count) : 0
 
             ZStack(alignment: .leading) {
-                Capsule().fill(.white.opacity(0.28))
-                Capsule().fill(.white).frame(width: max(6, width * progress))
+                // La partie non lue est SOMBRE, pas blanche : sur le verre teinté,
+                // du blanc à 28 % et du blanc plein se confondaient — la
+                // progression était invisible. Le blanc ne dit plus qu'une chose :
+                // où on en est.
+                // La hauteur est posée sur chaque capsule, pas sur la pile : posée
+                // sur la pile, elle se perdait et le trait sortait aussi épais que
+                // la boule.
+                Capsule().fill(.black.opacity(0.32)).frame(height: 3)
+                Capsule().fill(.white).frame(width: max(6, width * progress), height: 3)
+                // La boule fait cinq fois l'épaisseur du trait : c'est cet écart
+                // qui la rend attrapable à l'œil. À épaisseurs voisines, boule et
+                // barre fusionnaient en un seul boudin.
                 Circle()
                     .fill(.white)
-                    .frame(width: 13, height: 13)
-                    .offset(x: max(0, width * progress - 6.5))
+                    .frame(width: 15, height: 15)
+                    .offset(x: max(0, width * progress - 7.5))
             }
-            .frame(height: 5)
             .frame(maxHeight: .infinity)
             // La zone tapable fait toute la hauteur de la barre : viser un trait
             // de cinq points avec le pouce est un jeu d'adresse, pas une

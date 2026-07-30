@@ -16,6 +16,20 @@ final class SentencePlayer {
     private(set) var index: Int = 0
     private(set) var isPlaying: Bool = false
 
+    /// L'avancement dans la phrase en cours, de 0 à 1.
+    ///
+    /// Calculé à la demande plutôt que publié : c'est l'horloge d'affichage de
+    /// la barre (TimelineView) qui vient le lire tant que ça joue. Sans lui, la
+    /// barre n'avance qu'au changement de phrase — quinze secondes immobile sur
+    /// une phrase longue, elle a l'air en panne.
+    var fraction: Double {
+        guard let item = player?.currentItem else { return 0 }
+        let total = item.duration.seconds
+        let elapsed = item.currentTime().seconds
+        guard total.isFinite, total > 0, elapsed.isFinite else { return 0 }
+        return min(max(elapsed / total, 0), 1)
+    }
+
     /// La vitesse de lecture, gardée d'un texte à l'autre.
     ///
     /// C'est un réglage de confort, pas un réglage de session : celui qui a
