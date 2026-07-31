@@ -92,7 +92,7 @@ struct WordDetailView: View {
         .confirmationDialog("Remove \(word.lemma)?", isPresented: $confirmingDelete, titleVisibility: .visible) {
             Button("Remove", role: .destructive) {
                 context.delete(word)
-                try? context.save()
+                context.saveOrLog("retirer « \(word.lemma) »")
                 dismiss()
             }
         } message: {
@@ -372,7 +372,7 @@ private struct RelativeSheet: View {
                     context: "", contextAudio: nil, hanja: relative.h,
                     root: nil, family: nil, slot: slot
                 ))
-                try? context.save()
+                context.saveOrLog("garder « \(relative.k) »")
                 dismiss()
             } label: {
                 Label(alreadyKept ? "Already in your notebook" : "Keep this word",

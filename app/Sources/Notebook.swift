@@ -90,3 +90,20 @@ final class WordSignal {
         self.at = .now
     }
 }
+
+extension ModelContext {
+    /// Écrit, et le **dit** quand ça rate.
+    ///
+    /// Partout ailleurs c'était `try? save()`. L'erreur disparaissait alors sans
+    /// laisser de trace, et la seule chose visible était un carnet vide — la
+    /// panne la plus difficile à expliquer de tout le produit, puisque le geste,
+    /// lui, a l'air d'avoir marché. Une ligne dans la console ne répare rien,
+    /// mais elle dit où regarder.
+    func saveOrLog(_ what: String) {
+        do {
+            try save()
+        } catch {
+            print("[molago] \(what) : le carnet n'a pas pu être écrit — \(error)")
+        }
+    }
+}

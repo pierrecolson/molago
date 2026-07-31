@@ -70,7 +70,28 @@ Rends ce document lisible comme un article.
 Réponds en JSON :
 {"t":"un titre court en anglais, ce que le document est","s":[{"ko":"une phrase coréenne","en":"sa traduction anglaise"}]}`
 
-async function llm(prompt, model = CLERK) {
+// Le glossaire d'un document capturé, 어절 par 어절.
+//
+// C'est le même travail que la fabrique nocturne fait sur les textes du matin,
+// et c'est délibérément le MÊME contrat : un objet par 어절, dans l'ordre, avec
+// la forme telle qu'elle apparaît recopiée dans `s`. Un glossaire décalé d'un
+// cran donnerait à chaque mot le sens du voisin, et on apprendrait faux sans
+// jamais s'en douter.
+const GLOSS_EOJEOL = (words) => `Voici les 어절 d'un texte coréen, numérotés. Pour chacun, donne sa forme de dictionnaire et son sens.
+
+${words.map((w, i) => `${i}. ${w}`).join('\n')}
+
+Réponds en JSON strict :
+{"g":[{"i":0,"s":"le 어절 tel qu'il apparaît ci-dessus","l":"la forme de dictionnaire","p":"noun|verb|adjective|adverb|particle|number|name|other","e":"le sens en anglais, court"}]}
+
+Règles :
+- **Un objet par 어절, tous, dans l'ordre, sans en sauter.** Recopie \`s\` à l'identique : c'est ce qui permet de vérifier l'alignement.
+- \`l\` est la forme qu'on chercherait dans un dictionnaire : 관리비를 → 관리비, 올랐어요 → 오르다, 갔습니다 → 가다.
+- \`e\` est le sens de **\`l\`**, la forme de dictionnaire — jamais celui de la forme fléchie. La particule ne fait pas partie du mot et n'a rien à faire dans sa traduction.
+- Deux à cinq mots. Le sens qu'a ce mot **dans cette phrase** quand il en a plusieurs.
+- Quand le 어절 est lui-même une particule ou un mot grammatical isolé, \`e\` explique alors sa fonction : 를 → "object marker".`
+
+async function llm(prompt, model = CLERK, maxTokens = 4000) {
   const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -81,7 +102,7 @@ async function llm(prompt, model = CLERK) {
     body: JSON.stringify({
       model,
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: 4000,
+      max_tokens: maxTokens,
       response_format: { type: 'json_object' },
     }),
   })
@@ -159,6 +180,49 @@ async function speak(user, day, slot) {
   console.log(`voix : ${text.sentences.length} phrases pour ${slot}`)
 }
 
+/// Rend chaque mot d'un document capturé tappable.
+///
+/// **Sans ça, une capture n'entre jamais au carnet.** Le lecteur ne sait viser un
+/// mot que lorsque la phrase porte ses 어절 : quand `words` manque, il affiche la
+/// phrase d'un bloc et le tap ne fait plus que relancer la voix. Les articles du
+/// matin l'ont depuis toujours (`pipeline/build-day.mjs`) ; le document
+/// photographié, non — donc « My content » ne donnait pas un seul mot à garder,
+/// alors que c'est précisément le contenu qu'on a le plus de raisons de vouloir
+/// garder. La boucle de la spec §8.2 passe par là.
+///
+/// Sans `throws` : un glossaire raté ne doit pas emporter l'article. On perd les
+/// mots tappables, on garde le texte — jamais l'inverse.
+async function attachWords(sentences) {
+  // Le découpage vient du TEXTE, comme dans la fabrique : c'est lui qui porte
+  // tout l'étage vocabulaire, et il ne dépend de personne.
+  for (const s of sentences) s.words = s.ko.trim().split(/\s+/).filter(Boolean).map((w) => ({ w }))
+  const all = sentences.flatMap((s) => s.words.map((w) => w.w))
+  if (!all.length) return 0
+
+  // Large : un avis de copropriété fait plusieurs centaines de 어절, et une
+  // réponse tronquée ne se décode pas — le document sortirait sans un seul mot.
+  const out = await llm(GLOSS_EOJEOL(all), CLERK, 24000)
+  const byIndex = new Map((out.g || []).filter((x) => x && Number.isInteger(x.i)).map((x) => [x.i, x]))
+
+  let matched = 0
+  let cursor = 0
+  for (const s of sentences) {
+    for (const word of s.words) {
+      const entry = byIndex.get(cursor)
+      cursor++
+      // On ne fait confiance qu'aux entrées dont la forme correspond.
+      if (!entry || entry.s !== word.w) continue
+      if (typeof entry.l !== 'string' || !entry.l.trim()) continue
+      if (typeof entry.e !== 'string' || !entry.e.trim()) continue
+      word.lemma = entry.l.trim()
+      word.pos = typeof entry.p === 'string' ? entry.p : 'other'
+      word.en = entry.e.trim()
+      matched++
+    }
+  }
+  return matched
+}
+
 const readDay = (user, date) => {
   try { return JSON.parse(readFileSync(dayFile(user, date), 'utf8')) } catch { return null }
 }
@@ -225,6 +289,15 @@ createServer(async (req, res) => {
           && typeof x.en === 'string' && x.en.trim())
         .map((x) => ({ ko: x.ko.trim(), en: x.en.trim() }))
       if (!sentences.length) return json(res, 502, { error: 'unreadable' })
+
+      // Les mots, avant d'écrire : un article publié sans eux est un article
+      // dont on ne peut rien garder, et il ne sera pas reglosé plus tard.
+      try {
+        const matched = await attachWords(sentences)
+        console.log(`glossaire : ${matched} mots tappables sur ${sentences.reduce((n, s) => n + s.words.length, 0)}`)
+      } catch (e) {
+        console.log(`⚠ glossaire indisponible (${String(e.message || e).slice(0, 60)}) — les mots ne seront pas tappables`)
+      }
 
       // La journée du lecteur, pas celle du serveur : c'est la même règle que
       // pour la fabrique nocturne, et pour la même raison — l'app range sa

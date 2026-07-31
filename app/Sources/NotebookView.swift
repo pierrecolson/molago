@@ -159,7 +159,7 @@ struct NotebookView: View {
                                     }
                                     .onDelete { offsets in
                                         for i in offsets { context.delete(group.words[i]) }
-                                        try? context.save()
+                                        context.saveOrLog("retirer un mot")
                                     }
                                 }
                             }

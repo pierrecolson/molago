@@ -235,10 +235,18 @@ struct ReaderView: View {
     }
 
     private func keep(_ word: Day.Word, from sentence: Day.Sentence) {
-        guard let lemma = word.lemma, let meaning = word.en else { return }
+        // La forme de dictionnaire quand la glose en a une, **sinon le mot tel
+        // qu'il est écrit**. C'est exactement le repli qu'affiche déjà la carte
+        // (`word.lemma ?? word.w`), et il manquait ici : sur un mot glosé sans
+        // lemme, « Keep » ne faisait rien du tout — pas d'erreur, pas de mot au
+        // carnet, et un carnet qui reste vide sans que rien ne l'explique.
+        //
+        // 관리비를 plutôt que 관리비 vaut mille fois mieux qu'un mot perdu : la
+        // fiche garde sa phrase, et le mot reste retrouvable.
+        let lemma = word.lemma ?? word.w
         context.insert(KeptWord(
             lemma: lemma,
-            meaning: meaning,
+            meaning: word.en ?? "",
             pos: word.pos ?? "",
             icon: word.icon,
             context: sentence.ko,
@@ -250,13 +258,12 @@ struct ReaderView: View {
             sourceTitle: text.title,
             sourceDate: text.day
         ))
-        try? context.save()
+        context.saveOrLog("garder « \(lemma) »")
     }
 
     private func signal(_ word: Day.Word, _ kind: String) {
-        guard let lemma = word.lemma else { return }
-        context.insert(WordSignal(lemma: lemma, kind: kind))
-        try? context.save()
+        context.insert(WordSignal(lemma: word.lemma ?? word.w, kind: kind))
+        context.saveOrLog("noter un signal")
     }
 }
 
