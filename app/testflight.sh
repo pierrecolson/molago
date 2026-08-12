@@ -12,7 +12,10 @@
 
 set -euo pipefail
 
-APP=/Users/pierre/Claude/code/molago/app
+# Le dossier où vit ce script. Le chemin était écrit en dur, et le jour où le
+# dépôt a déménagé plus rien ne partait. Un script qui se trouve tout seul
+# marche aussi depuis un worktree, où le travail en cours se fait souvent.
+APP=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 TEAM=7R46U8G25A
 KEY_ID=S2XBJHBQ78
 KEY_ISSUER=491cc229-3432-481d-b5c9-c59b58cad18e

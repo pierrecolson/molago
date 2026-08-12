@@ -9,7 +9,10 @@
 
 set -euo pipefail
 
-APP=/Users/pierre/Claude/code/molago/app
+# Le dossier où vit ce script. Le chemin était écrit en dur, et le jour où le
+# dépôt a déménagé plus rien ne se lançait. Un script qui se trouve tout seul
+# marche aussi depuis un worktree, où le travail en cours se fait souvent.
+APP=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 BUNDLE=com.molago.app
 DEVICE="iPhone 17 Pro"
 
