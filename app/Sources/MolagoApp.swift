@@ -121,9 +121,27 @@ struct MolagoApp: App {
             }
             // Le carnet est la seule chose irremplaçable du produit : les textes
             // se régénèrent, une collection de mots non.
-            .modelContainer(for: [KeptWord.self, WordSignal.self])
+            .modelContainer(Self.notebook)
         }
     }
+
+    /// Le magasin du carnet, explicitement **hors CloudKit**.
+    ///
+    /// Ce n'est pas un détail de configuration, c'est ce qui faisait disparaître
+    /// les mots gardés. Dès qu'une app porte un entitlement iCloud — posé ici
+    /// pour les photos de capture, qui passent par les *documents* iCloud et pas
+    /// par CloudKit (project.yml) — SwiftData allume la synchronisation CloudKit
+    /// tout seul. Or CloudKit interdit deux choses que le carnet fait : les
+    /// attributs non optionnels sans valeur par défaut, et la contrainte
+    /// d'unicité sur `lemma`. Le magasin refusait donc de s'ouvrir, en silence :
+    /// garder un mot ne levait aucune erreur et n'écrivait nulle part.
+    ///
+    /// La sauvegarde du carnet viendra du serveur (Notebook.swift), pas de
+    /// CloudKit — il n'y a rien à perdre à le dire ici noir sur blanc.
+    private static let notebook = try! ModelContainer(
+        for: KeptWord.self, WordSignal.self,
+        configurations: ModelConfiguration(cloudKitDatabase: .none)
+    )
 
     /// Uniquement pour piloter le simulateur pendant le développement.
     private var launchSlot: String? {
