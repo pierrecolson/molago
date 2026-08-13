@@ -225,7 +225,9 @@ final class DayStore {
 
     private static func downloadAudio(for day: Day) async {
         let fm = FileManager.default
-        let missing = day.texts.flatMap(\.sentences).filter { sentence in
+        // Les captures n'ont pas de voix : demander leurs pistes ferait un
+        // 404 par phrase à chaque lancement.
+        let missing = day.texts.filter { !$0.isCapture }.flatMap(\.sentences).filter { sentence in
             !fm.fileExists(atPath: Paths.audio.appending(path: sentence.fileName).path(percentEncoded: false))
         }
         guard !missing.isEmpty else { return }

@@ -115,3 +115,28 @@ console.log('✓ table stable, durée juste aux deux débits')
          'un fichier absent se lit comme une table vide, sans alerte')
   console.log('✓ la table ne se perd pas : illisible ≠ absente, et on refuse d\'écrire par-dessus')
 }
+
+// ── 3 · le JSON du modèle, même quand il bavarde ─────────────────────────────
+// Le glossaire d'un texte sur deux se perdait parce que le modèle ajoutait
+// quelque chose après son objet — un second objet entier, du texte. « Du
+// premier { au dernier } » avalait le tout et le SyntaxError emportait tous
+// les mots tappables de la journée.
+{
+  const { firstJSON, listIn } = await import('./build-day.mjs')
+
+  assert.deepEqual(firstJSON('{"g":[{"i":0}]}'), { g: [{ i: 0 }] }, 'le cas propre passe tel quel')
+  assert.deepEqual(firstJSON('{"a":1}\n{"a":2}'), { a: 1 }, 'un second objet répété est ignoré')
+  assert.deepEqual(firstJSON('voilà : {"a":1} — et ensuite }'), { a: 1 }, 'le bavardage autour est ignoré')
+  assert.deepEqual(firstJSON('{"s":"un } dans une \\"chaîne\\""}').s, 'un } dans une "chaîne"',
+                   'une accolade dans une chaîne ne ferme rien')
+  // Le cas vu en production : un tableau nu là où on demandait un objet. Le
+  // découpage naïf prenait la PREMIÈRE ENTRÉE pour toute la réponse.
+  assert.deepEqual(firstJSON('[{"i":0},{"i":1}]'), [{ i: 0 }, { i: 1 }], 'un tableau nu revient entier')
+  assert.throws(() => firstJSON('{"a":'), SyntaxError, 'une réponse tronquée échoue franchement')
+  assert.throws(() => firstJSON('pas de JSON du tout'), SyntaxError)
+
+  assert.deepEqual(listIn({ g: [1, 2] }, 'g'), [1, 2], 'la forme demandée passe telle quelle')
+  assert.deepEqual(listIn([1, 2], 'g'), [1, 2], 'le tableau nu porte la même information')
+  assert.deepEqual(listIn({}, 'g'), [], 'une clé absente reste une liste vide')
+  console.log('✓ la première valeur JSON équilibrée, objet ou tableau, quoi que le modèle ajoute autour')
+}
