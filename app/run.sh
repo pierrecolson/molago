@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-APP=/Users/pierre/Claude/code/molago/app
+APP="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUNDLE=com.molago.app
 DEVICE="iPhone 17 Pro"
 
