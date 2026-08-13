@@ -105,6 +105,14 @@ struct Day: Codable, Sendable {
 }
 
 extension Day.Text {
+    /// Un texte que l'utilisateur a capturé lui-même, par opposition aux textes
+    /// du matin. `hasPrefix` et non l'égalité : chaque capture porte un
+    /// identifiant unique — `capture-ms5z0tto`.
+    ///
+    /// Une capture n'a pas de voix : on la lit devant son document, pas dans le
+    /// métro. Le lecteur n'affiche donc ni barre de lecture ni geste d'écoute.
+    var isCapture: Bool { slot.hasPrefix("capture") }
+
     /// La journée d'où vient ce texte, lue dans le nom de sa première piste.
     ///
     /// Un texte ne porte pas sa date : elle vit sur la journée qui le contient,

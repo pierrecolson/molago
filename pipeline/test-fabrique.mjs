@@ -115,3 +115,21 @@ console.log('✓ table stable, durée juste aux deux débits')
          'un fichier absent se lit comme une table vide, sans alerte')
   console.log('✓ la table ne se perd pas : illisible ≠ absente, et on refuse d\'écrire par-dessus')
 }
+
+// ── 3 · le JSON du modèle, même quand il bavarde ─────────────────────────────
+// Le glossaire d'un texte sur deux se perdait parce que le modèle ajoutait
+// quelque chose après son objet — un second objet entier, du texte. « Du
+// premier { au dernier } » avalait le tout et le SyntaxError emportait tous
+// les mots tappables de la journée.
+{
+  const { firstJSON } = await import('./build-day.mjs')
+
+  assert.deepEqual(firstJSON('{"g":[{"i":0}]}'), { g: [{ i: 0 }] }, 'le cas propre passe tel quel')
+  assert.deepEqual(firstJSON('{"a":1}\n{"a":2}'), { a: 1 }, 'un second objet répété est ignoré')
+  assert.deepEqual(firstJSON('voilà : {"a":1} — et ensuite }'), { a: 1 }, 'le bavardage autour est ignoré')
+  assert.deepEqual(firstJSON('{"s":"un } dans une \\"chaîne\\""}').s, 'un } dans une "chaîne"',
+                   'une accolade dans une chaîne ne ferme rien')
+  assert.throws(() => firstJSON('{"a":'), SyntaxError, 'une réponse tronquée échoue franchement')
+  assert.throws(() => firstJSON('pas de JSON du tout'), SyntaxError)
+  console.log('✓ le premier objet JSON équilibré, quoi que le modèle ajoute autour')
+}

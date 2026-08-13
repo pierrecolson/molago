@@ -83,8 +83,9 @@ struct ReaderView: View {
         }
         .overlay(alignment: .bottom) {
             // Pas de barre de lecture sur le document : on le regarde, la voix
-            // et la traduction appartiennent au texte.
-            if !showingOriginal {
+            // et la traduction appartiennent au texte. Ni sur une capture :
+            // elle n'a pas de voix, une barre qui ne jouerait rien mentirait.
+            if !showingOriginal && !text.isCapture {
                 PlayerBar(player: player, tint: universe.color, scrubbing: $scrubbing)
             }
         }
@@ -125,8 +126,8 @@ struct ReaderView: View {
             if ProcessInfo.processInfo.arguments.contains("--document") { showingOriginal = true }
             // Un texte d'une journée passée n'a que son texte : son audio n'a
             // jamais été téléchargé. On le récupère en ouvrant, sinon la voix
-            // reste muette sans rien dire.
-            await DayStore.downloadAudio(for: text)
+            // reste muette sans rien dire. Sauf une capture : pas de voix.
+            if !text.isCapture { await DayStore.downloadAudio(for: text) }
             openCardForScreenshotIfAsked()
             // La voix ne démarre plus toute seule. La spec §4.4 la voulait
             // automatique, mais à l'usage c'est une agression : on ouvre parfois
@@ -173,7 +174,11 @@ struct ReaderView: View {
                                     isCurrent: i == (scrubbing ?? player.index)
                                         && (player.isPlaying || scrubbing != nil),
                                     tint: Dancheong.highlight(text.slot),
-                                    onTapSentence: { player.play(from: i) },
+                                    onTapSentence: {
+                                        // Sur une capture, il n'y a rien à jouer :
+                                        // le tap à côté d'un mot ne fait rien.
+                                        if !text.isCapture { player.play(from: i) }
+                                    },
                                     onTapWord: { word in
                                         // Taper un mot met la voix en pause : on
                                         // ne lit pas une définition pendant que
@@ -189,7 +194,8 @@ struct ReaderView: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 14)
                     // De quoi lire la dernière phrase sans que la barre la couvre.
-                    .padding(.bottom, 78)
+                    // Sans barre — une capture — le texte reprend le bas.
+                    .padding(.bottom, text.isCapture ? 24 : 78)
                 }
                 .onChange(of: player.index) { _, new in
                     guard scrubbing == nil else { return }

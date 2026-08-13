@@ -219,11 +219,32 @@ async function llm(prompt, { json = false, model = WRITER, maxTokens = 8000 } = 
   }
   let out = (j.choices?.[0]?.message?.content || '').trim()
   if (!out) throw new Error('réponse vide')
-  if (json) {
-    out = out.replace(/^```(?:json)?\s*|\s*```$/g, '')
-    return JSON.parse(out.slice(out.indexOf('{'), out.lastIndexOf('}') + 1))
-  }
+  if (json) return firstJSON(out.replace(/^```(?:json)?\s*|\s*```$/g, ''))
   return out
+}
+
+/// Le premier objet JSON équilibré de la réponse, et rien d'autre.
+///
+/// « Du premier `{` au dernier `}` » avalait tout ce que le modèle ajoute
+/// après son JSON — un second objet entier, une clôture de code — et le
+/// glossaire d'un texte sur deux se perdait dans un `SyntaxError`. On compte
+/// donc les accolades, guillemets respectés, et on s'arrête à la fermeture.
+export function firstJSON(s) {
+  const start = s.indexOf('{')
+  if (start < 0) throw new SyntaxError('pas de JSON dans la réponse')
+  let depth = 0, inString = false, escaped = false
+  for (let i = start; i < s.length; i++) {
+    const c = s[i]
+    if (escaped) { escaped = false; continue }
+    if (c === '\\') { escaped = inString; continue }
+    if (c === '"') { inString = !inString; continue }
+    if (inString) continue
+    if (c === '{') depth++
+    else if (c === '}' && --depth === 0) return JSON.parse(s.slice(start, i + 1))
+  }
+  // Jamais refermé : réponse tronquée. On parse quand même pour que l'erreur
+  // remontée soit la vraie, pas une invention de ce découpage.
+  return JSON.parse(s.slice(start))
 }
 
 /// Comme `llm`, mais retente une fois quand le JSON revient malformé.

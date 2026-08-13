@@ -88,7 +88,28 @@ async function llm(prompt, model = CLERK) {
   const j = await r.json()
   if (!r.ok || j.error) throw new Error(j.error?.message || `HTTP ${r.status}`)
   const out = (j.choices?.[0]?.message?.content || '').trim().replace(/^```(?:json)?\s*|\s*```$/g, '')
-  return JSON.parse(out.slice(out.indexOf('{'), out.lastIndexOf('}') + 1))
+  return firstJSON(out)
+}
+
+/// Le premier objet JSON équilibré de la réponse, et rien d'autre.
+///
+/// Même garde-fou que dans la fabrique : « du premier `{` au dernier `}` »
+/// avalait ce que le modèle ajoute après son JSON — un second objet entier,
+/// une clôture de code — et tout l'appel se perdait dans un `SyntaxError`.
+function firstJSON(s) {
+  const start = s.indexOf('{')
+  if (start < 0) throw new SyntaxError('pas de JSON dans la réponse')
+  let depth = 0, inString = false, escaped = false
+  for (let i = start; i < s.length; i++) {
+    const c = s[i]
+    if (escaped) { escaped = false; continue }
+    if (c === '\\') { escaped = inString; continue }
+    if (c === '"') { inString = !inString; continue }
+    if (inString) continue
+    if (c === '{') depth++
+    else if (c === '}' && --depth === 0) return JSON.parse(s.slice(start, i + 1))
+  }
+  return JSON.parse(s.slice(start))
 }
 
 // ── plomberie ────────────────────────────────────────────────────────────────
@@ -112,52 +133,31 @@ async function readBody(req, limit = 200_000) {
   return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}')
 }
 
+/// Les mots qui valent d'être appris parmi `tokens`, avec leur sens.
+///
+/// Servait déjà la route `gloss` ; la route `document` s'en sert aussi pour
+/// que l'article publié ait des mots tappables, comme les textes du matin.
+async function glossTokens(tokens) {
+  const out = await llm(GLOSS(tokens))
+  return (out.w || [])
+    .filter((w) => w && Number.isInteger(w.i) && tokens[w.i]
+      && typeof w.l === 'string' && w.l.trim()
+      && typeof w.e === 'string' && w.e.trim())
+    .slice(0, 30)
+    .map((w) => ({
+      index: w.i,
+      surface: tokens[w.i],
+      lemma: w.l.trim(),
+      pos: typeof w.p === 'string' ? w.p : 'other',
+      en: w.e.trim(),
+    }))
+}
+
 const capturesFile = (user) => join(DATA, 'u', user, 'captures.json')
 const dayFile = (user, date) => join(DATA, 'u', user, `${date}.json`)
 // Le fuseau du lecteur, comme la fabrique : le serveur tourne en UTC, et à
 // 6 h du matin à Séoul c'est déjà le lendemain là-bas mais pas ici.
 const READER_TZ = process.env.MOLAGO_TZ || 'Asia/Seoul'
-// La même voix que la fabrique nocturne, et ce n'est pas un détail : entendre
-// sa facture lue par quelqu'un d'autre que celui qui lit les textes du matin
-// ferait de la capture une pièce rapportée.
-const VOICE = 'ko-KR-Chirp3-HD-Achernar'
-const audioDir = (user) => join(DATA, 'u', user, 'audio')
-
-/// Fabrique la voix d'un article déjà publié, phrase par phrase.
-///
-/// Lancée sans être attendue : l'article est lisible dès qu'il est écrit, et
-/// c'est ce qui compte devant une facture — la voix, c'est pour le relire dans
-/// le métro plus tard. Une phrase qui échoue ne fait pas tomber les autres : le
-/// lecteur saute simplement les pistes absentes.
-async function speak(user, day, slot) {
-  const text = day.texts.find((t) => t.slot === slot)
-  if (!text || !process.env.GOOGLE_TTS_API_KEY) return
-  mkdirSync(audioDir(user), { recursive: true })
-
-  for (const sentence of text.sentences) {
-    const file = join(audioDir(user), sentence.audio)
-    if (existsSync(file)) continue
-    try {
-      const r = await fetch(
-        `https://texttospeech.googleapis.com/v1beta1/text:synthesize?key=${process.env.GOOGLE_TTS_API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            input: { text: sentence.ko },
-            voice: { languageCode: 'ko-KR', name: VOICE },
-            audioConfig: { audioEncoding: 'MP3', speakingRate: 0.95 },
-          }),
-          signal: AbortSignal.timeout(45000),
-        },
-      )
-      const j = await r.json()
-      if (!j.audioContent) continue
-      writeFileSync(file, Buffer.from(j.audioContent, 'base64'))
-    } catch { /* une phrase muette vaut mieux qu'un article perdu */ }
-  }
-  console.log(`voix : ${text.sentences.length} phrases pour ${slot}`)
-}
 
 const readDay = (user, date) => {
   try { return JSON.parse(readFileSync(dayFile(user, date), 'utf8')) } catch { return null }
@@ -198,20 +198,7 @@ createServer(async (req, res) => {
         : String(body.text || '').split(/\s+/).filter(Boolean).slice(0, 400)
       if (tokens.length < 1) return json(res, 400, { error: 'no text' })
 
-      const out = await llm(GLOSS(tokens))
-      const words = (out.w || [])
-        .filter((w) => w && Number.isInteger(w.i) && tokens[w.i]
-          && typeof w.l === 'string' && w.l.trim()
-          && typeof w.e === 'string' && w.e.trim())
-        .slice(0, 30)
-        .map((w) => ({
-          index: w.i,
-          surface: tokens[w.i],
-          lemma: w.l.trim(),
-          pos: typeof w.p === 'string' ? w.p : 'other',
-          en: w.e.trim(),
-        }))
-      return json(res, 200, { words })
+      return json(res, 200, { words: await glossTokens(tokens) })
     }
 
     if (route === 'document') {
@@ -226,6 +213,15 @@ createServer(async (req, res) => {
         .map((x) => ({ ko: x.ko.trim(), en: x.en.trim() }))
       if (!sentences.length) return json(res, 502, { error: 'unreadable' })
 
+      // Les mots tappables, comme dans les textes du matin : le même découpage
+      // en 어절, le même glossaire sélectif que la route `gloss`. Un glossaire
+      // qui échoue ne retient pas l'article — il est simplement moins tappable.
+      const tokens = sentences.flatMap((s) => s.ko.split(/\s+/))
+      let byIndex = new Map()
+      try {
+        byIndex = new Map((await glossTokens(tokens)).map((w) => [w.index, w]))
+      } catch { /* un article sans glossaire vaut mieux que pas d'article */ }
+
       // La journée du lecteur, pas celle du serveur : c'est la même règle que
       // pour la fabrique nocturne, et pour la même raison — l'app range sa
       // capture dans le jour qu'affiche son téléphone.
@@ -235,6 +231,7 @@ createServer(async (req, res) => {
       // Un identifiant par capture : on en photographie plusieurs par jour, et
       // le slot seul ne suffirait pas à les distinguer.
       const slot = `capture-${Date.now().toString(36)}`
+      let cursor = 0
       const text = {
         slot,
         universe: 'Capture',
@@ -244,16 +241,21 @@ createServer(async (req, res) => {
         // pour la même raison.
         minutes: Math.max(1, Math.round(sentences.reduce((n, s) => n + s.ko.split(/\s+/).length, 0) / 95)),
         icon: null,
-        // Pas de piste audio : elle vient après, et l'article est lisible sans.
-        sentences: sentences.map((s, i) => ({ ...s, audio: `${date}-${slot}-${String(i + 1).padStart(2, '0')}.mp3` })),
+        // Pas de voix pour une capture : on la lit devant son document, pas
+        // dans le métro. Le nom de piste reste — il sert d'identifiant de
+        // phrase et porte la date — mais aucun fichier n'existe derrière.
+        sentences: sentences.map((s, i) => ({
+          ...s,
+          audio: `${date}-${slot}-${String(i + 1).padStart(2, '0')}.mp3`,
+          words: s.ko.split(/\s+/).map((w) => {
+            const g = byIndex.get(cursor++)
+            return g ? { w, lemma: g.lemma, pos: g.pos, en: g.en } : { w }
+          }),
+        })),
       }
 
       day.texts = [...day.texts.filter((t) => t.slot !== slot), text]
       writeDay(user, day)
-      // On répond tout de suite : le texte est ce qui est urgent. La voix se
-      // fabrique derrière, et les pistes apparaissent au fur et à mesure — le
-      // lecteur les trouvera au prochain passage sans qu'on ait à le prévenir.
-      speak(user, day, slot).catch(() => {})
       return json(res, 200, { date, slot, title: text.title, sentences: sentences.length })
     }
 
