@@ -91,13 +91,14 @@ async function llm(prompt, model = CLERK) {
   return firstJSON(out)
 }
 
-/// Le premier objet JSON équilibré de la réponse, et rien d'autre.
+/// La première valeur JSON équilibrée de la réponse, et rien d'autre.
 ///
-/// Même garde-fou que dans la fabrique : « du premier `{` au dernier `}` »
-/// avalait ce que le modèle ajoute après son JSON — un second objet entier,
-/// une clôture de code — et tout l'appel se perdait dans un `SyntaxError`.
+/// Même garde-fou que dans la fabrique : le modèle ajoute parfois quelque
+/// chose après son JSON, ou répond par un tableau nu là où on demandait un
+/// objet — et tout l'appel se perdait dans un `SyntaxError`.
 function firstJSON(s) {
-  const start = s.indexOf('{')
+  const io = s.indexOf('{'), ia = s.indexOf('[')
+  const start = io < 0 ? ia : ia < 0 ? io : Math.min(io, ia)
   if (start < 0) throw new SyntaxError('pas de JSON dans la réponse')
   let depth = 0, inString = false, escaped = false
   for (let i = start; i < s.length; i++) {
@@ -106,8 +107,8 @@ function firstJSON(s) {
     if (c === '\\') { escaped = inString; continue }
     if (c === '"') { inString = !inString; continue }
     if (inString) continue
-    if (c === '{') depth++
-    else if (c === '}' && --depth === 0) return JSON.parse(s.slice(start, i + 1))
+    if (c === '{' || c === '[') depth++
+    else if ((c === '}' || c === ']') && --depth === 0) return JSON.parse(s.slice(start, i + 1))
   }
   return JSON.parse(s.slice(start))
 }
@@ -139,7 +140,8 @@ async function readBody(req, limit = 200_000) {
 /// que l'article publié ait des mots tappables, comme les textes du matin.
 async function glossTokens(tokens) {
   const out = await llm(GLOSS(tokens))
-  return (out.w || [])
+  // `{"w": [...]}` demandé, mais le modèle rend parfois le tableau nu.
+  return (Array.isArray(out) ? out : out.w || [])
     .filter((w) => w && Number.isInteger(w.i) && tokens[w.i]
       && typeof w.l === 'string' && w.l.trim()
       && typeof w.e === 'string' && w.e.trim())
@@ -207,7 +209,7 @@ createServer(async (req, res) => {
       if (lines.length < 1) return json(res, 400, { error: 'no text' })
 
       const out = await llm(DOCUMENT(lines), WRITER)
-      const sentences = (out.s || [])
+      const sentences = (Array.isArray(out) ? out : out.s || [])
         .filter((x) => x && typeof x.ko === 'string' && x.ko.trim()
           && typeof x.en === 'string' && x.en.trim())
         .map((x) => ({ ko: x.ko.trim(), en: x.en.trim() }))

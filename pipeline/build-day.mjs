@@ -223,14 +223,17 @@ async function llm(prompt, { json = false, model = WRITER, maxTokens = 8000 } = 
   return out
 }
 
-/// Le premier objet JSON équilibré de la réponse, et rien d'autre.
+/// La première valeur JSON équilibrée de la réponse, et rien d'autre.
 ///
 /// « Du premier `{` au dernier `}` » avalait tout ce que le modèle ajoute
-/// après son JSON — un second objet entier, une clôture de code — et le
-/// glossaire d'un texte sur deux se perdait dans un `SyntaxError`. On compte
-/// donc les accolades, guillemets respectés, et on s'arrête à la fermeture.
+/// après son JSON — et surtout, le modèle répond parfois par un TABLEAU nu là
+/// où on demandait un objet : le découpage prenait alors la première entrée
+/// pour tout le glossaire, et un texte sur deux perdait ses mots tappables
+/// dans un `SyntaxError`. On compte donc crochets et accolades, guillemets
+/// respectés, et on s'arrête à la fermeture de ce qui s'est ouvert en premier.
 export function firstJSON(s) {
-  const start = s.indexOf('{')
+  const io = s.indexOf('{'), ia = s.indexOf('[')
+  const start = io < 0 ? ia : ia < 0 ? io : Math.min(io, ia)
   if (start < 0) throw new SyntaxError('pas de JSON dans la réponse')
   let depth = 0, inString = false, escaped = false
   for (let i = start; i < s.length; i++) {
@@ -239,13 +242,19 @@ export function firstJSON(s) {
     if (c === '\\') { escaped = inString; continue }
     if (c === '"') { inString = !inString; continue }
     if (inString) continue
-    if (c === '{') depth++
-    else if (c === '}' && --depth === 0) return JSON.parse(s.slice(start, i + 1))
+    if (c === '{' || c === '[') depth++
+    else if ((c === '}' || c === ']') && --depth === 0) return JSON.parse(s.slice(start, i + 1))
   }
   // Jamais refermé : réponse tronquée. On parse quand même pour que l'erreur
   // remontée soit la vraie, pas une invention de ce découpage.
   return JSON.parse(s.slice(start))
 }
+
+/// La liste d'une réponse, que le modèle l'ait enveloppée ou non.
+///
+/// Chaque prompt demande `{"g": [...]}` ; le modèle rend parfois `[...]` tout
+/// court. Les deux formes portent la même information, on accepte les deux.
+export const listIn = (out, key) => Array.isArray(out) ? out : out?.[key] ?? []
 
 /// Comme `llm`, mais retente une fois quand le JSON revient malformé.
 ///
@@ -551,7 +560,7 @@ async function attachIcons(sentences) {
   try {
     const rows = [...wanted].map(([lemma, meaning]) => ({ lemma, meaning }))
     const out = await llmJSON(OBJECTS(rows), { model: CLERK, maxTokens: 3000 })
-    objects = (out.o || [])
+    objects = listIn(out, 'o')
       .filter((x) => rows[x.i] && typeof x.n === 'string' && x.n.trim())
       .map((x) => ({ lemma: rows[x.i].lemma, name: x.n.trim().toLowerCase() }))
   } catch {
@@ -708,7 +717,7 @@ async function attachDomains(sentences) {
   let byLemma = new Map()
   try {
     const out = await llmJSON(CLASSIFY(rows), { model: CLERK, maxTokens: 16000 })
-    for (const c of out.c || []) {
+    for (const c of listIn(out, 'c')) {
       const row = rows[c.i]
       const domain = DOMAINS[c.d]
       if (row && domain) byLemma.set(row.lemma, domain)
@@ -849,7 +858,7 @@ async function attachRoots(sentences) {
       // parenthèse de romanisation. Une réponse rejetée n'est pas une réponse
       // « ce mot n'a pas de hanja » — et la table étant définitive, la confondre
       // avec un négatif condamnerait le mot sans jamais lui redonner sa chance.
-      for (const r of out.r || []) {
+      for (const r of listIn(out, 'r')) {
         const lemma = batch[r?.i]
         if (!lemma) continue
         const entry = cleanRoot(r)
@@ -981,7 +990,7 @@ async function buildText(slot, date, used, outDir) {
   if (allWords.length) {
     try {
       const g = await llmJSON(GLOSS(allWords), { model: CLERK, maxTokens: 24000 })
-      const byIndex = new Map((g.g || []).map((x) => [x.i, x]))
+      const byIndex = new Map(listIn(g, 'g').map((x) => [x.i, x]))
       let matched = 0, cursor = 0
       for (const sentence of sentences) {
         for (const word of sentence.words ?? []) {
