@@ -14,7 +14,7 @@ set -euo pipefail
 
 APP="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEAM=7R46U8G25A
-KEY_ID=S2XBJHBQ78
+KEY_ID=3C4JHJ4C7R
 KEY_ISSUER=491cc229-3432-481d-b5c9-c59b58cad18e
 KEY_PATH=~/.appstoreconnect/private_keys/AuthKey_$KEY_ID.p8
 
@@ -52,7 +52,15 @@ cat >"$APP/build/export.plist" <<'PLIST'
 <plist version="1.0"><dict>
   <key>method</key><string>app-store-connect</string>
   <key>teamID</key><string>7R46U8G25A</string>
-  <key>signingStyle</key><string>automatic</string>
+  <!-- Signature MANUELLE, avec le certificat et le profil déjà sur la machine.
+       En automatique, xcodebuild passe par la signature cloud d'Apple, qui
+       exige un rôle Admin que la clé App Manager n'a pas — l'export tombait
+       sur « Cloud signing permission error » alors que tout est déjà là. -->
+  <key>signingStyle</key><string>manual</string>
+  <key>signingCertificate</key><string>Apple Distribution</string>
+  <key>provisioningProfiles</key><dict>
+    <key>com.molago.app</key><string>Molago App Store</string>
+  </dict>
   <key>uploadSymbols</key><true/>
 </dict></plist>
 PLIST
