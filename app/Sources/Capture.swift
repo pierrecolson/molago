@@ -70,38 +70,44 @@ final class CaptureFlow {
         return (reply.title, reply.slot)
     }
 
-    enum InputError: Error { case emptyURL }
-
-    static func youtubeRequest(for pasted: String) throws -> URLRequest {
-        let value = pasted.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !value.isEmpty else { throw InputError.emptyURL }
-        var request = URLRequest(url: Config.baseURL.appending(path: "youtube"))
-        request.httpMethod = "POST"
-        request.timeoutInterval = 300
-        request.setValue("application/json", forHTTPHeaderField: "content-type")
-        request.httpBody = try JSONEncoder().encode(["url": value])
-        return request
-    }
-
-    func importYouTube(_ pasted: String) async {
+    func importYouTube(
+        _ pasted: String,
+        translate: ([String]) async throws -> [String],
+        fetch: (String) async throws -> YouTubeImport.Video = { try await YouTubeImport.fetch($0) },
+        save: (LibraryItem) throws -> Void = { try ImportedLibrary.save($0) }
+    ) async {
         step = .importingVideo
-        do {
-            let request = try Self.youtubeRequest(for: pasted)
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
-            if http.statusCode != 200 {
-                struct Failure: Decodable { let error: String }
-                let message = (try? JSONDecoder().decode(Failure.self, from: data).error)
-                    ?? "That video couldn't be imported."
-                step = .nothing(message)
-                return
-            }
-            struct Reply: Decodable { let title: String }
-            step = .filed(title: try JSONDecoder().decode(Reply.self, from: data).title)
-        } catch InputError.emptyURL {
+        let value = pasted.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else {
             step = .choosing
+            return
+        }
+
+        let video: YouTubeImport.Video
+        do {
+            video = try await fetch(value)
+        } catch YouTubeImport.ImportError.invalidURL {
+            step = .nothing("Paste a YouTube video link.")
+            return
         } catch {
-            step = .nothing("That video couldn't be imported. Try again in a moment.")
+            step = .nothing("YouTube couldn’t provide this transcript. Check your connection and try again.")
+            return
+        }
+
+        let item: LibraryItem
+        do {
+            let translations = video.cues.isEmpty ? [] : try await translate(video.cues.map(\.text))
+            item = try YouTubeImport.item(from: video, translations: translations)
+        } catch {
+            step = .nothing("The transcript couldn’t be translated. Download Korean and English in Settings, then try again.")
+            return
+        }
+
+        do {
+            try save(item)
+            step = .filed(title: item.text.title)
+        } catch {
+            step = .nothing("The transcript was translated but couldn’t be saved. Check that Molago can use iCloud, then try again.")
         }
     }
 
