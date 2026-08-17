@@ -29,6 +29,12 @@ enum Paths {
         return dir
     }()
 
+    static let thumbnails: URL = {
+        let dir = root.appending(path: "thumbnails", directoryHint: .isDirectory)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }()
+
     /// Le dossier iCloud de l'app, s'il est disponible.
     ///
     /// Interrogé une fois : la réponse demande un aller-retour au système, et
@@ -82,6 +88,11 @@ enum Paths {
         return nil
     }
 
+    static func thumbnail(_ slot: String) -> URL? {
+        let url = thumbnails.appending(path: "\(slot).jpg")
+        return FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) ? url : nil
+    }
+
     /// Une piste audio si elle est encore là. Les anciennes finissent purgées
     /// du serveur, donc un mot ancien peut avoir perdu sa voix.
     static func audioFile(_ name: String) -> URL? {
@@ -113,10 +124,12 @@ final class DayStore {
     enum State {
         case loading
         case ready(Day)
+        case library
         case nothing(String)
     }
 
     private(set) var state: State = .loading
+    private(set) var items: [LibraryItem] = []
 
     /// La journée si on en a une, quel que soit l'état.
     ///
@@ -143,49 +156,57 @@ final class DayStore {
 
 
     func load() async {
-        let today = Self.dateString(Date())
-
-        // D'abord ce qu'on a. L'écran se remplit avant le moindre appel réseau.
-        if let cached = Self.readCached(today) {
-            state = .ready(cached)
-        }
-
-        // Le rattrapage tourne quoi qu'il arrive, y compris quand la journée du
-        // jour manque. C'est même là qu'il compte le plus : le matin où la
-        // fabrique n'a rien produit, « Previously » est tout ce qui reste à
-        // lire — le vider aussi ferait d'un incident une app vide.
-        previously = Self.cachedDays()
-        defer {
-            Task { [weak self] in
-                await Self.backfill(before: today)
-                self?.previously = Self.cachedDays()
-            }
+        let cached = Self.cachedLibrary()
+        if !cached.isEmpty {
+            items = cached
+            state = .library
         }
 
         do {
-            let day = try await Self.fetch(date: today)
-            // La journée est écrite AVANT les médias. Un texte lisible mais
-            // muet vaut infiniment mieux qu'un écran vide : une piste qui
-            // manque se rattrape au prochain lancement, une journée perdue
-            // parce qu'un fichier sur cinquante a échoué, non.
-            Self.writeCached(day)
-            state = .ready(day)
-            await Self.downloadAudio(for: day)
-            await Self.downloadIcons(for: day)
+            let remote = try await Self.fetchLibrary()
+            let merged = Self.merged(remote, with: Self.legacyCaptures())
+            Self.writeLibrary(merged)
+            items = merged
+            state = .library
+            await Self.downloadThumbnails(for: merged)
+            items = merged
         } catch {
-            print("[molago] chargement impossible : \(error)")
-            // Rien de neuf ? Ce qu'on a déjà reste à l'écran. Sinon on le dit
-            // franchement, sans reproche ni rattrapage à faire (spec §12).
-            if case .ready = state { return }
-            if let latest = Self.readMostRecentCached() {
-                state = .ready(latest)
+            print("[molago] bibliothèque impossible : \(error)")
+            if !items.isEmpty { return }
+            let legacy = Self.legacyCaptures()
+            if !legacy.isEmpty {
+                items = legacy
+                state = .library
+            } else if let urlError = error as? URLError,
+                      [.notConnectedToInternet, .networkConnectionLost, .timedOut].contains(urlError.code) {
+                state = .nothing("No connection, and nothing saved on this phone yet.")
             } else {
-                state = .nothing(Self.humanMessage(for: error))
+                state = .library
             }
         }
     }
 
     // ── réseau ───────────────────────────────────────────────────────────────
+
+    private static func fetchLibrary() async throws -> [LibraryItem] {
+        var request = URLRequest(url: Config.baseURL.appending(path: "library"))
+        request.timeoutInterval = 30
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+        struct Reply: Decodable { let items: [LibraryItem] }
+        return try JSONDecoder().decode(Reply.self, from: data).items
+    }
+
+    private static func downloadThumbnails(for items: [LibraryItem]) async {
+        await fetchAll(items.compactMap { item in
+            guard item.text.isYouTube,
+                  Paths.thumbnail(item.text.slot) == nil,
+                  let remote = item.text.thumbnailURL
+            else { return nil }
+            return (remote, Paths.thumbnails.appending(path: "\(item.text.slot).jpg"))
+        })
+    }
 
     private static func fetch(date: String) async throws -> Day {
         var request = URLRequest(url: Config.baseURL.appending(path: "\(date).json"))
@@ -273,6 +294,34 @@ final class DayStore {
     }
 
     // ── disque ───────────────────────────────────────────────────────────────
+
+    private static var libraryFile: URL { Paths.root.appending(path: "library-cache.json") }
+
+    static func cachedItems() -> [LibraryItem] { cachedLibrary() }
+
+    private static func cachedLibrary() -> [LibraryItem] {
+        guard let data = try? Data(contentsOf: libraryFile) else { return [] }
+        return (try? JSONDecoder().decode([LibraryItem].self, from: data)) ?? []
+    }
+
+    private static func writeLibrary(_ items: [LibraryItem]) {
+        guard let data = try? JSONEncoder().encode(items) else { return }
+        try? data.write(to: libraryFile, options: .atomic)
+    }
+
+    private static func legacyCaptures() -> [LibraryItem] {
+        cachedDays().flatMap { day in
+            day.texts.filter(\.isCapture).map { LibraryItem(date: day.date, text: $0) }
+        }
+    }
+
+    private static func merged(_ remote: [LibraryItem], with local: [LibraryItem]) -> [LibraryItem] {
+        var bySlot = Dictionary(uniqueKeysWithValues: local.map { ($0.text.slot, $0) })
+        for item in remote { bySlot[item.text.slot] = item }
+        return bySlot.values.sorted {
+            ($0.text.importedAt ?? $0.date) > ($1.text.importedAt ?? $1.date)
+        }
+    }
 
     private static func file(_ date: String) -> URL { Paths.root.appending(path: "\(date).json") }
 

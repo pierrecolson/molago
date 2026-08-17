@@ -47,8 +47,7 @@ struct MolagoApp: App {
                     // La recherche couvre aussi les journées passées : une
                     // capture d'avant-hier doit pouvoir s'ouvrir pareil.
                     if let slot = launchSlot,
-                       let text = ([store.day].compactMap { $0 } + store.previously)
-                           .flatMap(\.texts).first(where: { $0.slot == slot }) {
+                       let text = store.items.map(\.text).first(where: { $0.slot == slot }) {
                         NavigationStack { ReaderView(text: text) }
                             .tint(Dancheong.jangdan)
                     } else {
@@ -65,22 +64,13 @@ struct MolagoApp: App {
                                 // inatteignable les matins où la fabrique n'a
                                 // rien produit était exactement l'inverse de ce
                                 // qu'il fallait faire.
-                                if let day = store.day {
-                                    HomeView(day: day, previously: store.previously)
-                                } else {
-                                    ContentUnavailableView(
-                                        "Nothing this morning",
-                                        systemImage: "sun.horizon",
-                                        description: Text(store.message ?? "")
-                                    )
-                                    .background(Dancheong.ground)
-                                }
+                                HomeView(items: store.items)
                             }
-                            Tab("Notebook", systemImage: "text.book.closed", value: 1) {
+                            Tab("Wordbook", systemImage: "text.book.closed", value: 1) {
                                 NotebookView()
                             }
                             Tab("Search", systemImage: "magnifyingglass", value: 2) {
-                                SearchView(day: store.day, previously: store.previously)
+                                SearchView(items: store.items)
                             }
                             // Détaché de la pilule, seul à droite.
                             //
@@ -116,8 +106,10 @@ struct MolagoApp: App {
                 Task { await store.load() }
             }
             .task {
+                MorningCall.disable()
                 await store.load()
                 if ProcessInfo.processInfo.arguments.contains("--open-notebook") { tab = 1 }
+                if ProcessInfo.processInfo.arguments.contains("--open-capture") { tab = Self.captureTab }
             }
             // Le carnet est la seule chose irremplaçable du produit : les textes
             // se régénèrent, une collection de mots non.

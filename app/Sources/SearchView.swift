@@ -8,19 +8,16 @@ import SwiftData
 /// savoir d'avance dans laquelle chercher — or on cherche « 관리비 » sans se
 /// demander si on l'a rencontré dans un article ou attrapé dans le carnet.
 struct SearchView: View {
-    let day: Day?
-    let previously: [Day]
+    let items: [LibraryItem]
 
     @Query(sort: \KeptWord.keptAt, order: .reverse) private var kept: [KeptWord]
     @State private var query = ""
 
     private var q: String { query.trimmingCharacters(in: .whitespaces).lowercased() }
 
-    private var texts: [(day: Day, text: Day.Text)] {
+    private var texts: [LibraryItem] {
         guard !q.isEmpty else { return [] }
-        return ([day].compactMap { $0 } + previously)
-            .flatMap { d in d.texts.map { (day: d, text: $0) } }
-            .filter { $0.text.title.lowercased().contains(q) }
+        return items.filter { $0.text.title.lowercased().contains(q) }
     }
 
     private var words: [KeptWord] {
@@ -50,18 +47,18 @@ struct SearchView: View {
                 }
                 if !texts.isEmpty {
                     Section("TEXTS") {
-                        ForEach(texts, id: \.text.id) { item in
+                        ForEach(texts) { item in
                             NavigationLink { ReaderView(text: item.text) } label: {
                                 HStack(spacing: 11) {
-                                    Image(Dancheong.universe(item.text.slot).icon)
-                                        .resizable().scaledToFit()
+                                    Image(systemName: item.text.isYouTube ? "play.rectangle.fill" : "doc.text.image")
                                         .frame(width: 22, height: 22)
                                         .frame(width: 32, height: 32)
-                                        .background(Dancheong.universe(item.text.slot).color)
+                                        .foregroundStyle(Dancheong.jangdan)
+                                        .background(Dancheong.jangdan.opacity(0.1))
                                         .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                                     Text(item.text.title).font(.subheadline).lineLimit(2)
                                     Spacer(minLength: 6)
-                                    Text(item.day.shortLabel)
+                                    Text(item.shortLabel)
                                         .font(.caption2)
                                         .foregroundStyle(Dancheong.inkSoft)
                                 }

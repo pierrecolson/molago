@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// La première vraie API de Molago — deux routes, et c'est tout.
+// L'API de Molago : captures choisies par l'utilisateur et imports YouTube.
 //
 // Jusqu'ici le serveur ne faisait que servir des fichiers fabriqués la nuit.
 // La capture change ça : la spec §5.7 veut qu'un mot photographié montre son
@@ -11,7 +11,7 @@
 //   POST /u/:id/captures  { words }  → ce qui est gardé, pour la nuit suivante
 //   POST /u/:id/document  { lines }  → un document photographié, rendu lisible
 //
-// Pas de framework : `node:http` suffit pour deux routes, et une dépendance de
+// Pas de framework : `node:http` suffit pour ces routes, et une dépendance de
 // moins est une dépendance de moins à tenir à jour sur un VPS.
 //
 // L'identité est le chemin `/u/:id`, exactement comme pour les fichiers. Le
@@ -19,8 +19,10 @@
 // utilisateur changera — pas les routes, pas l'app.
 
 import { createServer } from 'node:http'
-import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { extractYouTube } from './youtube.mjs'
+import { lexiconCache, selectFamily } from './lexicon.mjs'
 
 const PORT = Number(process.env.PORT || 8080)
 const DATA = process.env.DATA_DIR || '/data'
@@ -40,19 +42,24 @@ const USER = process.env.MOLAGO_USER_ID || process.env.MOLAGO_SECRET_PATH || ''
 // l'image : elle en a la boîte, donnée par l'OCR. Répondre par index garde
 // l'alignement entre le sens et le rectangle à surligner — un appariement par
 // forme se casserait dès qu'un mot apparaît deux fois.
-const GLOSS = (tokens) => `Voici les mots d'un texte coréen photographié — une facture, un panneau, un menu, un message —, numérotés dans l'ordre où ils apparaissent.
+const GLOSS = (tokens, lookup = false, context = '', enrich = false) => `Voici les mots d'un texte coréen photographié — une facture, un panneau, un menu, un message —, numérotés dans l'ordre où ils apparaissent.
 
 ${tokens.map((t, i) => `${i}. ${t}`).join('\n')}
 
-Retiens **ceux qui valent la peine d'être appris** par un étranger installé à Séoul depuis huit ans : les noms, verbes et adjectifs porteurs de sens. Laisse de côté les particules seules, les nombres, les nombres avec unité, la ponctuation, les noms propres évidents, et les mots trop élémentaires.
+${lookup
+    ? `Le lecteur vient de toucher le mot 0 dans cette phrase : ${context}\nRetourne toujours ce mot avec son sens dans ce contexte, sauf s'il ne s'agit manifestement pas d'un mot coréen.`
+    : `Retiens **ceux qui valent la peine d'être appris** par un étranger installé à Séoul depuis huit ans : les noms, verbes et adjectifs porteurs de sens. Laisse de côté les particules seules, les nombres, les nombres avec unité, la ponctuation, les noms propres évidents, et les mots trop élémentaires.`}
 
 Réponds en JSON strict :
-{"w":[{"i":<numéro>,"l":"la forme de dictionnaire","p":"noun|verb|adjective|adverb|other","e":"le sens en anglais, 2 à 5 mots"}]}
+{"w":[{"i":<numéro>,"l":"la forme de dictionnaire","p":"noun|verb|adjective|adverb|other","e":"le sens en anglais, 2 à 5 mots"${enrich ? ',"h":"les Hanja exacts du mot","lit":"sens littéral naturel en anglais, 2 à 6 mots, sans synonymes répétés","m":[{"k":"syllabe coréenne","h":"Hanja exact","e":"sens de cette racine en anglais"}],"f":[{"k":"mot coréen courant","h":"ses Hanja exacts","e":"sens anglais"}]' : ''}]}
 
 Règles :
 - \`e\` est le sens de \`l\`, jamais celui de la forme fléchie : 관리비를 donne \`l\`: 관리비 et \`e\`: "maintenance fee".
 - L'OCR se trompe. Si un mot est manifestement mal reconnu et ne veut rien dire, saute-le plutôt que d'inventer.
-- Au plus 30 mots, et seulement ceux qui apprennent vraiment quelque chose.`
+- Au plus 30 mots, et seulement ceux qui apprennent vraiment quelque chose.
+${enrich ? `- Les champs h, lit, m et f sont réservés aux mots réellement sino-coréens. Omet-les pour un mot coréen natif ou un emprunt.
+- m décompose chaque syllabe sino-coréenne dans l'ordre. Ne donne jamais un Hanja seulement parce qu'il a la même lecture.
+- f contient trois à cinq mots courants qui partagent tous **le même caractère chinois réel** avec le mot, jamais seulement la même syllabe Hangul. Choisis une seule racine productive et exclus le mot lui-même.` : ''}`
 
 const DOCUMENT = (lines) => `Voici les lignes d'un document coréen photographié — une affiche, une facture, un panneau, un avis de copropriété. Elles arrivent dans l'ordre où la reconnaissance de texte les a vues, ce qui n'est pas toujours l'ordre de lecture : les colonnes, les encadrés et les tableaux la désorientent.
 
@@ -69,6 +76,12 @@ Rends ce document lisible comme un article.
 
 Réponds en JSON :
 {"t":"un titre court en anglais, ce que le document est","s":[{"ko":"une phrase coréenne","en":"sa traduction anglaise"}]}`
+
+const TRANSLATE = (sentences) => `Traduis ces sous-titres coréens en anglais naturel. Garde exactement un résultat par numéro et n'ajoute rien.
+
+${sentences.map((sentence, index) => `${index}. ${sentence}`).join('\n')}
+
+Réponds en JSON strict : {"t":[{"i":0,"en":"translation"}]}`
 
 async function llm(prompt, model = CLERK) {
   const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -138,24 +151,81 @@ async function readBody(req, limit = 200_000) {
 ///
 /// Servait déjà la route `gloss` ; la route `document` s'en sert aussi pour
 /// que l'article publié ait des mots tappables, comme les textes du matin.
-async function glossTokens(tokens) {
-  const out = await llm(GLOSS(tokens))
+async function glossTokens(tokens, lookup = false, context = '', enrich = false) {
+  const out = await llm(GLOSS(tokens, lookup, context, enrich))
   // `{"w": [...]}` demandé, mais le modèle rend parfois le tableau nu.
   return (Array.isArray(out) ? out : out.w || [])
     .filter((w) => w && Number.isInteger(w.i) && tokens[w.i]
       && typeof w.l === 'string' && w.l.trim()
       && typeof w.e === 'string' && w.e.trim())
     .slice(0, 30)
-    .map((w) => ({
-      index: w.i,
-      surface: tokens[w.i],
-      lemma: w.l.trim(),
-      pos: typeof w.p === 'string' ? w.p : 'other',
-      en: w.e.trim(),
-    }))
+    .map((w) => {
+      const morphemes = (Array.isArray(w.m) ? w.m : [])
+        .filter((part) => part && typeof part.k === 'string' && part.k.trim()
+          && typeof part.h === 'string' && part.h.trim()
+          && typeof part.e === 'string' && part.e.trim())
+        .map((part) => ({ k: part.k.trim(), h: part.h.trim(), e: part.e.trim() }))
+      const family = (Array.isArray(w.f) ? w.f : [])
+        .filter((relative) => relative && typeof relative.k === 'string' && relative.k.trim()
+          && typeof relative.h === 'string' && relative.h.trim()
+          && typeof relative.e === 'string' && relative.e.trim())
+        .slice(0, 5)
+        .map((relative) => ({ k: relative.k.trim(), h: relative.h.trim(), e: relative.e.trim() }))
+      const selected = selectFamily(morphemes, family)
+      return {
+        index: w.i,
+        surface: tokens[w.i],
+        lemma: w.l.trim(),
+        pos: typeof w.p === 'string' ? w.p : 'other',
+        en: w.e.trim(),
+        ...(typeof w.h === 'string' && w.h.trim() ? { hanja: w.h.trim() } : {}),
+        ...(typeof w.lit === 'string' && w.lit.trim() ? { literal: w.lit.trim() } : {}),
+        ...(morphemes.length ? { morphemes } : {}),
+        ...(selected.root ? { root: selected.root } : {}),
+        ...(selected.family.length ? { family: selected.family } : {}),
+      }
+    })
+}
+
+async function translateSentences(sentences) {
+  const translated = []
+  for (let offset = 0; offset < sentences.length; offset += 60) {
+    const chunk = sentences.slice(offset, offset + 60)
+    const out = await llm(TRANSLATE(chunk))
+    const rows = Array.isArray(out) ? out : out.t || []
+    const byIndex = new Map(rows
+      .filter((row) => Number.isInteger(row?.i) && typeof row.en === 'string')
+      .map((row) => [row.i, row.en.trim()]))
+    translated.push(...chunk.map((_, index) => byIndex.get(index) || ''))
+  }
+  return translated
+}
+
+async function annotateCues(cues) {
+  const tokens = cues.flatMap((cue) => cue.ko.split(/\s+/).filter(Boolean))
+  const glosses = new Map()
+  for (let offset = 0; offset < tokens.length; offset += 300) {
+    try {
+      for (const word of await glossTokens(tokens.slice(offset, offset + 300))) {
+        glosses.set(offset + word.index, word)
+      }
+    } catch { /* le transcript reste lisible sans mots tappables */ }
+  }
+
+  let cursor = 0
+  return cues.map((cue) => ({
+    ...cue,
+    words: cue.ko.split(/\s+/).filter(Boolean).map((surface) => {
+      const gloss = glosses.get(cursor++)
+      return gloss
+        ? { w: surface, lemma: gloss.lemma, pos: gloss.pos, en: gloss.en }
+        : { w: surface }
+    }),
+  }))
 }
 
 const capturesFile = (user) => join(DATA, 'u', user, 'captures.json')
+const lexiconFile = (user) => join(DATA, 'u', user, 'lexicon.json')
 const dayFile = (user, date) => join(DATA, 'u', user, `${date}.json`)
 // Le fuseau du lecteur, comme la fabrique : le serveur tourne en UTC, et à
 // 6 h du matin à Séoul c'est déjà le lendemain là-bas mais pas ici.
@@ -163,6 +233,29 @@ const READER_TZ = process.env.MOLAGO_TZ || 'Asia/Seoul'
 
 const readDay = (user, date) => {
   try { return JSON.parse(readFileSync(dayFile(user, date), 'utf8')) } catch { return null }
+}
+
+const libraryItems = (user) => {
+  const directory = join(DATA, 'u', user)
+  if (!existsSync(directory)) return []
+  return readdirSync(directory)
+    .filter((name) => /^\d{4}-\d{2}-\d{2}\.json$/.test(name))
+    .flatMap((name) => {
+      const day = readDay(user, name.slice(0, 10))
+      if (!day) return []
+      return (day.texts || [])
+        .filter((text) => text?.kind === 'photo' || text?.kind === 'youtube'
+          || text?.slot?.startsWith('capture-') || text?.slot?.startsWith('youtube-'))
+        .map((text) => ({
+          date: day.date,
+          text: {
+            ...text,
+            kind: text.kind || (text.slot.startsWith('youtube-') ? 'youtube' : 'photo'),
+            importedAt: text.importedAt || `${day.date}T00:00:00.000Z`,
+          },
+        }))
+    })
+    .sort((a, b) => b.text.importedAt.localeCompare(a.text.importedAt))
 }
 /// Écriture atomique : l'app peut lire la journée à l'instant où on la complète,
 /// et une journée à moitié écrite ne se décode pas — l'écran afficherait alors
@@ -179,7 +272,7 @@ const writeDay = (user, day) => {
 createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost')
-    const m = url.pathname.match(/^\/u\/([A-Za-z0-9_-]{8,64})\/(gloss|captures|document)$/)
+    const m = url.pathname.match(/^\/u\/([A-Za-z0-9_-]{8,64})\/(gloss|captures|document|youtube|library)$/)
 
     if (url.pathname === '/health') return json(res, 200, { ok: true })
     if (!m) return json(res, 404, { error: 'not found' })
@@ -187,10 +280,50 @@ createServer(async (req, res) => {
     // utilisateur. On le compare quand même, plutôt que d'accepter n'importe
     // quel chemin bien formé.
     if (USER && m[1] !== USER) return json(res, 404, { error: 'not found' })
+    const [, user, route] = m
+    if (route === 'library') {
+      if (req.method !== 'GET') return json(res, 405, { error: 'method not allowed' })
+      return json(res, 200, { items: libraryItems(user) })
+    }
     if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' })
 
-    const [, user, route] = m
     const body = await readBody(req)
+
+    if (route === 'youtube') {
+      const video = await extractYouTube(body.url, {
+        translate: translateSentences,
+        annotate: annotateCues,
+      })
+      const date = new Date().toLocaleDateString('en-CA', { timeZone: READER_TZ })
+      const day = readDay(user, date) || { date, texts: [] }
+      const slot = `youtube-${video.videoID}`
+      const importedAt = new Date().toISOString()
+      const text = {
+        slot,
+        kind: 'youtube',
+        universe: 'YouTube',
+        title: video.title.slice(0, 120),
+        minutes: Math.max(1, Math.round(video.duration / 60)),
+        durationSeconds: video.duration,
+        icon: null,
+        videoID: video.videoID,
+        sourceURL: video.sourceURL,
+        sourceName: video.channel,
+        thumbnail: video.thumbnail,
+        importedAt,
+        sentences: video.cues.map((cue, index) => ({
+          ko: cue.ko,
+          en: cue.en,
+          start: cue.start,
+          end: cue.end,
+          audio: `${date}-${slot}-${String(index + 1).padStart(4, '0')}`,
+          words: cue.words,
+        })),
+      }
+      day.texts = [...day.texts.filter((candidate) => candidate.slot !== slot), text]
+      writeDay(user, day)
+      return json(res, 200, { date, slot, title: text.title, transcript: text.sentences.length })
+    }
 
     if (route === 'gloss') {
       // L'app envoie les mots que l'OCR a vus, dans l'ordre. Elle accepte aussi
@@ -200,7 +333,17 @@ createServer(async (req, res) => {
         : String(body.text || '').split(/\s+/).filter(Boolean).slice(0, 400)
       if (tokens.length < 1) return json(res, 400, { error: 'no text' })
 
-      return json(res, 200, { words: await glossTokens(tokens) })
+      const context = typeof body.context === 'string' ? body.context.trim().slice(0, 500) : ''
+      if (body.enrich === true && tokens.length === 1) {
+        const cache = lexiconCache(lexiconFile(user))
+        const word = await cache.remember(tokens[0], async () => {
+          const enriched = await glossTokens(tokens, true, context, true)
+          if (!enriched[0]) throw new Error('no definition')
+          return enriched[0]
+        })
+        return json(res, 200, { words: [word] })
+      }
+      return json(res, 200, { words: await glossTokens(tokens, body.lookup === true, context) })
     }
 
     if (route === 'document') {
@@ -236,6 +379,7 @@ createServer(async (req, res) => {
       let cursor = 0
       const text = {
         slot,
+        kind: 'photo',
         universe: 'Capture',
         title: String(out.t || 'Captured document').trim().slice(0, 90),
         // Le débit de lecture mesuré sur les textes du matin, appliqué au
@@ -243,6 +387,7 @@ createServer(async (req, res) => {
         // pour la même raison.
         minutes: Math.max(1, Math.round(sentences.reduce((n, s) => n + s.ko.split(/\s+/).length, 0) / 95)),
         icon: null,
+        importedAt: new Date().toISOString(),
         // Pas de voix pour une capture : on la lit devant son document, pas
         // dans le métro. Le nom de piste reste — il sert d'identifiant de
         // phrase et porte la date — mais aucun fichier n'existe derrière.
@@ -286,6 +431,6 @@ createServer(async (req, res) => {
     }
     return json(res, 200, { added: added.length, total: existing.length + added.length })
   } catch (e) {
-    return json(res, 500, { error: String(e.message || e).slice(0, 200) })
+    return json(res, e.statusCode || 500, { error: String(e.message || e).slice(0, 200) })
   }
 }).listen(PORT, () => console.log(`molago api sur :${PORT}`))

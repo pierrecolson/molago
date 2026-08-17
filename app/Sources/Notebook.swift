@@ -34,6 +34,8 @@ final class KeptWord {
     /// et la fiche doit continuer de fonctionner. Le jour où une vraie base
     /// partagée existera (decisions.md §37), c'est elle qui les portera.
     var hanja: String?
+    var literal: String?
+    var morphemes: [Day.Morpheme]?
     var root: String?
     var family: [Day.Relative]?
     /// L'univers d'où il vient.
@@ -47,13 +49,18 @@ final class KeptWord {
     /// seulement le lien.
     var sourceTitle: String?
     var sourceDate: String?
+    var sourceTime: Double?
     var keptAt: Date
 
     init(lemma: String, meaning: String, pos: String, icon: String?, context: String,
          contextAudio: String?, hanja: String?, root: String?, family: [Day.Relative]?,
-         slot: String, sourceTitle: String? = nil, sourceDate: String? = nil) {
+         slot: String, sourceTitle: String? = nil, sourceDate: String? = nil,
+         sourceTime: Double? = nil, literal: String? = nil,
+         morphemes: [Day.Morpheme]? = nil) {
         self.contextAudio = contextAudio
         self.hanja = hanja
+        self.literal = literal
+        self.morphemes = morphemes
         self.root = root
         self.family = family
         self.lemma = lemma
@@ -64,7 +71,16 @@ final class KeptWord {
         self.slot = slot
         self.sourceTitle = sourceTitle
         self.sourceDate = sourceDate
+        self.sourceTime = sourceTime
         self.keptAt = .now
+    }
+
+    func applyEnrichment(_ word: Day.Word) {
+        hanja = word.hanja ?? hanja
+        literal = word.literal ?? literal
+        morphemes = word.morphemes ?? morphemes
+        root = word.root ?? root
+        family = word.family ?? family
     }
 }
 

@@ -30,6 +30,7 @@ final class CaptureFlow {
         case filing
         /// Le document est devenu un article, rangé dans la journée.
         case filed(title: String)
+        case importingVideo
         case nothing(String)
     }
 
@@ -67,6 +68,41 @@ final class CaptureFlow {
         struct Reply: Decodable { let title: String; let slot: String }
         let reply = try JSONDecoder().decode(Reply.self, from: data)
         return (reply.title, reply.slot)
+    }
+
+    enum InputError: Error { case emptyURL }
+
+    static func youtubeRequest(for pasted: String) throws -> URLRequest {
+        let value = pasted.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { throw InputError.emptyURL }
+        var request = URLRequest(url: Config.baseURL.appending(path: "youtube"))
+        request.httpMethod = "POST"
+        request.timeoutInterval = 300
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        request.httpBody = try JSONEncoder().encode(["url": value])
+        return request
+    }
+
+    func importYouTube(_ pasted: String) async {
+        step = .importingVideo
+        do {
+            let request = try Self.youtubeRequest(for: pasted)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+            if http.statusCode != 200 {
+                struct Failure: Decodable { let error: String }
+                let message = (try? JSONDecoder().decode(Failure.self, from: data).error)
+                    ?? "That video couldn't be imported."
+                step = .nothing(message)
+                return
+            }
+            struct Reply: Decodable { let title: String }
+            step = .filed(title: try JSONDecoder().decode(Reply.self, from: data).title)
+        } catch InputError.emptyURL {
+            step = .choosing
+        } catch {
+            step = .nothing("That video couldn't be imported. Try again in a moment.")
+        }
     }
 
     func reset() { step = .choosing }
