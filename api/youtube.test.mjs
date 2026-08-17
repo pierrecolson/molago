@@ -1,7 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 
-import { alignEnglish, parseVTT, parseYouTubeURL } from './youtube.mjs'
+import { alignEnglish, extractYouTube, parseVTT, parseYouTubeURL } from './youtube.mjs'
 
 test('accepts only YouTube video URLs', () => {
   assert.equal(parseYouTubeURL('https://youtu.be/42M_DVvzye8').hostname, 'youtu.be')
@@ -47,4 +49,33 @@ test('removes the duplicated Korean line from YouTube auto-translated captions',
   const english = [{ start: 6, end: 10, text: '안녕하세요 Hello and welcome.' }]
 
   assert.equal(alignEnglish(korean, english)[0].en, 'Hello and welcome.')
+})
+
+test('keeps Korean captions when the optional English download fails', async () => {
+  const video = await extractYouTube('https://youtu.be/zC4aRaHI-yw', {
+    execute: async (_command, args) => {
+      if (!args.includes('--ignore-errors')) throw new Error('English captions returned HTTP 429')
+      const directory = dirname(args[args.indexOf('--output') + 1])
+      await writeFile(join(directory, 'zC4aRaHI-yw.ko.vtt'), `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+마일리지 전환은 어떻게?
+`)
+      return { stdout: JSON.stringify({
+        id: 'zC4aRaHI-yw',
+        title: '대한항공-아시아나 합병',
+        channel: '14F',
+        duration: 138,
+        webpage_url: 'https://www.youtube.com/watch?v=zC4aRaHI-yw',
+      }) }
+    },
+    translate: async (sentences) => sentences.map(() => 'How will mileage transfer?'),
+  })
+
+  assert.deepEqual(video.cues, [{
+    start: 1,
+    end: 3,
+    ko: '마일리지 전환은 어떻게?',
+    en: 'How will mileage transfer?',
+  }])
 })

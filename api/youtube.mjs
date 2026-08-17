@@ -89,6 +89,7 @@ export async function extractYouTube(value, options = {}) {
   const execute = options.execute || run
   try {
     const { stdout } = await execute('yt-dlp', [
+      '--ignore-errors',
       '--no-playlist',
       '--skip-download',
       '--no-simulate',
