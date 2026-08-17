@@ -43,9 +43,25 @@ enum Paths {
     /// continue de fonctionner sur l'appareil seul, ce qui est le comportement
     /// à préférer : une app qui refuse de capturer parce qu'iCloud est éteint
     /// serait une app cassée pour une raison qui ne la regarde pas.
-    static let cloud: URL? = {
+    private static let cloudDocuments: URL? = {
         guard let root = FileManager.default.url(forUbiquityContainerIdentifier: nil) else { return nil }
-        let dir = root.appending(path: "Documents/captures", directoryHint: .isDirectory)
+        let dir = root.appending(path: "Documents", directoryHint: .isDirectory)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }()
+
+    static let cloud: URL? = {
+        guard let cloudDocuments else { return nil }
+        let dir = cloudDocuments.appending(path: "captures", directoryHint: .isDirectory)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }()
+
+    /// Un JSON autonome par import choisi. iCloud le transporte entre les
+    /// appareils ; sans compte iCloud, le même chemin reste local et l'import
+    /// continue de fonctionner.
+    static let imports: URL = {
+        let dir = (cloudDocuments ?? root).appending(path: "imports", directoryHint: .isDirectory)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }()
@@ -156,7 +172,8 @@ final class DayStore {
 
 
     func load() async {
-        let cached = Self.cachedLibrary()
+        let imported = await ImportedLibrary.read()
+        let cached = Self.merged(imported, with: Self.cachedLibrary())
         if !cached.isEmpty {
             items = cached
             state = .library
@@ -164,7 +181,8 @@ final class DayStore {
 
         do {
             let remote = try await Self.fetchLibrary()
-            let merged = Self.merged(remote, with: Self.legacyCaptures())
+            let historical = Self.merged(remote, with: Self.legacyCaptures())
+            let merged = Self.merged(imported, with: historical)
             Self.writeLibrary(merged)
             items = merged
             state = .library

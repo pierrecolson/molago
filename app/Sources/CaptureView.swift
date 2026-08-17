@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import PhotosUI
+@preconcurrency import Translation
 
 /// Photographier, voir, toucher.
 ///
@@ -28,6 +29,11 @@ struct CaptureView: View {
     @State private var shooting = false
     @State private var chosen: CaptureFlow.Word?
     @State private var youtubeURL = ""
+    @State private var pendingYouTubeURL: String?
+    @State private var translationConfiguration = TranslationSession.Configuration(
+        source: Locale.Language(identifier: "ko"),
+        target: Locale.Language(identifier: "en")
+    )
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Ce qui a été gardé pendant cette capture — pour le compte et pour la
@@ -44,7 +50,7 @@ struct CaptureView: View {
             case .filing:
                 waiting("Putting it in order…")
             case .importingVideo:
-                waiting("Preparing the transcript…", detail: "This can take a minute. You can leave the captions off in YouTube.")
+                waiting("Preparing the transcript…", detail: "The first translation may download Korean and English.")
             case .filed(let title):
                 filed(title)
             case .nothing(let message):
@@ -71,6 +77,13 @@ struct CaptureView: View {
             guard let picking,
                   let data = try? await picking.loadTransferable(type: Data.self) else { return }
             await flow.read(data: data)
+        }
+        .translationTask(translationConfiguration) { session in
+            guard let value = pendingYouTubeURL else { return }
+            pendingYouTubeURL = nil
+            await flow.importYouTube(value) { lines in
+                try await Self.translate(lines, with: session)
+            }
         }
         .fullScreenCover(isPresented: $shooting) {
             Camera { image in
@@ -209,8 +222,25 @@ struct CaptureView: View {
     }
 
     private func importVideo() {
-        let value = youtubeURL
-        Task { await flow.importYouTube(value) }
+        pendingYouTubeURL = youtubeURL
+        translationConfiguration.invalidate()
+    }
+
+    private nonisolated static func translate(_ lines: [String], with session: TranslationSession) async throws -> [String] {
+        var translated = Array(repeating: "", count: lines.count)
+        for offset in stride(from: 0, to: lines.count, by: 50) {
+            let end = min(offset + 50, lines.count)
+            let requests = lines[offset..<end].enumerated().map { relative, text in
+                TranslationSession.Request(sourceText: text, clientIdentifier: String(offset + relative))
+            }
+            for response in try await session.translations(from: requests) {
+                guard let id = response.clientIdentifier, let index = Int(id), translated.indices.contains(index) else {
+                    continue
+                }
+                translated[index] = response.targetText
+            }
+        }
+        return translated
     }
 
     // ── 2. la photo, avec ses mots allumés ───────────────────────────────────
