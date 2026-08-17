@@ -29,23 +29,21 @@ struct WordDetailView: View {
     @State private var confirmingDelete = false
     @State private var opening: Day.Text?
     @State private var previewing: Day.Relative?
+    @State private var loadingRoots = false
+    @State private var rootsFailed = false
 
     /// Le texte d'où vient le mot, s'il est encore sur l'appareil.
     ///
     /// Les journées finissent purgées du serveur : la fiche doit continuer
     /// d'afficher le titre quand le texte a disparu, elle perd seulement le lien.
     private var sourceText: Day.Text? {
-        let days = DayStore.cachedDays()
-        if let date = word.sourceDate,
-           let text = days.first(where: { $0.date == date })?
-                          .texts.first(where: { $0.slot == word.slot }) {
-            return text
-        }
+        let items = DayStore.cachedItems()
+        if let text = items.first(where: { $0.text.slot == word.slot })?.text { return text }
         // Les mots gardés avant que le titre soit enregistré n'en ont pas. On
         // les rattrape par leur phrase, qui est unique : plutôt que de leur
         // afficher « Tech » pour toujours, on retrouve le texte qui la contient.
         guard !word.context.isEmpty else { return nil }
-        return days.flatMap(\.texts).first { text in
+        return items.map(\.text).first { text in
             text.sentences.contains { $0.ko == word.context }
         }
     }
@@ -67,6 +65,11 @@ struct WordDetailView: View {
                 // disparaît plutôt que d'inventer un contexte ou d'en montrer
                 // un vide.
                 if !word.context.isEmpty { metSection }
+                if let morphemes = word.morphemes, !morphemes.isEmpty {
+                    morphemeSection(morphemes)
+                } else if loadingRoots || rootsFailed {
+                    rootsState
+                }
                 if let family = word.family, !family.isEmpty { familySection(family) }
                 footer
             }
@@ -81,7 +84,7 @@ struct WordDetailView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Button("Remove from Notebook", systemImage: "trash", role: .destructive) {
+                    Button("Remove from Wordbook", systemImage: "trash", role: .destructive) {
                         confirmingDelete = true
                     }
                 } label: {
@@ -98,8 +101,9 @@ struct WordDetailView: View {
         } message: {
             Text("It stays in the texts you've read — you just won't see it here.")
         }
-        .navigationDestination(item: $opening) { ReaderView(text: $0) }
+        .navigationDestination(item: $opening) { ReaderView(text: $0, startAt: word.sourceTime) }
         .sheet(item: $previewing) { RelativeSheet(relative: $0, slot: word.slot) }
+        .task { await enrichIfNeeded() }
     }
 
     // ── le mot ───────────────────────────────────────────────────────────────
@@ -125,7 +129,7 @@ struct WordDetailView: View {
             }
 
             Text(word.lemma)
-                .font(.system(size: 64, weight: .heavy))
+                .font(.largeTitle.weight(.bold))
                 .foregroundStyle(Dancheong.ink)
                 .minimumScaleFactor(0.55)
                 .lineLimit(1)
@@ -165,6 +169,29 @@ struct WordDetailView: View {
                     .font(.system(size: 17))
                     .lineSpacing(7)
                     .fixedSize(horizontal: false, vertical: true)
+
+                if sourceText?.isYouTube == true, let time = word.sourceTime {
+                    Button {
+                        opening = sourceText
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "play.fill")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(tint)
+                                .frame(width: 30, height: 30)
+                                .background(tint.opacity(0.12), in: Circle())
+
+                            Text(Self.timeLabel(time))
+                                .font(.footnote.weight(.medium).monospacedDigit())
+                                .foregroundStyle(Dancheong.inkSoft)
+                        }
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Play from \(Self.timeLabel(time))")
+                    .padding(.top, 8)
+                }
             }
             // Le contenu respire à l'intérieur du bloc. Ce rembourrage avait été
             // emporté en supprimant le bouton d'écoute qui le suivait, et le
@@ -196,6 +223,81 @@ struct WordDetailView: View {
 
     // ── la famille de racine ─────────────────────────────────────────────────
 
+    private func morphemeSection(_ morphemes: [Day.Morpheme]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("How it’s built")
+                .font(.title3.weight(.bold))
+                .padding(.leading, 4)
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 86), spacing: 8)], spacing: 8) {
+                ForEach(morphemes) { morpheme in
+                    VStack(spacing: 3) {
+                        Text(morpheme.k)
+                            .font(.title2.weight(.semibold))
+                        Text(morpheme.h)
+                            .font(.body)
+                            .foregroundStyle(tint)
+                        Text(morpheme.e)
+                            .font(.caption)
+                            .foregroundStyle(Dancheong.inkSoft)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 12)
+                    .frame(maxWidth: .infinity, minHeight: 104, alignment: .top)
+                    .background(Dancheong.paper, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+            }
+
+            if let literal = word.literal, !literal.isEmpty {
+                Text("Literally: \(literal)")
+                    .font(.subheadline)
+                    .foregroundStyle(Dancheong.inkSoft)
+                    .padding(.leading, 4)
+            }
+        }
+    }
+
+    @ViewBuilder private var rootsState: some View {
+        InsetSection(title: "How it’s built") {
+            HStack(spacing: 12) {
+                if loadingRoots {
+                    ProgressView()
+                    Text("Looking for word roots…")
+                        .foregroundStyle(Dancheong.inkSoft)
+                } else {
+                    Text("Word roots aren’t available right now.")
+                        .foregroundStyle(Dancheong.inkSoft)
+                    Spacer(minLength: 8)
+                    Button("Try again") {
+                        Task { await enrichIfNeeded(force: true) }
+                    }
+                    .buttonStyle(.bordered)
+                    .frame(minHeight: 44)
+                }
+            }
+            .font(.subheadline)
+            .padding(16)
+            .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+        }
+    }
+
+    @MainActor
+    private func enrichIfNeeded(force: Bool = false) async {
+        guard force || (word.morphemes?.isEmpty != false && word.family?.isEmpty != false) else { return }
+        loadingRoots = true
+        rootsFailed = false
+        defer { loadingRoots = false }
+        do {
+            let enrichment = try await WordLookup.fetch(word.lemma, context: word.context)
+            word.applyEnrichment(enrichment)
+            try context.save()
+        } catch {
+            rootsFailed = true
+        }
+    }
+
     /// L'étage 3 du panneau de mot (spec §5.3).
     ///
     /// C'est là que le rangement mental se fait : découvrir que 관리자 et
@@ -206,57 +308,40 @@ struct WordDetailView: View {
     /// ce qu'on lui montre c'est le sens partagé. Le hanja est là pour ancrer,
     /// pas pour être appris.
     private func familySection(_ family: [Day.Relative]) -> some View {
-        // Le hanja passe à droite, grand et pâle, derrière le titre.
-        //
-        // Il était coincé entre « Same root » et le sens partagé, et les serrait
-        // l'un contre l'autre. Poussé au fond à droite, à la hauteur des deux
-        // lignes, il devient ce qu'il est — un ornement — et rend au titre l'air
-        // qui lui manquait. « Family » plutôt que « root » : c'est de la famille
-        // qu'on parle, et le mot « racine » demandait de savoir ce qu'est une
-        // racine sino-coréenne avant de comprendre le bloc.
-        VStack(alignment: .leading, spacing: 12) {
-            ZStack(alignment: .trailing) {
-                if let hanja = word.hanja {
-                    Text(hanja)
-                        .font(.system(size: 44, weight: .light))
-                        .foregroundStyle(tint.opacity(0.16))
-                        .lineLimit(1)
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("SAME FAMILY")
-                        .font(.caption2.weight(.bold))
-                        .kerning(1.3)
-                        .foregroundStyle(tint)
-                    if let root = word.root, !root.isEmpty {
-                        Text(root)
-                            .font(.subheadline)
-                            .foregroundStyle(Dancheong.inkSoft)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
+        let enrichment = Day.Word(
+            w: word.lemma,
+            lemma: word.lemma,
+            pos: word.pos,
+            en: word.meaning,
+            hanja: word.hanja,
+            literal: word.literal,
+            morphemes: word.morphemes,
+            root: word.root,
+            family: family
+        )
+        let shared = WordRoots.shared(in: enrichment)
 
-            // Chaque mot de la famille s'ouvre : c'est là qu'on croise un mot
-            // qu'on ne connaissait pas et qu'on veut garder. Sans ça, la famille
-            // est une vitrine — on voit les mots, on ne peut rien en faire.
+        return InsetSection(
+            title: "Same root",
+            trailing: shared.map { "\($0.korean) · \($0.hanja)" },
+            tint: tint,
+            note: shared?.meaning ?? word.root
+        ) {
             VStack(spacing: 0) {
                 ForEach(Array(family.enumerated()), id: \.offset) { i, relative in
                     Button { previewing = relative } label: {
                         HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Text(relative.k)
+                            Text(highlighted(relative, shared: shared))
                                 .font(.system(size: 17, weight: .medium))
                                 .foregroundStyle(Dancheong.ink)
-                            if let h = relative.h {
-                                Text(h)
-                                    .font(.caption)
-                                    .foregroundStyle(tint.opacity(0.7))
-                            }
                             Spacer(minLength: 12)
                             Text(relative.e)
                                 .font(.subheadline)
                                 .foregroundStyle(Dancheong.inkSoft)
                                 .multilineTextAlignment(.trailing)
+                            Image(systemName: "chevron.right")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(Dancheong.inkSoft)
                         }
                         .padding(.horizontal, 18)
                         .padding(.vertical, 13)
@@ -266,17 +351,42 @@ struct WordDetailView: View {
                     if i < family.count - 1 { Divider().padding(.leading, 18) }
                 }
             }
-            .background(Dancheong.paper)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
     }
 
+    private func highlighted(_ relative: Day.Relative, shared: WordRoots.Shared?) -> AttributedString {
+        var output = AttributedString(relative.k)
+        guard let shared,
+              let hanja = relative.h,
+              let hanjaIndex = hanja.firstIndex(of: Character(shared.hanja)),
+              let koreanIndex = relative.k.index(
+                relative.k.startIndex,
+                offsetBy: hanja.distance(from: hanja.startIndex, to: hanjaIndex),
+                limitedBy: relative.k.endIndex
+              ),
+              koreanIndex < relative.k.endIndex,
+              let range = output.range(of: String(relative.k[koreanIndex])) else { return output }
+        output[range].foregroundColor = tint
+        output[range].font = .system(size: 17, weight: .bold)
+        return output
+    }
+
     private var footer: some View {
-        Text(Self.keptLabel(word.keptAt))
-            .font(.footnote)
-            .foregroundStyle(Dancheong.inkSoft)
-            .frame(maxWidth: .infinity, alignment: .center)
-            .padding(.top, 10)
+        VStack(spacing: 12) {
+            Text(Self.keptLabel(word.keptAt))
+                .font(.footnote)
+                .foregroundStyle(Dancheong.inkSoft)
+            Button("Remove from Wordbook", systemImage: "trash", role: .destructive) {
+                confirmingDelete = true
+            }
+            .frame(minHeight: 44)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 10)
+    }
+
+    private static func timeLabel(_ seconds: Double) -> String {
+        String(format: "%02d:%02d", Int(seconds) / 60, Int(seconds) % 60)
     }
 
     private static func keptLabel(_ date: Date) -> String {
@@ -304,10 +414,9 @@ private struct InsetSection<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(title.uppercased())
-                    .font(.caption2.weight(.bold))
-                    .kerning(1.3)
-                    .foregroundStyle(tint)
+                Text(title)
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(Dancheong.ink)
                 if let trailing {
                     Text(trailing)
                         .font(.callout.weight(.medium))
@@ -375,7 +484,7 @@ private struct RelativeSheet: View {
                 try? context.save()
                 dismiss()
             } label: {
-                Label(alreadyKept ? "Already in your notebook" : "Keep this word",
+                Label(alreadyKept ? "Already in your Wordbook" : "Keep this word",
                       systemImage: alreadyKept ? "checkmark" : "plus")
                     .font(.headline)
                     .foregroundStyle(.white)

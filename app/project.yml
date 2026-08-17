@@ -103,3 +103,15 @@ targets:
         NSPhotoLibraryUsageDescription: >
           Choisissez une photo ou une capture d'écran contenant du coréen, et
           Molago vous dira ce que chaque mot veut dire.
+
+  MolagoTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: Molago
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.molago.app.tests
+        GENERATE_INFOPLIST_FILE: YES

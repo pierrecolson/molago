@@ -1,7 +1,10 @@
-# L'API de capture. Aucune dépendance : `node:http` suffit pour deux routes, et
-# une dépendance de moins est une dépendance de moins à tenir à jour sur un VPS
-# qui héberge cinq autres piles.
+# Node sert les routes. yt-dlp ne télécharge jamais la vidéo : il ne récupère
+# que ses métadonnées et ses pistes de sous-titres.
 FROM node:22-slim
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 python3-pip ca-certificates \
+    && pip3 install --break-system-packages --no-cache-dir yt-dlp \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY *.mjs ./
 EXPOSE 8080

@@ -1,20 +1,16 @@
 # Molago sur le VPS Hostinger (srv1405219).
 #
-# Deux pièces, et c'est tout : un serveur de fichiers qui tourne en permanence,
-# et une fabrique qui ne vit que le temps de fabriquer. Pas de base de données,
-# pas d'API — il n'y a qu'un utilisateur, et une base sert à partager entre
-# plusieurs (voir mvp-plan.md §2).
+# Deux pièces : les fichiers déjà importés et l'API qui reçoit les nouveaux.
+# Aucune fabrique nocturne et aucune base de données.
 #
 #   déploiement    : ../deploy/push.sh
-#   fabrication    : docker compose run --rm pipeline
-#
 # ATTENTION — cette machine n'a que 8 Go et fait tourner n8n, to-day, thiings,
 # ourmind et dawarich côte à côte. Tout conteneur porte donc un plafond mémoire
 # explicite : le but n'est pas d'économiser, c'est qu'un emballement ne
 # déclenche pas l'OOM killer et n'emporte pas les voisins.
 
 services:
-  # Le serveur de fichiers. Il ne fait que servir ce que la fabrique a écrit.
+  # Le serveur de fichiers. Il sert les imports déjà enregistrés.
   files:
     image: nginx:1.27-alpine
     container_name: molago-files
@@ -36,45 +32,7 @@ services:
       - traefik.http.routers.molago.tls.certresolver=mytlschallenge
       - traefik.http.services.molago.loadbalancer.server.port=80
 
-  # La fabrique nocturne. `restart: no` et aucun démon : le cron de l'hôte lance
-  # un conteneur, il fabrique la journée, il meurt. Un démon cron à l'intérieur
-  # aurait pu dériver sans qu'on le voie.
-  pipeline:
-    build:
-      # Chemins relatifs au SERVEUR, pas au dépôt : push.sh dépose le contenu de
-      # deploy/ à la racine de /root/molago et pipeline/ dans son sous-dossier.
-      context: ./pipeline
-      dockerfile: Dockerfile
-    image: molago-pipeline:local
-    container_name: molago-pipeline
-    restart: "no"
-    # Pic mesuré : ~180 Mo (Node, sans dépendance, trois textes en série).
-    # À relever quand l'analyse morphologique Kiwi arrivera en M2 : elle charge
-    # un modèle de plusieurs centaines de mégaoctets.
-    mem_limit: 512m
-    env_file: .env
-    volumes:
-      # La fabrique écrit dans le dossier de SON utilisateur. Elle ne sait pas
-      # qui c'est et n'a pas à le savoir : le jour où ils seront plusieurs, on
-      # la lancera une fois par profil, sans rien changer à ce qu'elle fait.
-      - ./data/u/${MOLAGO_USER_ID:-${MOLAGO_SECRET_PATH}}:/out
-      # Les icônes vivent hors du dossier de l'utilisateur : elles appartiennent
-      # aux mots, pas aux comptes (decisions.md §37).
-      - ./data/icons:/icons-out
-      # La table des caractères, pour la même raison — et dans SON volume, pas
-      # dans celui des icônes : vider un cache d'images ne doit pas emporter la
-      # chose la plus coûteuse à reconstituer du projet.
-      - ./data/words:/words
-    networks:
-      - n8n_default
-    # L'API Thiings publie sur le port 3088 de l'hôte sans être sur ce réseau :
-    # on passe donc par la passerelle plutôt que de toucher à sa stack.
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
-  # L'API de capture. Elle ne sert que deux routes et ne tourne que quand on
-  # photographie quelque chose — mais elle doit être debout à ce moment-là,
-  # donc elle reste en vie.
+  # L'API reçoit les photos et vidéos choisies par l'utilisateur.
   api:
     build:
       context: ./api
@@ -82,7 +40,7 @@ services:
     image: molago-api:local
     container_name: molago-api
     restart: unless-stopped
-    # Node au repos avec deux routes et zéro dépendance. Pic observé : ~70 Mo.
+    # Node et yt-dlp restent sous un plafond explicite sur le VPS partagé.
     mem_limit: 256m
     env_file: .env
     environment:
@@ -98,7 +56,7 @@ services:
       # Même hôte que les fichiers, distingué par le préfixe de chemin. Une
       # priorité plus haute que la route des fichiers, sinon nginx capterait
       # tout et l'API ne verrait jamais rien.
-      - traefik.http.routers.molago-api.rule=Host(`molago.srv1405219.hstgr.cloud`) && PathRegexp(`^/u/[^/]+/(gloss|captures|document)$`)
+      - traefik.http.routers.molago-api.rule=Host(`molago.srv1405219.hstgr.cloud`) && PathRegexp(`^/u/[^/]+/(gloss|captures|document|youtube|library)$`)
       - traefik.http.routers.molago-api.priority=100
       - traefik.http.routers.molago-api.entrypoints=websecure
       - traefik.http.routers.molago-api.tls=true

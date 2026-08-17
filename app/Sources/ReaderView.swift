@@ -10,8 +10,12 @@ struct ReaderView: View {
     let text: Day.Text
 
     @State private var player: SentencePlayer
+    @State private var videoPlayer: YouTubePlayerModel
+    @State private var videoIndex: Int?
     @State private var didStart = false
     @State private var tapped: (word: Day.Word, sentence: Day.Sentence)?
+    @State private var lookingUp: String?
+    @State private var lookupFailed = false
     /// La traduction est-elle affichée sous chaque phrase ?
     ///
     /// La spec §4.4 voulait la traduction *disponible* et jamais *proposée*, d'où
@@ -35,10 +39,13 @@ struct ReaderView: View {
     @State private var scrubbing: Int?
     @State private var showingOriginal = false
     @Environment(\.modelContext) private var context
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(text: Day.Text) {
+    init(text: Day.Text, startAt: Double? = nil) {
         self.text = text
         _player = State(initialValue: SentencePlayer(urls: text.audioURLs))
+        _videoPlayer = State(initialValue: YouTubePlayerModel(startAt: startAt))
+        _videoIndex = State(initialValue: nil)
     }
 
     /// Le document d'origine, quand il y en a un.
@@ -58,7 +65,7 @@ struct ReaderView: View {
     private var originalButton: some View {
         if Paths.captureImage(text.slot) != nil {
             Button {
-                withAnimation(.easeOut(duration: 0.22)) { showingOriginal.toggle() }
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) { showingOriginal.toggle() }
                 if showingOriginal { player.pause() }
             } label: {
                 Image(systemName: showingOriginal ? "text.justify.left" : "doc.text.image")
@@ -72,25 +79,31 @@ struct ReaderView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            universe.color.frame(height: 5)
-
-            if showingOriginal, let image = originalImage {
-                DocumentView(image: image)
+        Group {
+            if text.isYouTube {
+                videoReadingView
             } else {
-                readingView
+                VStack(spacing: 0) {
+                    universe.color.frame(height: 5)
+
+                    if showingOriginal, let image = originalImage {
+                        DocumentView(image: image)
+                    } else {
+                        readingView
+                    }
+                }
             }
         }
         .overlay(alignment: .bottom) {
             // Pas de barre de lecture sur le document : on le regarde, la voix
             // et la traduction appartiennent au texte. Ni sur une capture :
             // elle n'a pas de voix, une barre qui ne jouerait rien mentirait.
-            if !showingOriginal && !text.isCapture {
+            if !showingOriginal && !text.isCapture && !text.isYouTube {
                 PlayerBar(player: player, tint: universe.color, scrubbing: $scrubbing)
             }
         }
         .background(Dancheong.paper)
-        .navigationTitle(text.universe)
+        .navigationTitle(text.isYouTube ? (text.sourceName ?? "YouTube") : text.universe)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
@@ -107,7 +120,7 @@ struct ReaderView: View {
                 // deux drapeaux, les deux langues sont à l'écran.
                 if !showingOriginal {
                     Button {
-                        withAnimation(.easeOut(duration: 0.22)) { english.toggle() }
+                        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) { english.toggle() }
                     } label: {
                         LanguageToggle(english: english)
                     }
@@ -127,14 +140,14 @@ struct ReaderView: View {
             // Un texte d'une journée passée n'a que son texte : son audio n'a
             // jamais été téléchargé. On le récupère en ouvrant, sinon la voix
             // reste muette sans rien dire. Sauf une capture : pas de voix.
-            if !text.isCapture { await DayStore.downloadAudio(for: text) }
+            if !text.isCapture && !text.isYouTube { await DayStore.downloadAudio(for: text) }
             openCardForScreenshotIfAsked()
             // La voix ne démarre plus toute seule. La spec §4.4 la voulait
             // automatique, mais à l'usage c'est une agression : on ouvre parfois
             // un texte pour le parcourir des yeux, dans un endroit où on ne veut
             // pas de son. Le bouton est là, il ne réclame rien.
         }
-        .onDisappear { player.pause() }
+        .onDisappear { player.pause(); videoPlayer.pause() }
         .overlay {
             if let tapped {
                 WordCard(
@@ -146,9 +159,22 @@ struct ReaderView: View {
                     onClose: { close() }
                 )
                 .transition(.opacity)
+            } else if let lookingUp {
+                ZStack {
+                    Color.black.opacity(0.18).ignoresSafeArea()
+                    ProgressView("Looking up \(lookingUp)…")
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 16)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
             }
         }
-        .animation(.easeOut(duration: 0.18), value: tapped?.word)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: tapped?.word)
+        .alert("Couldn’t look up this word", isPresented: $lookupFailed) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Check your connection, then tap the word again.")
+        }
     }
 
     private var readingView: some View {
@@ -180,11 +206,7 @@ struct ReaderView: View {
                                         if !text.isCapture { player.play(from: i) }
                                     },
                                     onTapWord: { word in
-                                        // Taper un mot met la voix en pause : on
-                                        // ne lit pas une définition pendant que
-                                        // quelqu'un continue de parler (spec §4.4).
-                                        player.pause()
-                                        tapped = (word, sentence)
+                                        select(word, from: sentence)
                                     }
                                 )
                                 .id(i)
@@ -199,17 +221,158 @@ struct ReaderView: View {
                 }
                 .onChange(of: player.index) { _, new in
                     guard scrubbing == nil else { return }
-                    withAnimation(.easeOut(duration: 0.35)) {
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.35)) {
                         proxy.scrollTo(new, anchor: .center)
                     }
                 }
                 .onChange(of: scrubbing) { _, new in
                     guard let new else { return }
-                    withAnimation(.easeOut(duration: 0.18)) {
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) {
                         proxy.scrollTo(new, anchor: .center)
                     }
                 }
             }
+    }
+
+    private var videoReadingView: some View {
+        GeometryReader { geometry in
+            let playerHeight = max(180, (geometry.size.width - 32) * 9 / 16)
+
+            ZStack(alignment: .top) {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 18) {
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text(text.title)
+                                    .font(.title2.weight(.semibold))
+                                    .fixedSize(horizontal: false, vertical: true)
+                                if let sourceName = text.sourceName {
+                                    Text(sourceName)
+                                        .font(.subheadline)
+                                        .foregroundStyle(Dancheong.inkSoft)
+                                }
+                            }
+                            .padding(.horizontal, 20)
+
+                            if text.sentences.isEmpty {
+                                ContentUnavailableView(
+                                    "No Korean transcript available",
+                                    systemImage: "captions.bubble",
+                                    description: Text("You can still watch the video here.")
+                                )
+                                .frame(minHeight: 260)
+                            } else {
+                                LazyVStack(alignment: .leading, spacing: 8) {
+                                    ForEach(Array(text.sentences.enumerated()), id: \.offset) { index, sentence in
+                                        HStack(alignment: .top, spacing: 10) {
+                                            if let start = sentence.start {
+                                                let label = Self.timeLabel(start)
+                                                Button(label) {
+                                                    videoPlayer.seek(to: start)
+                                                }
+                                                .font(.caption.monospacedDigit())
+                                                .foregroundStyle(Dancheong.inkSoft)
+                                                .frame(width: 42, height: 44, alignment: .leading)
+                                                .buttonStyle(.plain)
+                                                .accessibilityLabel("Play from \(label)")
+                                            }
+
+                                            SentenceLine(
+                                                sentence: sentence,
+                                                english: english,
+                                                isCurrent: index == videoIndex,
+                                                tint: Dancheong.highlight(text.slot),
+                                                onTapSentence: {},
+                                                onTapWord: { word in
+                                                    select(word, from: sentence)
+                                                }
+                                            )
+                                        }
+                                        .id(index)
+                                    }
+                                }
+                                .padding(.horizontal, 20)
+                            }
+                        }
+                        // Le transcript commence sous le lecteur puis continue
+                        // derrière lui : la vidéo reste l'ancrage de la lecture.
+                        .padding(.top, playerHeight + 24)
+                        .padding(.bottom, 82)
+                    }
+                    .onChange(of: videoPlayer.currentTime) { _, time in
+                        videoIndex = TranscriptTimeline.index(at: time, in: text.sentences)
+                    }
+                    .onChange(of: videoIndex) { _, index in
+                        guard let index else { return }
+                        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.3)) {
+                            proxy.scrollTo(index, anchor: .center)
+                        }
+                    }
+                }
+
+                if let videoID = text.videoID {
+                    VideoPlayerSurface(
+                        videoID: videoID,
+                        sourceURL: text.sourceURL.flatMap(URL.init(string:)),
+                        model: videoPlayer
+                    )
+                    .allowsHitTesting(tapped == nil && lookingUp == nil)
+                    .shadow(color: .black.opacity(0.16), radius: 16, x: 0, y: 8)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+                    .padding(.bottom, 12)
+                    .background(Dancheong.paper)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if videoPlayer.state == .ready, tapped == nil, lookingUp == nil {
+                    VideoTransportBar(player: videoPlayer, tint: universe.color)
+                        .offset(y: 6)
+                }
+            }
+        }
+    }
+
+    private static func timeLabel(_ seconds: Double) -> String {
+        return String(format: "%02d:%02d", Int(seconds) / 60, Int(seconds) % 60)
+    }
+
+    private func select(_ word: Day.Word, from sentence: Day.Sentence) {
+        // Une définition se lit dans le calme, quelle que soit la source.
+        if text.isYouTube {
+            videoPlayer.pauseForWordCard()
+        } else {
+            player.pause()
+        }
+
+        if word.en?.isEmpty == false {
+            tapped = (word, sentence)
+            enrich(word, from: sentence)
+            return
+        }
+
+        lookingUp = word.w
+        Task {
+            do {
+                tapped = (try await WordLookup.fetch(word.w, context: sentence.ko), sentence)
+            } catch {
+                lookupFailed = true
+                if text.isYouTube { videoPlayer.resumeAfterWordCard() }
+            }
+            lookingUp = nil
+        }
+    }
+
+    private func enrich(_ word: Day.Word, from sentence: Day.Sentence) {
+        guard word.morphemes?.isEmpty != false, word.family?.isEmpty != false else { return }
+        Task {
+            guard let enriched = try? await WordLookup.fetch(
+                word.w,
+                lemma: word.lemma,
+                context: sentence.ko
+            ), tapped?.word.w == word.w else { return }
+            tapped = (enriched, sentence)
+        }
     }
 
     /// `simctl` ne sait pas taper sur un écran : sans ça, aucune capture de la
@@ -225,8 +388,9 @@ struct ReaderView: View {
         var seen = 0
         for sentence in text.sentences {
             for word in sentence.words ?? [] where word.isTappable {
+                if keeping && word.en?.isEmpty != false { continue }
                 if seen == n {
-                    if keeping { keep(word, from: sentence) } else { tapped = (word, sentence) }
+                    if keeping { keep(word, from: sentence) } else { select(word, from: sentence) }
                     return
                 }
                 seen += 1
@@ -234,12 +398,12 @@ struct ReaderView: View {
         }
     }
 
-    /// Fermer ne fait rien d'autre que fermer. C'est le cas le plus fréquent, et
-    /// c'est normal (spec §5.4).
+    /// Fermer ne décide rien sur le mot. La vidéo reprend seulement si elle
+    /// tournait avant l'interruption ; une pause choisie reste une pause.
     private func close() {
         tapped = nil
+        if text.isYouTube { videoPlayer.resumeAfterWordCard() }
     }
-
     private func keep(_ word: Day.Word, from sentence: Day.Sentence) {
         guard let lemma = word.lemma, let meaning = word.en else { return }
         context.insert(KeptWord(
@@ -248,13 +412,16 @@ struct ReaderView: View {
             pos: word.pos ?? "",
             icon: word.icon,
             context: sentence.ko,
-            contextAudio: sentence.fileName,
+            contextAudio: text.isYouTube ? nil : sentence.fileName,
             hanja: word.hanja,
             root: word.root,
             family: word.family,
             slot: text.slot,
             sourceTitle: text.title,
-            sourceDate: text.day
+            sourceDate: text.day,
+            sourceTime: sentence.start,
+            literal: word.literal,
+            morphemes: word.morphemes
         ))
         try? context.save()
     }
@@ -281,7 +448,7 @@ private struct SentenceLine: View {
         // jamais sa ligne, et on peut masquer l'anglais pour se tester.
         VStack(alignment: .leading, spacing: 5) {
             korean
-            if english {
+            if english && !sentence.en.isEmpty {
                 Text(sentence.en)
                     .font(.subheadline)
                     .lineSpacing(3)
@@ -326,9 +493,7 @@ private struct SentenceLine: View {
                             // n'est pas grave — le tap retombe sur la phrase.
                             .padding(.vertical, 5)
                             .contentShape(Rectangle())
-                            .onTapGesture {
-                                if word.isTappable { onTapWord(word) } else { onTapSentence() }
-                            }
+                            .onTapGesture { onTapWord(word) }
                     }
                 }
             } else {
@@ -344,7 +509,166 @@ private struct SentenceLine: View {
                     .onTapGesture { onTapSentence() }
             }
         }
-        .animation(.easeOut(duration: 0.25), value: isCurrent)
+    }
+}
+
+enum WordLookup {
+    private struct Payload: Encodable {
+        let tokens: [String]
+        let context: String
+        let lookup = true
+        let enrich = true
+    }
+
+    private struct Reply: Decodable {
+        let words: [Definition]
+    }
+
+    private struct Definition: Decodable {
+        let lemma: String
+        let pos: String
+        let en: String
+        let hanja: String?
+        let literal: String?
+        let morphemes: [Day.Morpheme]?
+        let root: String?
+        let family: [Day.Relative]?
+    }
+
+    enum LookupError: Error { case noDefinition, badResponse }
+
+    static func request(for surface: String, lemma: String? = nil, context: String) throws -> URLRequest {
+        var request = URLRequest(url: Config.baseURL.appending(path: "gloss"))
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        request.httpBody = try JSONEncoder().encode(Payload(tokens: [lemma ?? surface], context: context))
+        return request
+    }
+
+    static func decode(_ data: Data, surface: String) throws -> Day.Word {
+        guard let definition = try JSONDecoder().decode(Reply.self, from: data).words.first else {
+            throw LookupError.noDefinition
+        }
+        return Day.Word(
+            w: surface,
+            lemma: definition.lemma,
+            pos: definition.pos,
+            en: definition.en,
+            hanja: definition.hanja,
+            literal: definition.literal,
+            morphemes: definition.morphemes,
+            root: definition.root,
+            family: definition.family
+        )
+    }
+
+    static func fetch(_ surface: String, lemma: String? = nil, context: String) async throws -> Day.Word {
+        let (data, response) = try await URLSession.shared.data(
+            for: request(for: surface, lemma: lemma, context: context)
+        )
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw LookupError.badResponse }
+        return try decode(data, surface: surface)
+    }
+}
+
+private struct VideoPlayerSurface: View {
+    let videoID: String
+    let sourceURL: URL?
+    let model: YouTubePlayerModel
+
+    var body: some View {
+        Group {
+            switch model.state {
+            case .ready, .loading:
+                // YouTube owns every pixel of its player, including loading.
+                // Error states replace it; nothing is laid over its controls.
+                YouTubePlayerView(videoID: videoID, model: model)
+            case .offline:
+                status(
+                    icon: "wifi.slash",
+                    title: "You’re offline",
+                    message: "The transcript is still available."
+                ) {
+                    Button("Try again") { model.retry() }
+                        .buttonStyle(.bordered)
+                }
+            case .unavailable:
+                status(
+                    icon: "video.slash",
+                    title: "Video unavailable",
+                    message: "It may have been removed or made private."
+                ) { EmptyView() }
+            case .blocked:
+                status(
+                    icon: "rectangle.slash",
+                    title: "This video can’t play here",
+                    message: "The transcript is still available."
+                ) {
+                    if let sourceURL {
+                        Link("Open on YouTube", destination: sourceURL)
+                            .buttonStyle(.bordered)
+                    }
+                }
+            }
+        }
+        .aspectRatio(16 / 9, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityElement(children: .contain)
+    }
+
+    private func status<Actions: View>(icon: String, title: String, message: String,
+                                       @ViewBuilder actions: () -> Actions) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon).font(.title2)
+            Text(title).font(.headline)
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(Dancheong.inkSoft)
+                .multilineTextAlignment(.center)
+            actions()
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Dancheong.paper)
+    }
+}
+
+private struct VideoTransportBar: View {
+    let player: YouTubePlayerModel
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Button { player.skip(by: -10) } label: {
+                Image(systemName: "gobackward.10")
+                    .frame(width: 44, height: 44)
+            }
+            .accessibilityLabel("Go back 10 seconds")
+
+            Button { player.toggle() } label: {
+                Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                    .foregroundStyle(tint)
+                    .frame(width: 34, height: 34)
+                    .background(tint.opacity(0.12), in: Circle())
+                    .frame(width: 44, height: 44)
+            }
+            .accessibilityLabel(player.isPlaying ? "Pause" : "Play")
+
+            Button { player.skip(by: 10) } label: {
+                Image(systemName: "goforward.10")
+                    .frame(width: 44, height: 44)
+            }
+            .accessibilityLabel("Go forward 10 seconds")
+        }
+        .font(.system(size: 15, weight: .semibold))
+        .foregroundStyle(Dancheong.ink)
+        .buttonStyle(.plain)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
+        .modifier(GlassPill())
+        .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+        .padding(.horizontal, 14)
     }
 }
 
@@ -366,7 +690,7 @@ private struct PlayerBar: View {
                 Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(.white)
-                    .frame(width: 36, height: 36)
+                    .frame(width: 44, height: 44)
                     .background(.white.opacity(0.30), in: Circle())
             }
             .accessibilityLabel(player.isPlaying ? "Pause" : "Play")
@@ -394,7 +718,7 @@ private struct PlayerBar: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
                     .monospacedDigit()
-                    .frame(minWidth: 38, minHeight: 32)
+                    .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("Playback speed")
@@ -505,18 +829,26 @@ private struct LanguageToggle: View {
 
 /// La pilule de verre de la barre de lecture.
 private struct GlassPill: ViewModifier {
-    let tint: Color
+    let tint: Color?
+
+    init(tint: Color? = nil) {
+        self.tint = tint
+    }
 
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
-            content.glassEffect(
-                .regular.tint(tint.opacity(0.72)).interactive(),
-                in: .rect(cornerRadius: 24)
-            )
+            if let tint {
+                content.glassEffect(
+                    .regular.tint(tint.opacity(0.72)).interactive(),
+                    in: .rect(cornerRadius: 24)
+                )
+            } else {
+                content.glassEffect(.regular.interactive(), in: .rect(cornerRadius: 24))
+            }
         } else {
             content.background {
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(tint.opacity(0.82))
+                    .fill(tint?.opacity(0.82) ?? .white.opacity(0.55))
                     .background(.ultraThinMaterial,
                                 in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             }

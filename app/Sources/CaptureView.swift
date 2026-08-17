@@ -27,6 +27,8 @@ struct CaptureView: View {
     @State private var picking: PhotosPickerItem?
     @State private var shooting = false
     @State private var chosen: CaptureFlow.Word?
+    @State private var youtubeURL = ""
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Ce qui a été gardé pendant cette capture — pour le compte et pour la
     /// remontée au serveur. Le carnet, lui, est déjà écrit.
@@ -41,6 +43,8 @@ struct CaptureView: View {
                 waiting("Reading the photo…")
             case .filing:
                 waiting("Putting it in order…")
+            case .importingVideo:
+                waiting("Preparing the transcript…", detail: "This can take a minute. You can leave the captions off in YouTube.")
             case .filed(let title):
                 filed(title)
             case .nothing(let message):
@@ -49,7 +53,7 @@ struct CaptureView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(backdrop)
-        .animation(.snappy(duration: 0.3), value: chosen)
+        .animation(reduceMotion ? nil : .snappy(duration: 0.3), value: chosen)
         .task {
             // `simctl` ne sait pas choisir une photo dans le sélecteur. Pour
             // rejouer un plantage signalé sur une image précise, on la dépose
@@ -100,11 +104,11 @@ struct CaptureView: View {
             Spacer()
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Catch a word")
-                    .font(.system(size: 34, weight: .bold, design: .serif))
+                Text("Catch something")
+                    .font(.largeTitle.bold())
                     .foregroundStyle(Dancheong.ink)
-                Text("A bill, a sign, a menu, a message.\nMolago reads the Korean on it.")
-                    .font(.system(size: 17))
+                Text("A photo or video in Korean.")
+                    .font(.body)
                     .foregroundStyle(Dancheong.inkSoft)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -122,6 +126,28 @@ struct CaptureView: View {
                 PhotosPicker(selection: $picking, matching: .images, photoLibrary: .shared()) {
                     SourceBlock(title: "Choose a photo", icon: "photo.on.rectangle.angled", filled: false)
                 }
+
+                HStack(spacing: 10) {
+                    TextField("Paste a YouTube video URL", text: $youtubeURL)
+                        .accessibilityLabel("YouTube video URL")
+                        .textInputAutocapitalization(.never)
+                        .keyboardType(.URL)
+                        .autocorrectionDisabled()
+                        .submitLabel(.go)
+                        .onSubmit { importVideo() }
+                        .padding(.horizontal, 14)
+                        .frame(height: 52)
+                        .background(Dancheong.paper, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                    Button("Add") { importVideo() }
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(minWidth: 64, minHeight: 52)
+                        .background(Dancheong.jaju, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .disabled(youtubeURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .opacity(youtubeURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
+                }
+                .accessibilityElement(children: .contain)
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 40)
@@ -133,15 +159,15 @@ struct CaptureView: View {
     /// « Reading the Korean » décrivait ce que la MACHINE faisait, et ne disait
     /// rien de ce qui allait sortir. On annonce l'étape en cours, en langue de
     /// tous les jours — lire la photo, puis la remettre en ordre.
-    private func waiting(_ label: String) -> some View {
+    private func waiting(_ label: String, detail: String = "This can take a minute.") -> some View {
         VStack(spacing: 16) {
             ProgressView()
                 .controlSize(.large)
                 .tint(Dancheong.jaju)
             Text(label)
-                .font(.system(size: 15))
+                .font(.subheadline)
                 .foregroundStyle(Dancheong.inkSoft)
-            Text("This can take a minute. The voice comes later.")
+            Text(detail)
                 .font(.footnote)
                 .foregroundStyle(Dancheong.inkSoft.opacity(0.7))
         }
@@ -157,11 +183,11 @@ struct CaptureView: View {
                 .font(.title3.weight(.semibold))
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Added to your library, with today's texts.")
+            Text("Added to your library.")
                 .font(.subheadline)
                 .foregroundStyle(Dancheong.inkSoft)
             Button("Read it") { close() }
-                .font(.system(size: 17, weight: .semibold))
+                .font(.body.weight(.semibold))
                 .tint(Dancheong.jaju)
                 .padding(.top, 4)
         }
@@ -171,8 +197,8 @@ struct CaptureView: View {
     private func empty(_ message: String) -> some View {
         VStack(spacing: 20) {
             ContentUnavailableView("Nothing to read", systemImage: "text.viewfinder", description: Text(message))
-            Button("Try another photo") { flow.reset(); picking = nil }
-                .font(.system(size: 17, weight: .semibold))
+            Button("Start over") { flow.reset(); picking = nil; youtubeURL = "" }
+                .font(.body.weight(.semibold))
                 .tint(Dancheong.jaju)
         }
         .overlay(alignment: .topTrailing) {
@@ -180,6 +206,11 @@ struct CaptureView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
         }
+    }
+
+    private func importVideo() {
+        let value = youtubeURL
+        Task { await flow.importYouTube(value) }
     }
 
     // ── 2. la photo, avec ses mots allumés ───────────────────────────────────
@@ -221,8 +252,9 @@ private struct SourceBlock: View {
         HStack(spacing: 14) {
             Image(systemName: icon)
                 .font(.system(size: 22, weight: .medium))
+                .accessibilityHidden(true)
             Text(title)
-                .font(.system(size: 19, weight: .semibold))
+                .font(.title3.weight(.semibold))
             Spacer()
         }
         .foregroundStyle(filled ? .white : Dancheong.jaju)
@@ -253,9 +285,10 @@ private struct CloseButton: View {
             Image(systemName: "xmark")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(onDark ? .white : Dancheong.ink)
-                .frame(width: 34, height: 34)
+                .frame(width: 44, height: 44)
                 .background(onDark ? .white.opacity(0.15) : Dancheong.ink.opacity(0.06), in: .circle)
         }
+        .accessibilityLabel("Close")
     }
 }
 

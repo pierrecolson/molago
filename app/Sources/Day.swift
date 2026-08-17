@@ -19,6 +19,13 @@ struct Day: Codable, Sendable {
         /// caractère chinois de l'univers : celui-ci était décoratif, alors que
         /// l'image du sujet apprend quelque chose avant même le titre.
         let icon: String?
+        let kind: String?
+        let importedAt: String?
+        let videoID: String?
+        let sourceURL: String?
+        let sourceName: String?
+        let thumbnail: String?
+        let durationSeconds: Int?
         let sentences: [Sentence]
 
         var id: String { slot }
@@ -28,6 +35,8 @@ struct Day: Codable, Sendable {
         let ko: String
         let en: String
         let audio: String
+        let start: Double?
+        let end: Double?
         /// Les 어절 de la phrase, chacun avec sa glose : c'est ce qui rend
         /// chaque mot tappable. Absent quand la fabrique n'a pas pu glosser.
         let words: [Word]?
@@ -46,6 +55,14 @@ struct Day: Codable, Sendable {
         var id: String { k }
     }
 
+    struct Morpheme: Codable, Sendable, Hashable, Identifiable {
+        let k: String
+        let h: String
+        let e: String
+
+        var id: String { "\(k)-\(h)" }
+    }
+
     struct Word: Codable, Sendable, Hashable {
         /// Le mot lui-même — sert à vérifier qu'on parle bien du même découpage.
         let w: String
@@ -57,6 +74,9 @@ struct Day: Codable, Sendable {
         let icon: String?
         /// Les hanja du mot, quand il est sino-coréen.
         let hanja: String?
+        /// Sa construction littérale et ses briques sino-coréennes.
+        let literal: String?
+        let morphemes: [Morpheme]?
         /// Le sens que la racine partage avec toute sa famille.
         let root: String?
         /// Les mots de la même famille. C'est là que le rangement mental se
@@ -64,21 +84,24 @@ struct Day: Codable, Sendable {
         /// le même bloc que le mot sur lequel on séchait (spec §5.3).
         let family: [Relative]?
 
-        /// Un mot sans sens n'est pas tappable : ouvrir une carte vide serait
-        /// pire que de ne rien ouvrir.
-        var isTappable: Bool { en?.isEmpty == false }
+        /// Tout mot visible peut être choisi. Quand son sens n'a pas été
+        /// préparé à l'import, le lecteur le demande au moment du tap.
+        var isTappable: Bool { !w.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
         /// Écrire un décodeur sur mesure supprime l'initialiseur que Swift
         /// fabrique tout seul. Celui-ci le rend : la capture construit des mots
         /// qui ne viennent d'aucun JSON.
         init(w: String, lemma: String? = nil, pos: String? = nil, en: String? = nil,
-             icon: String? = nil, hanja: String? = nil, root: String? = nil, family: [Relative]? = nil) {
+             icon: String? = nil, hanja: String? = nil, literal: String? = nil,
+             morphemes: [Morpheme]? = nil, root: String? = nil, family: [Relative]? = nil) {
             self.w = w
             self.lemma = lemma
             self.pos = pos
             self.en = en
             self.icon = icon
             self.hanja = hanja
+            self.literal = literal
+            self.morphemes = morphemes
             self.root = root
             self.family = family
         }
@@ -98,9 +121,27 @@ struct Day: Codable, Sendable {
             en = try? c.decodeIfPresent(String.self, forKey: .en)
             icon = try? c.decodeIfPresent(String.self, forKey: .icon)
             hanja = try? c.decodeIfPresent(String.self, forKey: .hanja)
+            literal = try? c.decodeIfPresent(String.self, forKey: .literal)
+            morphemes = try? c.decodeIfPresent([Morpheme].self, forKey: .morphemes)
             root = try? c.decodeIfPresent(String.self, forKey: .root)
             family = try? c.decodeIfPresent([Relative].self, forKey: .family)
         }
+    }
+}
+
+enum WordRoots {
+    struct Shared: Equatable {
+        let korean: String
+        let hanja: String
+        let meaning: String
+    }
+
+    static func shared(in word: Day.Word) -> Shared? {
+        guard let family = word.family, !family.isEmpty,
+              let meaning = word.root, !meaning.isEmpty else { return nil }
+        return word.morphemes?.first { part in
+            family.allSatisfy { $0.h?.contains(part.h) == true }
+        }.map { Shared(korean: $0.k, hanja: $0.h, meaning: meaning) }
     }
 }
 
@@ -112,6 +153,9 @@ extension Day.Text {
     /// Une capture n'a pas de voix : on la lit devant son document, pas dans le
     /// métro. Le lecteur n'affiche donc ni barre de lecture ni geste d'écoute.
     var isCapture: Bool { slot.hasPrefix("capture") }
+    var isPhoto: Bool { kind == "photo" || isCapture }
+    var isYouTube: Bool { kind == "youtube" || slot.hasPrefix("youtube-") }
+    var thumbnailURL: URL? { thumbnail.flatMap(URL.init(string:)) }
 
     /// La journée d'où vient ce texte, lue dans le nom de sa première piste.
     ///
@@ -122,6 +166,7 @@ extension Day.Text {
     /// c'est déjà ce qui garantit qu'elles ne se marchent pas dessus d'un jour
     /// à l'autre. On s'appuie sur ce nom plutôt que d'en dupliquer l'information.
     var day: String? {
+        if let importedAt, importedAt.count >= 10 { return String(importedAt.prefix(10)) }
         guard let name = sentences.first?.audio.split(separator: "/").last else { return nil }
         let parts = name.split(separator: "-")
         guard parts.count >= 3 else { return nil }
@@ -132,6 +177,30 @@ extension Day.Text {
     /// difficulté est ordinaire : le nombre de mots ne varie pas, et le nombre
     /// de mots nouveaux est ambigu (spec §4.3).
     var meta: String { "\(minutes) min" }
+}
+
+struct LibraryItem: Codable, Sendable, Identifiable, Hashable {
+    let date: String
+    let text: Day.Text
+
+    var id: String { "\(date)-\(text.slot)" }
+
+    var shortLabel: String {
+        let input = DateFormatter()
+        input.dateFormat = "yyyy-MM-dd"
+        input.locale = Locale(identifier: "en_US_POSIX")
+        guard let value = input.date(from: date) else { return date }
+        let output = DateFormatter()
+        output.locale = Locale(identifier: "en_US")
+        output.dateFormat = "d MMM"
+        return output.string(from: value)
+    }
+}
+
+enum LibrarySections {
+    static func split(_ items: [LibraryItem]) -> (recent: [LibraryItem], older: [LibraryItem]) {
+        (Array(items.prefix(3)), Array(items.dropFirst(3)))
+    }
 }
 
 extension Day {
