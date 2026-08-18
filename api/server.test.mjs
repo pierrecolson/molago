@@ -31,8 +31,10 @@ const waitForServer = async (base) => {
 /// sortante, et `outage` rejoue une panne de Supadata sans attendre la vraie.
 const startProviders = async ({ outage = false } = {}) => {
   const port = await freePort()
+  const calls = { transcript: 0 }
   const server = createServer((req, res) => {
     const url = new URL(req.url, 'http://localhost')
+    if (url.pathname === '/transcript') calls.transcript++
     const body = url.pathname === '/transcript'
       ? { lang: 'ko', content: [{ text: '안녕하세요', offset: 6000, duration: 4000, lang: 'ko' }] }
       : { items: [{
@@ -51,7 +53,7 @@ const startProviders = async ({ outage = false } = {}) => {
     res.end(JSON.stringify(body))
   })
   await new Promise((resolve) => server.listen(port, '127.0.0.1', resolve))
-  return { server, base: `http://127.0.0.1:${port}` }
+  return { server, calls, base: `http://127.0.0.1:${port}` }
 }
 
 const startAPI = async (t, { data, user, providers }) => {
@@ -112,6 +114,13 @@ test('serves a timed transcript and lists only imports', async (t) => {
   assert.equal(video.channel, 'Didi')
   assert.equal(video.duration, 120)
   assert.deepEqual(video.cues, [{ start: 6, end: 10, ko: '안녕하세요' }])
+
+  // Un crédit Supadata par vidéo, pas par import : la deuxième demande sort du
+  // cache disque. C'est ce qui rend un réessai gratuit.
+  assert.equal(providers.calls.transcript, 1)
+  const again = await post(base, `/u/${user}/transcript`, { url: 'https://www.youtube.com/watch?v=42M_DVvzye8' })
+  assert.deepEqual(await again.json(), video)
+  assert.equal(providers.calls.transcript, 1)
 
   // Le serveur ne garde rien : c'est l'appareil qui range l'import.
   const library = await fetch(`${base}/u/${user}/library`)

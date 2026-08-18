@@ -29,7 +29,6 @@ struct CaptureView: View {
     @State private var shooting = false
     @State private var chosen: CaptureFlow.Word?
     @State private var youtubeURL = ""
-    @State private var pendingYouTubeURL: String?
     @State private var translationConfiguration = TranslationSession.Configuration(
         source: Locale.Language(identifier: "ko"),
         target: Locale.Language(identifier: "en")
@@ -50,7 +49,9 @@ struct CaptureView: View {
             case .filing:
                 waiting("Putting it in order…")
             case .importingVideo:
-                waiting("Preparing the transcript…", detail: "The first translation may download Korean and English.")
+                waiting("Fetching the captions…", detail: "This takes a few seconds.")
+            case .translatingVideo:
+                waiting("Translating the transcript…", detail: "The first translation may download Korean and English.")
             case .filed(let title):
                 filed(title)
             case .nothing(let message):
@@ -72,16 +73,27 @@ struct CaptureView: View {
                 await flow.read(data: data)
                 print("[molago] capture d'essai terminée")
             }
+            if let i = args.firstIndex(of: "--youtube"), i + 1 < args.count {
+                print("[molago] import d'essai : \(args[i + 1])")
+                youtubeURL = args[i + 1]
+                importVideo()
+            }
         }
         .task(id: picking) {
             guard let picking,
                   let data = try? await picking.loadTransferable(type: Data.self) else { return }
             await flow.read(data: data)
         }
+        // Relancé à chaque vidéo prête. La traduction reprend où elle en était,
+        // donc une relance de SwiftUI ne coûte au pire qu'un lot.
+        .onChange(of: flow.readyToTranslate) { translationConfiguration.invalidate() }
         .translationTask(translationConfiguration) { session in
-            guard let value = pendingYouTubeURL else { return }
-            pendingYouTubeURL = nil
-            await flow.importYouTube(value) { lines in
+            guard flow.awaitingTranslation != nil else { return }
+            // Déclenche le téléchargement des langues, avec sa demande système,
+            // plutôt que de le laisser surprendre le premier lot. L'échec n'est
+            // pas traité ici : le lot suivant rendra la même erreur, une fois.
+            try? await session.prepareTranslation()
+            await flow.translateAwaiting { lines in
                 try await Self.translate(lines, with: session)
             }
         }
@@ -221,24 +233,23 @@ struct CaptureView: View {
         }
     }
 
-    private func importVideo() {
-        pendingYouTubeURL = youtubeURL
-        translationConfiguration.invalidate()
-    }
+    // La session de traduction n'est PAS ouverte ici : elle le sera quand le
+    // transcript sera arrivé (`readyToTranslate`). C'est tout le fond de la
+    // correction — ouvrir la session d'abord faisait annuler la requête réseau.
+    private func importVideo() { flow.begin(youtubeURL) }
 
+    /// Un lot de répliques, traduit d'un coup. Le découpage vit dans le flux :
+    /// c'est lui qui sait ce qui reste à faire si la session est relancée.
     private nonisolated static func translate(_ lines: [String], with session: TranslationSession) async throws -> [String] {
         var translated = Array(repeating: "", count: lines.count)
-        for offset in stride(from: 0, to: lines.count, by: 50) {
-            let end = min(offset + 50, lines.count)
-            let requests = lines[offset..<end].enumerated().map { relative, text in
-                TranslationSession.Request(sourceText: text, clientIdentifier: String(offset + relative))
+        let requests = lines.enumerated().map { index, text in
+            TranslationSession.Request(sourceText: text, clientIdentifier: String(index))
+        }
+        for response in try await session.translations(from: requests) {
+            guard let id = response.clientIdentifier, let index = Int(id), translated.indices.contains(index) else {
+                continue
             }
-            for response in try await session.translations(from: requests) {
-                guard let id = response.clientIdentifier, let index = Int(id), translated.indices.contains(index) else {
-                    continue
-                }
-                translated[index] = response.targetText
-            }
+            translated[index] = response.targetText
         }
         return translated
     }

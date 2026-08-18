@@ -22,7 +22,7 @@
 import { createServer } from 'node:http'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { fetchTranscript } from './transcript.mjs'
+import { fetchTranscript, parseYouTubeURL, videoIDFrom } from './transcript.mjs'
 import { lexiconCache, selectFamily } from './lexicon.mjs'
 
 const PORT = Number(process.env.PORT || 8080)
@@ -182,6 +182,29 @@ async function glossTokens(tokens, lookup = false, context = '', enrich = false)
     })
 }
 
+// Les sous-titres d'une vidéo ne changent jamais. Supadata donne 100 crédits
+// par mois : sans cette relecture, réimporter la même vidéo — ou simplement
+// retenter après une traduction interrompue — en dépensait un à chaque fois.
+// Le cache est commun à tous les utilisateurs, comme les icônes : il ne dépend
+// que de la vidéo.
+const transcriptFile = (id) => join(DATA, 'transcripts', `${id}.json`)
+
+async function transcript(value) {
+  const id = videoIDFrom(parseYouTubeURL(value))
+  const file = transcriptFile(id)
+  try { return JSON.parse(readFileSync(file, 'utf8')) } catch { /* jamais lu */ }
+
+  const fresh = await fetchTranscript(value)
+  // Une vidéo sans coréen n'est pas mise en cache : la piste peut arriver plus
+  // tard, et garder le vide fermerait la porte pour toujours.
+  if (fresh.cues.length) {
+    mkdirSync(join(DATA, 'transcripts'), { recursive: true })
+    writeFileSync(`${file}.tmp`, JSON.stringify(fresh))
+    renameSync(`${file}.tmp`, file)
+  }
+  return fresh
+}
+
 const capturesFile = (user) => join(DATA, 'u', user, 'captures.json')
 const lexiconFile = (user) => join(DATA, 'u', user, 'lexicon.json')
 const dayFile = (user, date) => join(DATA, 'u', user, `${date}.json`)
@@ -250,7 +273,7 @@ createServer(async (req, res) => {
     // Le serveur ne garde rien d'une vidéo : il lit les sous-titres et rend la
     // main. C'est l'appareil qui traduit (Apple Translation) et qui range son
     // import dans iCloud — depuis la PR #49, il n'y a plus de journée à écrire.
-    if (route === 'transcript') return json(res, 200, await fetchTranscript(body.url))
+    if (route === 'transcript') return json(res, 200, await transcript(body.url))
 
     if (route === 'gloss') {
       // L'app envoie les mots que l'OCR a vus, dans l'ordre. Elle accepte aussi

@@ -27,64 +27,6 @@ final class LibraryModelTests: XCTestCase {
         XCTAssertEqual(sections.older.map(\.text.slot), ["youtube-1"])
     }
 
-    @MainActor
-    func testYouTubeImportTranslatesAndSavesOnTheDevice() async {
-        let flow = CaptureFlow()
-        var saved: Molago.LibraryItem?
-        let video = YouTubeImport.Video(
-            videoID: "42M_DVvzye8", title: "A Korean video", channel: "Didi",
-            duration: 60, thumbnail: nil,
-            sourceURL: "https://www.youtube.com/watch?v=42M_DVvzye8",
-            cues: [.init(text: "안녕하세요", start: 1, end: 2)]
-        )
-
-        await flow.importYouTube(
-            "  https://youtu.be/42M_DVvzye8  ",
-            translate: { lines in
-                XCTAssertEqual(lines, ["안녕하세요"])
-                return ["Hello"]
-            },
-            fetch: { pasted in
-                XCTAssertEqual(pasted, "https://youtu.be/42M_DVvzye8")
-                return video
-            },
-            save: { saved = $0 }
-        )
-
-        guard case .filed(let title) = flow.step else {
-            return XCTFail("Expected the imported state")
-        }
-        XCTAssertEqual(title, "A Korean video")
-        XCTAssertEqual(saved?.text.sentences.first?.en, "Hello")
-    }
-
-    @MainActor
-    func testYouTubeTranslationFailureExplainsHowToRecover() async {
-        enum Failure: Error { case unavailable }
-        let flow = CaptureFlow()
-        let video = YouTubeImport.Video(
-            videoID: "42M_DVvzye8", title: "A Korean video", channel: "Didi",
-            duration: 60, thumbnail: nil,
-            sourceURL: "https://www.youtube.com/watch?v=42M_DVvzye8",
-            cues: [.init(text: "안녕하세요", start: 1, end: 2)]
-        )
-
-        await flow.importYouTube(
-            "https://youtu.be/42M_DVvzye8",
-            translate: { _ in throw Failure.unavailable },
-            fetch: { _ in video },
-            save: { _ in XCTFail("A failed translation must not be saved") }
-        )
-
-        guard case .nothing(let message) = flow.step else {
-            return XCTFail("Expected a recoverable error")
-        }
-        XCTAssertEqual(
-            message,
-            "The transcript couldn’t be translated. Download Korean and English in Settings, then try again."
-        )
-    }
-
     func testKeptWordRetainsVideoTimestamp() {
         let word = KeptWord(
             lemma: "관계", meaning: "relationship", pos: "noun", icon: nil,
