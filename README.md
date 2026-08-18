@@ -8,7 +8,7 @@ Molago ne génère aucun article automatiquement. L’utilisateur choisit une ph
 
 - **Library** : les trois derniers imports dans des cartes riches, puis les plus anciens en lignes.
 - **Capture** : photo, photothèque ou URL YouTube collée directement.
-- **YouTube** : lecteur intégré, transcript synchronisé et traduction anglaise à la demande.
+- **YouTube** : lecteur intégré, transcript coréen minuté fourni par l’API, traduit sur l’appareil par Apple Translation.
 - **Wordbook** : mots gardés avec leur contexte, leur décomposition Hanja et une famille de mots quand elle existe.
 - **Hors ligne** : les imports et transcripts déjà chargés restent lisibles.
 
@@ -19,7 +19,7 @@ La spécification de cette évolution est dans [`docs/plans/2026-08-17-import-on
 | Dossier | Contenu |
 |---|---|
 | `app/` | Application iOS native SwiftUI |
-| `api/` | API Node : captures, imports YouTube et bibliothèque |
+| `api/` | API Node : captures, transcripts et bibliothèque |
 | `deploy/` | Déploiement Docker sur le VPS |
 | `pipeline/` | Ancienne fabrique quotidienne, conservée comme archive mais plus déployée |
 | `docs/` | Spécifications, décisions et recherche produit |

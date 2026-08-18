@@ -41,7 +41,7 @@ rsync -az \
 step "Envoi de la configuration"
 # Les clés voyagent par stdin plutôt que par la ligne de commande : un argument
 # de commande se retrouve dans les logs et dans `ps`.
-grep -E '^(OPENROUTER_API_KEY|MOLAGO_USER_ID|MOLAGO_SECRET_PATH)=' "$LOCAL/.env" \
+grep -E '^(OPENROUTER_API_KEY|SUPADATA_API_KEY|YOUTUBE_API_KEY|MOLAGO_USER_ID|MOLAGO_SECRET_PATH)=' "$LOCAL/.env" \
   | ssh "$VPS" "cat > $REMOTE/.env && chmod 600 $REMOTE/.env"
 echo "  .env déposé (600)"
 

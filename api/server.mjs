@@ -7,9 +7,10 @@
 // comprendre maintenant, devant sa facture ». Il faut donc quelqu'un à qui
 // demander.
 //
-//   POST /u/:id/gloss     { text }   → les mots du texte, avec leur sens
-//   POST /u/:id/captures  { words }  → ce qui est gardé, pour la nuit suivante
-//   POST /u/:id/document  { lines }  → un document photographié, rendu lisible
+//   POST /u/:id/gloss      { text }   → les mots du texte, avec leur sens
+//   POST /u/:id/captures   { words }  → ce qui est gardé, pour la nuit suivante
+//   POST /u/:id/document   { lines }  → un document photographié, rendu lisible
+//   POST /u/:id/transcript { url }    → les sous-titres minutés d'une vidéo
 //
 // Pas de framework : `node:http` suffit pour ces routes, et une dépendance de
 // moins est une dépendance de moins à tenir à jour sur un VPS.
@@ -21,7 +22,7 @@
 import { createServer } from 'node:http'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { extractYouTube } from './youtube.mjs'
+import { fetchTranscript } from './transcript.mjs'
 import { lexiconCache, selectFamily } from './lexicon.mjs'
 
 const PORT = Number(process.env.PORT || 8080)
@@ -76,12 +77,6 @@ Rends ce document lisible comme un article.
 
 Réponds en JSON :
 {"t":"un titre court en anglais, ce que le document est","s":[{"ko":"une phrase coréenne","en":"sa traduction anglaise"}]}`
-
-const TRANSLATE = (sentences) => `Traduis ces sous-titres coréens en anglais naturel. Garde exactement un résultat par numéro et n'ajoute rien.
-
-${sentences.map((sentence, index) => `${index}. ${sentence}`).join('\n')}
-
-Réponds en JSON strict : {"t":[{"i":0,"en":"translation"}]}`
 
 async function llm(prompt, model = CLERK) {
   const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -187,43 +182,6 @@ async function glossTokens(tokens, lookup = false, context = '', enrich = false)
     })
 }
 
-async function translateSentences(sentences) {
-  const translated = []
-  for (let offset = 0; offset < sentences.length; offset += 60) {
-    const chunk = sentences.slice(offset, offset + 60)
-    const out = await llm(TRANSLATE(chunk))
-    const rows = Array.isArray(out) ? out : out.t || []
-    const byIndex = new Map(rows
-      .filter((row) => Number.isInteger(row?.i) && typeof row.en === 'string')
-      .map((row) => [row.i, row.en.trim()]))
-    translated.push(...chunk.map((_, index) => byIndex.get(index) || ''))
-  }
-  return translated
-}
-
-async function annotateCues(cues) {
-  const tokens = cues.flatMap((cue) => cue.ko.split(/\s+/).filter(Boolean))
-  const glosses = new Map()
-  for (let offset = 0; offset < tokens.length; offset += 300) {
-    try {
-      for (const word of await glossTokens(tokens.slice(offset, offset + 300))) {
-        glosses.set(offset + word.index, word)
-      }
-    } catch { /* le transcript reste lisible sans mots tappables */ }
-  }
-
-  let cursor = 0
-  return cues.map((cue) => ({
-    ...cue,
-    words: cue.ko.split(/\s+/).filter(Boolean).map((surface) => {
-      const gloss = glosses.get(cursor++)
-      return gloss
-        ? { w: surface, lemma: gloss.lemma, pos: gloss.pos, en: gloss.en }
-        : { w: surface }
-    }),
-  }))
-}
-
 const capturesFile = (user) => join(DATA, 'u', user, 'captures.json')
 const lexiconFile = (user) => join(DATA, 'u', user, 'lexicon.json')
 const dayFile = (user, date) => join(DATA, 'u', user, `${date}.json`)
@@ -272,7 +230,7 @@ const writeDay = (user, day) => {
 createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost')
-    const m = url.pathname.match(/^\/u\/([A-Za-z0-9_-]{8,64})\/(gloss|captures|document|youtube|library)$/)
+    const m = url.pathname.match(/^\/u\/([A-Za-z0-9_-]{8,64})\/(gloss|captures|document|transcript|library)$/)
 
     if (url.pathname === '/health') return json(res, 200, { ok: true })
     if (!m) return json(res, 404, { error: 'not found' })
@@ -289,41 +247,10 @@ createServer(async (req, res) => {
 
     const body = await readBody(req)
 
-    if (route === 'youtube') {
-      const video = await extractYouTube(body.url, {
-        translate: translateSentences,
-        annotate: annotateCues,
-      })
-      const date = new Date().toLocaleDateString('en-CA', { timeZone: READER_TZ })
-      const day = readDay(user, date) || { date, texts: [] }
-      const slot = `youtube-${video.videoID}`
-      const importedAt = new Date().toISOString()
-      const text = {
-        slot,
-        kind: 'youtube',
-        universe: 'YouTube',
-        title: video.title.slice(0, 120),
-        minutes: Math.max(1, Math.round(video.duration / 60)),
-        durationSeconds: video.duration,
-        icon: null,
-        videoID: video.videoID,
-        sourceURL: video.sourceURL,
-        sourceName: video.channel,
-        thumbnail: video.thumbnail,
-        importedAt,
-        sentences: video.cues.map((cue, index) => ({
-          ko: cue.ko,
-          en: cue.en,
-          start: cue.start,
-          end: cue.end,
-          audio: `${date}-${slot}-${String(index + 1).padStart(4, '0')}`,
-          words: cue.words,
-        })),
-      }
-      day.texts = [...day.texts.filter((candidate) => candidate.slot !== slot), text]
-      writeDay(user, day)
-      return json(res, 200, { date, slot, title: text.title, transcript: text.sentences.length })
-    }
+    // Le serveur ne garde rien d'une vidéo : il lit les sous-titres et rend la
+    // main. C'est l'appareil qui traduit (Apple Translation) et qui range son
+    // import dans iCloud — depuis la PR #49, il n'y a plus de journée à écrire.
+    if (route === 'transcript') return json(res, 200, await fetchTranscript(body.url))
 
     if (route === 'gloss') {
       // L'app envoie les mots que l'OCR a vus, dans l'ordre. Elle accepte aussi

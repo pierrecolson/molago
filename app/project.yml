@@ -6,10 +6,6 @@
 #   cd app && xcodegen && open Molago.xcodeproj
 
 name: Molago
-packages:
-  YouTubeMetadata:
-    url: https://github.com/arraypress/swift-youtube-metadata.git
-    exactVersion: 0.1.0
 options:
   bundleIdPrefix: com.pierrecolson
   deploymentTarget:
@@ -46,9 +42,6 @@ targets:
     platform: iOS
     sources:
       - path: Sources
-    dependencies:
-      - package: YouTubeMetadata
-        product: YouTubeTranscript
     entitlements:
       path: Sources/Molago.entitlements
       properties:

@@ -40,7 +40,7 @@ services:
     image: molago-api:local
     container_name: molago-api
     restart: unless-stopped
-    # Node et yt-dlp restent sous un plafond explicite sur le VPS partagé.
+    # Node reste sous un plafond explicite sur le VPS partagé.
     mem_limit: 256m
     env_file: .env
     environment:
@@ -56,7 +56,7 @@ services:
       # Même hôte que les fichiers, distingué par le préfixe de chemin. Une
       # priorité plus haute que la route des fichiers, sinon nginx capterait
       # tout et l'API ne verrait jamais rien.
-      - traefik.http.routers.molago-api.rule=Host(`molago.srv1405219.hstgr.cloud`) && PathRegexp(`^/u/[^/]+/(gloss|captures|document|youtube|library)$`)
+      - traefik.http.routers.molago-api.rule=Host(`molago.srv1405219.hstgr.cloud`) && PathRegexp(`^/u/[^/]+/(gloss|captures|document|transcript|library)$`)
       - traefik.http.routers.molago-api.priority=100
       - traefik.http.routers.molago-api.entrypoints=websecure
       - traefik.http.routers.molago-api.tls=true
