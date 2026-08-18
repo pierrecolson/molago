@@ -90,7 +90,7 @@ final class CaptureFlow {
             step = .nothing("Paste a YouTube video link.")
             return
         } catch {
-            step = .nothing("YouTube couldn’t provide this transcript. Check your connection and try again.")
+            step = .nothing("Molago couldn’t reach the transcript service. Try again in a moment.")
             return
         }
 

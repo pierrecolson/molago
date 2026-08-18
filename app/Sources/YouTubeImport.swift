@@ -1,14 +1,26 @@
 import Foundation
-import YouTubeTranscript
 
+// L'app ne connaît qu'une adresse : `POST /u/<id>/transcript`. Quel fournisseur
+// lit les sous-titres derrière — Supadata aujourd'hui — ne la regarde pas, et
+// en changer ne demandera pas une nouvelle version sur l'App Store.
+//
+// Les deux tentatives précédentes ont échoué pour la même raison, à deux
+// endroits : lire les sous-titres soi-même. `yt-dlp` sur le VPS reçoit « Sign
+// in to confirm you're not a bot » (adresse de centre de données), et
+// swift-youtube-metadata sur l'iPhone interrogeait `timedtext` à nu, la surface
+// exacte que YouTube a durcie.
 enum YouTubeImport {
-    struct Cue: Sendable {
+    struct Cue: Sendable, Decodable {
         let text: String
         let start: Double
         let end: Double
+
+        private enum CodingKeys: String, CodingKey {
+            case text = "ko", start, end
+        }
     }
 
-    struct Video: Sendable {
+    struct Video: Sendable, Decodable {
         let videoID: String
         let title: String
         let channel: String
@@ -21,6 +33,7 @@ enum YouTubeImport {
     enum ImportError: Error {
         case invalidURL
         case translationCount
+        case unavailable
     }
 
     static func videoID(from pasted: String) throws -> String {
@@ -52,31 +65,23 @@ enum YouTubeImport {
     }
 
     static func fetch(_ pasted: String) async throws -> Video {
-        let id = try videoID(from: pasted)
-        do {
-            let transcript = try await YouTubeTranscript.fetch(pasted, languages: ["ko"])
-            let metadata = transcript.video
-            return Video(
-                videoID: id,
-                title: metadata?.title.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "YouTube video",
-                channel: metadata?.author.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "YouTube",
-                duration: metadata?.lengthSeconds ?? Int(transcript.duration.rounded()),
-                thumbnail: metadata?.thumbnailUrl,
-                sourceURL: metadata?.url ?? "https://www.youtube.com/watch?v=\(id)",
-                cues: transcript.segments.map { .init(text: $0.text, start: $0.start, end: $0.end) }
-            )
-        } catch let error as YouTubeTranscriptError {
-            switch error {
-            case .transcriptsDisabled, .noTranscriptFound, .emptyTranscript:
-                return Video(
-                    videoID: id, title: "YouTube video", channel: "YouTube", duration: 0,
-                    thumbnail: "https://i.ytimg.com/vi/\(id)/hqdefault.jpg",
-                    sourceURL: "https://www.youtube.com/watch?v=\(id)", cues: []
-                )
-            default:
-                throw error
-            }
-        }
+        // L'URL est validée ici, avant tout accès réseau : un lien qui n'est pas
+        // une vidéo YouTube ne dépense jamais un crédit chez le fournisseur.
+        _ = try videoID(from: pasted)
+
+        var request = URLRequest(url: Config.baseURL.appending(path: "transcript"))
+        // Plus long que la bibliothèque : le serveur attend deux fournisseurs,
+        // et un transcript d'une heure met plus de temps qu'une liste.
+        request.timeoutInterval = 60
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        request.httpBody = try JSONEncoder().encode(["url": pasted.trimmingCharacters(in: .whitespacesAndNewlines)])
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard status != 400 else { throw ImportError.invalidURL }
+        guard status == 200 else { throw ImportError.unavailable }
+        return try JSONDecoder().decode(Video.self, from: data)
     }
 
     static func item(from video: Video, translations: [String], now: Date = Date()) throws -> LibraryItem {
@@ -119,8 +124,4 @@ enum YouTubeImport {
             )
         )
     }
-}
-
-private extension String {
-    var nonEmpty: String? { isEmpty ? nil : self }
 }

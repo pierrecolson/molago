@@ -11,6 +11,35 @@ final class YouTubeImportTests: XCTestCase {
         XCTAssertThrowsError(try YouTubeImport.videoID(from: "https://www.youtube.com/@channel"))
     }
 
+    func testTheAPIReplyDecodesIntoAVideo() throws {
+        let reply = Data("""
+        {"videoID":"zC4aRaHI-yw","title":"항공사 뉴스","channel":"Didi","duration":253,
+         "thumbnail":"https://i.ytimg.com/test.jpg",
+         "sourceURL":"https://www.youtube.com/watch?v=zC4aRaHI-yw",
+         "cues":[{"start":18.8,"end":19.8,"ko":"마일리지 전환은 어떻게?"}]}
+        """.utf8)
+
+        let video = try JSONDecoder().decode(YouTubeImport.Video.self, from: reply)
+
+        XCTAssertEqual(video.videoID, "zC4aRaHI-yw")
+        XCTAssertEqual(video.duration, 253)
+        XCTAssertEqual(video.cues.map(\.text), ["마일리지 전환은 어떻게?"])
+        XCTAssertEqual(video.cues[0].start, 18.8)
+        XCTAssertEqual(video.cues[0].end, 19.8)
+    }
+
+    func testAVideoWithoutCuesStillDecodes() throws {
+        let reply = Data("""
+        {"videoID":"zC4aRaHI-yw","title":"YouTube video","channel":"YouTube","duration":0,
+         "thumbnail":null,"sourceURL":"https://www.youtube.com/watch?v=zC4aRaHI-yw","cues":[]}
+        """.utf8)
+
+        let video = try JSONDecoder().decode(YouTubeImport.Video.self, from: reply)
+
+        XCTAssertTrue(video.cues.isEmpty)
+        XCTAssertNil(video.thumbnail)
+    }
+
     func testTimedKoreanCuesBecomeTheExistingLibraryFormat() throws {
         let video = YouTubeImport.Video(
             videoID: "zC4aRaHI-yw",

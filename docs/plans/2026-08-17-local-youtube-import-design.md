@@ -58,3 +58,21 @@ Une vidéo sans transcript coréen reste ajoutée avec un transcript vide et dem
 4. Réimporter la même vidéo remplace son fichier sans créer de doublon.
 5. Une URL non YouTube est refusée avant tout accès réseau.
 6. Aucun message ne montre une commande `yt-dlp` ou une erreur technique brute.
+
+## Ce qui a remplacé ce document (18 août 2026)
+
+Ce design est **caduc**. Le modèle était juste — l'import part de l'appareil,
+Apple Translation traduit, le fichier vit dans iCloud — mais le moteur ne l'était
+pas : `swift-youtube-metadata` 0.1.0 interroge `timedtext` par une requête HTTP
+nue, exactement la surface que YouTube a durcie. La dépendance a été retirée.
+
+Les sous-titres viennent désormais de `POST /u/<id>/transcript` sur le VPS, qui
+lit Supadata pour le coréen et la YouTube Data API pour les métadonnées. Les deux
+contraintes ci-dessus — « Aucun appel Supadata », « Aucun appel à la route
+Hostinger » — ne tiennent donc plus. Elles sont laissées telles quelles : elles
+disent ce qu'on croyait le 17 août, et l'histoire ne se réécrit pas.
+
+Le reste du document vaut toujours : le parcours, les messages d'état, et la
+règle qu'une vidéo sans transcript coréen reste importable et regardable.
+
+Voir [`2026-08-18-supadata-transcript-design.md`](2026-08-18-supadata-transcript-design.md).
