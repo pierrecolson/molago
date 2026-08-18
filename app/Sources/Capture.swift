@@ -106,8 +106,54 @@ final class CaptureFlow {
     private(set) var readyToTranslate = 0
 
     /// Combien de répliques sont traduites, sur combien. Lu sans être observé :
-    /// l'écran d'attente le relit à son rythme.
+    /// l'écran d'attente le relit à son rythme, sans redessiner la vue qui
+    /// porte la session — la redessiner la relancerait.
     var translationProgress: (done: Int, total: Int) { (done, translated.count) }
+
+    /// Une réplique du transcript, telle qu'elle apparaît pendant l'attente.
+    struct Line: Identifiable {
+        let id: Int
+        let ko: String
+        /// Vide tant que le lot n'est pas revenu : la ligne est là, en gris,
+        /// et son anglais s'allume dessous.
+        let en: String?
+    }
+
+    /// Les quelques lignes autour du front de traduction : celles qui viennent
+    /// de s'allumer, et les suivantes qui attendent. C'est l'attente rendue
+    /// lisible — on voit ce qu'on est en train de recevoir.
+    var visibleLines: [Line] {
+        guard let video = awaitingTranslation, !video.cues.isEmpty else { return [] }
+        let start = max(0, min(done, video.cues.count - 1) - 6)
+        let end = min(done + 2, video.cues.count)
+        guard start < end else { return [] }
+        return (start..<end).map {
+            Line(id: $0, ko: video.cues[$0].text, en: $0 < done ? translated[$0] : nil)
+        }
+    }
+
+    /// Ce qu'il reste à attendre, en langue de tous les jours. Rien avant cent
+    /// répliques : plus tôt, la cadence n'est pas encore une cadence, et
+    /// annoncer « huit minutes » puis « une » est pire que se taire.
+    var remaining: String? {
+        guard let started = translationStarted, done >= 100, done < translated.count else { return nil }
+        let perLine = Date().timeIntervalSince(started) / Double(done)
+        let left = perLine * Double(translated.count - done)
+        if left < 45 { return "Less than a minute left" }
+        let minutes = Int((left / 60).rounded())
+        return minutes <= 1 ? "About a minute left" : "About \(minutes) minutes left"
+    }
+
+    @ObservationIgnored private var translationStarted: Date?
+    @ObservationIgnored private var stopped = false
+
+    /// Arrêter, et ne rien garder. Le transcript n'a rien coûté au lecteur —
+    /// le serveur le garde en cache —, donc recommencer plus tard est gratuit.
+    func stop() {
+        stopped = true
+        awaitingTranslation = nil
+        step = .choosing
+    }
 
     func begin(
         _ pasted: String,
@@ -120,6 +166,8 @@ final class CaptureFlow {
         awaitingTranslation = nil
         translated = []
         done = 0
+        stopped = false
+        translationStarted = nil
         step = .importingVideo
         Task { await fetchVideo(value, fetch: fetch) }
     }
@@ -143,9 +191,11 @@ final class CaptureFlow {
     /// Traduit ce qui reste, lot par lot. Appelée à chaque relance de la session.
     func translateAwaiting(batch: ([String]) async throws -> [String]) async {
         guard let video = awaitingTranslation, done < video.cues.count else { return }
+        if translationStarted == nil { translationStarted = Date() }
         let lines = video.cues.map(\.text)
         do {
             while done < lines.count {
+                guard !stopped else { return }
                 let end = min(done + 50, lines.count)
                 let out = try await batch(Array(lines[done..<end]))
                 guard out.count == end - done else { throw YouTubeImport.ImportError.translationCount }

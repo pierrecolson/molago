@@ -104,6 +104,36 @@ final class CaptureFlowTests: XCTestCase {
         )
     }
 
+    /// L'écran d'attente lit ces deux-là à son rythme : la fenêtre de lignes
+    /// suit le front de traduction, et « Stop » ne laisse rien derrière.
+    func testTheVisibleLinesFollowTheTranslationAndStopLeavesNothing() async {
+        let flow = CaptureFlow()
+        flow.begin("https://youtu.be/zC4aRaHI-yw",
+                   fetch: { _ in self.video(cues: 60) },
+                   save: { _ in XCTFail("un import arrêté ne se range pas") })
+        await waitForTranslation(flow)
+
+        XCTAssertEqual(flow.visibleLines.map(\.id), [0, 1])
+        XCTAssertTrue(flow.visibleLines.allSatisfy { $0.en == nil })
+
+        var lots = 0
+        await flow.translateAwaiting { lines in
+            lots += 1
+            if lots > 1 { throw CancellationError() }
+            return lines.map { "en: \($0)" }
+        }
+
+        XCTAssertEqual(flow.visibleLines.map(\.id), Array(44...51), "les six dernières faites, et les deux qui viennent")
+        XCTAssertEqual(flow.visibleLines.first?.en, "en: 줄 44")
+        XCTAssertNil(flow.visibleLines.last?.en)
+        XCTAssertEqual(flow.translationProgress.done, 50)
+
+        flow.stop()
+        XCTAssertNil(flow.awaitingTranslation)
+        XCTAssertTrue(flow.visibleLines.isEmpty)
+        guard case .choosing = flow.step else { return XCTFail("Stop ramène au choix : \(flow.step)") }
+    }
+
     func testAVideoWithoutCaptionsIsStillFiled() async {
         let flow = CaptureFlow()
         var saved: Molago.LibraryItem?
