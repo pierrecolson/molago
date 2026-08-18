@@ -10,7 +10,8 @@
 //   POST /u/:id/gloss      { text }   → les mots du texte, avec leur sens
 //   POST /u/:id/captures   { words }  → ce qui est gardé, pour la nuit suivante
 //   POST /u/:id/document   { lines }  → un document photographié, rendu lisible
-//   POST /u/:id/transcript { url }    → les sous-titres minutés d'une vidéo
+//   POST /u/:id/transcript  { url }              → les sous-titres minutés d'une vidéo
+//   POST /u/:id/translation { url, from, to }    → leur anglais, par tranches
 //
 // Pas de framework : `node:http` suffit pour ces routes, et une dépendance de
 // moins est une dépendance de moins à tenir à jour sur un VPS.
@@ -23,6 +24,7 @@ import { createServer } from 'node:http'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fetchTranscript, parseYouTubeURL, videoIDFrom } from './transcript.mjs'
+import { translateLines } from './translate.mjs'
 import { lexiconCache, selectFamily } from './lexicon.mjs'
 
 const PORT = Number(process.env.PORT || 8080)
@@ -79,7 +81,8 @@ Réponds en JSON :
 {"t":"un titre court en anglais, ce que le document est","s":[{"ko":"une phrase coréenne","en":"sa traduction anglaise"}]}`
 
 async function llm(prompt, model = CLERK) {
-  const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+  // Surchargeable pour les tests de route, qui pointent vers un stub local.
+  const r = await fetch(process.env.OPENROUTER_URL || 'https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
       authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
@@ -205,6 +208,39 @@ async function transcript(value) {
   return fresh
 }
 
+const translationFile = (id) => join(DATA, 'transcripts', `${id}.en.json`)
+
+/// L'anglais d'une tranche de répliques.
+///
+/// Par tranches, et pas d'un bloc, pour deux raisons : l'app peut montrer un
+/// avancement honnête plutôt qu'un tourniquet, et une coupure de réseau ne
+/// coûte que la tranche en cours. Ce qui est traduit est gardé sur disque, donc
+/// reprendre ne repaye rien.
+async function translation(value, from, to) {
+  const id = videoIDFrom(parseYouTubeURL(value))
+  const { cues } = await transcript(value)
+  const start = Math.max(0, Math.min(Number(from) || 0, cues.length))
+  const end = Math.max(start, Math.min(Number(to) || cues.length, cues.length))
+
+  const file = translationFile(id)
+  let known = []
+  try { known = JSON.parse(readFileSync(file, 'utf8')) } catch { /* jamais traduit */ }
+  if (!Array.isArray(known) || known.length !== cues.length) known = Array(cues.length).fill('')
+
+  const missing = []
+  for (let i = start; i < end; i++) if (!known[i]) missing.push(i)
+
+  if (missing.length) {
+    const fresh = await translateLines(missing.map((i) => cues[i].ko), { llm: (prompt) => llm(prompt) })
+    missing.forEach((i, n) => { known[i] = fresh[n] })
+    mkdirSync(join(DATA, 'transcripts'), { recursive: true })
+    writeFileSync(`${file}.tmp`, JSON.stringify(known))
+    renameSync(`${file}.tmp`, file)
+  }
+
+  return { from: start, to: end, total: cues.length, en: known.slice(start, end) }
+}
+
 const capturesFile = (user) => join(DATA, 'u', user, 'captures.json')
 const lexiconFile = (user) => join(DATA, 'u', user, 'lexicon.json')
 const dayFile = (user, date) => join(DATA, 'u', user, `${date}.json`)
@@ -253,7 +289,7 @@ const writeDay = (user, day) => {
 createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost')
-    const m = url.pathname.match(/^\/u\/([A-Za-z0-9_-]{8,64})\/(gloss|captures|document|transcript|library)$/)
+    const m = url.pathname.match(/^\/u\/([A-Za-z0-9_-]{8,64})\/(gloss|captures|document|transcript|translation|library)$/)
 
     if (url.pathname === '/health') return json(res, 200, { ok: true })
     if (!m) return json(res, 404, { error: 'not found' })
@@ -274,6 +310,7 @@ createServer(async (req, res) => {
     // main. C'est l'appareil qui traduit (Apple Translation) et qui range son
     // import dans iCloud — depuis la PR #49, il n'y a plus de journée à écrire.
     if (route === 'transcript') return json(res, 200, await transcript(body.url))
+    if (route === 'translation') return json(res, 200, await translation(body.url, body.from, body.to))
 
     if (route === 'gloss') {
       // L'app envoie les mots que l'OCR a vus, dans l'ordre. Elle accepte aussi

@@ -1,7 +1,6 @@
 import SwiftUI
 import SwiftData
 import PhotosUI
-@preconcurrency import Translation
 
 /// Photographier, voir, toucher.
 ///
@@ -34,10 +33,6 @@ struct CaptureView: View {
     /// Vrai quand le presse-papiers contient probablement une adresse. Su sans
     /// l'avoir lu — donc sans rien demander à personne.
     @State private var clipboardLooksLikeALink = false
-    @State private var translationConfiguration = TranslationSession.Configuration(
-        source: Locale.Language(identifier: "ko"),
-        target: Locale.Language(identifier: "en")
-    )
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Ce qui a été gardé pendant cette capture — pour le compte et pour la
@@ -57,8 +52,8 @@ struct CaptureView: View {
                 waiting("Fetching the captions…", detail: "This takes a few seconds.")
             case .translatingVideo:
                 translating
-            case .filed(let title):
-                filed(title)
+            case .filed(let title, let note):
+                filed(title, note)
             case .nothing(let message):
                 empty(message)
             }
@@ -89,19 +84,6 @@ struct CaptureView: View {
             guard let picking,
                   let data = try? await picking.loadTransferable(type: Data.self) else { return }
             await flow.read(data: data)
-        }
-        // Relancé à chaque vidéo prête. La traduction reprend où elle en était,
-        // donc une relance de SwiftUI ne coûte au pire qu'un lot.
-        .onChange(of: flow.readyToTranslate) { translationConfiguration.invalidate() }
-        .translationTask(translationConfiguration) { session in
-            guard flow.awaitingTranslation != nil else { return }
-            // Déclenche le téléchargement des langues, avec sa demande système,
-            // plutôt que de le laisser surprendre le premier lot. L'échec n'est
-            // pas traité ici : le lot suivant rendra la même erreur, une fois.
-            try? await session.prepareTranslation()
-            await flow.translateAwaiting { lines in
-                try await Self.translate(lines, with: session)
-            }
         }
         .fullScreenCover(isPresented: $shooting) {
             Camera { image in
@@ -360,98 +342,54 @@ struct CaptureView: View {
 
     // ── 2. pendant que ça travaille ──────────────────────────────────────────
 
-    /// L'attente, rendue lisible.
+    /// L'attente : ce qui avance, ce qu'il reste, et comment sortir.
     ///
-    /// Une heure de vidéo, c'est neuf cents répliques traduites sur l'appareil,
-    /// cinquante par cinquante. Un tourniquet et une phrase ne suffisaient pas :
-    /// on ne savait ni quelle vidéo, ni combien il restait, ni comment sortir.
+    /// La version précédente montrait la vignette, deux étapes cochées et le
+    /// transcript qui s'allumait ligne à ligne — trop de choses pour trente
+    /// secondes d'attente. Ce qu'on veut savoir tient en deux nombres.
     ///
-    /// `TimelineView` relit l'avancement à son rythme **sans** redessiner la
-    /// vue qui porte la session de traduction : la redessiner la relancerait, et
-    /// la relance coûte un lot. C'est pour ça que l'avancement vit hors
-    /// observation dans le flux.
+    /// `TimelineView` relit l'avancement à son rythme plutôt que de le faire
+    /// observer : l'écran se redessine tout seul, sans que le reste bouge.
     private var translating: some View {
         TimelineView(.periodic(from: .now, by: 0.5)) { _ in
-            let progress = flow.translationProgress
+            let progress = flow.progress
             let fraction = progress.total > 0 ? Double(progress.done) / Double(progress.total) : 0
 
-            VStack(alignment: .leading, spacing: 0) {
-                if let video = flow.awaitingTranslation {
-                    videoCard(video)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 12)
+            VStack(spacing: 0) {
+                Spacer()
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        stepRow(done: true, "Captions ready · \(progress.total) lines")
-                        stepRow(done: false, "Translating on your iPhone")
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.top, 20)
-                }
-
-                VStack(spacing: 8) {
-                    GeometryReader { geometry in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(Dancheong.separator)
-                            Capsule().fill(Dancheong.jangdan)
-                                .frame(width: max(6, geometry.size.width * fraction))
-                        }
-                    }
-                    .frame(height: 6)
-
-                    HStack {
-                        Text(flow.remaining ?? "The first translation downloads Korean and English.")
-                        Spacer()
-                        Text("\(progress.done) / \(progress.total)")
-                            .monospacedDigit()
-                            .foregroundStyle(Dancheong.ink)
-                            .fontWeight(.semibold)
-                    }
-                    .font(.caption)
+                Text(flow.video?.title ?? "")
+                    .font(.subheadline)
                     .foregroundStyle(Dancheong.inkSoft)
-                }
-                .padding(.horizontal, 24)
-                .padding(.top, 18)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Translating the transcript")
-                .accessibilityValue("\(progress.done) of \(progress.total) lines")
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .padding(.horizontal, 40)
+                    .padding(.bottom, 22)
 
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(flow.visibleLines) { line in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(line.ko)
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(Dancheong.ink.opacity(line.en == nil ? 0.32 : 1))
-                            if let en = line.en {
-                                Text(en)
-                                    .font(.caption)
-                                    .foregroundStyle(Dancheong.inkSoft)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.leading, 12)
-                        .overlay(alignment: .leading) {
-                            Capsule()
-                                .fill(line.en == nil ? Dancheong.separator : Dancheong.jangdan)
-                                .frame(width: 2)
-                        }
-                        .transition(.opacity)
+                Text("Translating")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(Dancheong.ink)
+                    .padding(.bottom, 18)
+
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Dancheong.separator)
+                        Capsule().fill(Dancheong.jangdan)
+                            .frame(width: max(6, geometry.size.width * fraction))
                     }
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 22)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .clipped()
-                // Le bas s'efface : ce qui reste à traduire est là, sans se
-                // faire couper net par le bouton.
-                .mask {
-                    LinearGradient(colors: [.black, .black, .black.opacity(0)],
-                                   startPoint: .top, endPoint: .bottom)
-                }
-                .animation(reduceMotion ? nil : .easeOut(duration: 0.35), value: progress.done)
+                .frame(height: 6)
+                .padding(.horizontal, 44)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.4), value: progress.done)
 
-                // Sortir est un bouton pleine largeur, pas une croix dans un
-                // coin : c'est la seule autre chose à faire sur cet écran.
+                Text(flow.remaining ?? "\(progress.total) lines")
+                    .font(.footnote)
+                    .foregroundStyle(Dancheong.inkSoft)
+                    .padding(.top, 12)
+                    .monospacedDigit()
+
+                Spacer()
+
                 Button("Stop") { flow.stop() }
                     .font(.body.weight(.semibold))
                     .foregroundStyle(Dancheong.ink)
@@ -464,58 +402,10 @@ struct CaptureView: View {
                     .padding(.horizontal, 20)
                     .padding(.bottom, 12)
             }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Translating the transcript")
+            .accessibilityValue("\(progress.done) of \(progress.total) lines")
         }
-    }
-
-    private func videoCard(_ video: YouTubeImport.Video) -> some View {
-        HStack(spacing: 12) {
-            AsyncImage(url: video.thumbnail.flatMap(URL.init(string:))) { image in
-                image.resizable().scaledToFill()
-            } placeholder: {
-                Dancheong.separator
-            }
-            .frame(width: 84, height: 50)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(video.title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Dancheong.ink)
-                    .lineLimit(2)
-                Text(video.channel)
-                    .font(.caption2)
-                    .foregroundStyle(Dancheong.inkSoft)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(10)
-        .background(Dancheong.paper, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Dancheong.separator, lineWidth: 1)
-        }
-    }
-
-    private func stepRow(done: Bool, _ label: String) -> some View {
-        HStack(spacing: 10) {
-            ZStack {
-                if done {
-                    Circle().fill(Dancheong.hayeop)
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.white)
-                } else {
-                    Circle().strokeBorder(Dancheong.separator, lineWidth: 2)
-                }
-            }
-            .frame(width: 18, height: 18)
-
-            Text(label)
-                .font(.subheadline)
-                .foregroundStyle(done ? Dancheong.ink : Dancheong.inkSoft)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(done ? "Done: \(label)" : "In progress: \(label)")
     }
 
     /// Ce qu'on dit pendant l'attente.
@@ -539,7 +429,7 @@ struct CaptureView: View {
 
     /// Le document est devenu un article. On ne le montre pas ici : il est dans
     /// la bibliothèque, avec les textes du matin, et c'est là qu'on le lit.
-    private func filed(_ title: String) -> some View {
+    private func filed(_ title: String, _ note: String?) -> some View {
         VStack(spacing: 18) {
             Image("UniverseCapture")
                 .resizable().scaledToFit().frame(width: 76, height: 76)
@@ -547,9 +437,11 @@ struct CaptureView: View {
                 .font(.title3.weight(.semibold))
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Added to your library.")
+            Text(note ?? "Added to your library.")
                 .font(.subheadline)
                 .foregroundStyle(Dancheong.inkSoft)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             Button("Read it") { close() }
                 .font(.body.weight(.semibold))
                 .tint(Dancheong.jaju)
@@ -572,26 +464,7 @@ struct CaptureView: View {
         }
     }
 
-    // La session de traduction n'est PAS ouverte ici : elle le sera quand le
-    // transcript sera arrivé (`readyToTranslate`). C'est tout le fond de la
-    // correction — ouvrir la session d'abord faisait annuler la requête réseau.
     private func importVideo() { flow.begin(youtubeURL) }
-
-    /// Un lot de répliques, traduit d'un coup. Le découpage vit dans le flux :
-    /// c'est lui qui sait ce qui reste à faire si la session est relancée.
-    private nonisolated static func translate(_ lines: [String], with session: TranslationSession) async throws -> [String] {
-        var translated = Array(repeating: "", count: lines.count)
-        let requests = lines.enumerated().map { index, text in
-            TranslationSession.Request(sourceText: text, clientIdentifier: String(index))
-        }
-        for response in try await session.translations(from: requests) {
-            guard let id = response.clientIdentifier, let index = Int(id), translated.indices.contains(index) else {
-                continue
-            }
-            translated[index] = response.targetText
-        }
-        return translated
-    }
 
     // ── 2. la photo, avec ses mots allumés ───────────────────────────────────
 

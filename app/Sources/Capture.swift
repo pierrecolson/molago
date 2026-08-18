@@ -29,7 +29,7 @@ final class CaptureFlow {
         /// celle qui vaut l'attente : remettre en ordre, recoller, traduire.
         case filing
         /// Le document est devenu un article, rangé dans la journée.
-        case filed(title: String)
+        case filed(title: String, note: String? = nil)
         /// Les sous-titres se demandent au serveur.
         case importingVideo
         /// Les sous-titres se traduisent sur l'appareil, réplique par réplique.
@@ -76,153 +76,128 @@ final class CaptureFlow {
 
     // ── l'import d'une vidéo, en deux temps ──────────────────────────────────
     //
-    // Les deux moitiés ne vivent pas au même endroit, et c'est le fond du
-    // problème que cette version répare.
+    // Les sous-titres d'abord, l'anglais ensuite, et **la vidéo est rangée dès
+    // les sous-titres**. Un import interrompu — réseau coupé, écran fermé,
+    // « Stop » — laisse donc une vidéo regardable avec son transcript coréen,
+    // au lieu de tout perdre.
     //
-    // La traduction a besoin d'une `TranslationSession`, et seul le modificateur
-    // `translationTask` d'une vue sait en ouvrir une. Mais SwiftUI **relance**
-    // cette tâche — en annulant la précédente — dès que la vue qui la porte se
-    // redessine. Or la vue se redessine précisément au moment où l'écran
-    // d'attente s'affiche. Le transcript se demandait depuis l'intérieur de
-    // cette tâche : la requête réseau était annulée en vol, l'import mourait
-    // avant même que le fournisseur ne soit interrogé — ce qui explique un
-    // écran de chargement figé sur l'iPhone et zéro appel côté Supadata.
-    //
-    // Donc : le transcript se demande dans une tâche ordinaire, qui n'appartient
-    // qu'à ce flux. La traduction reste dans `translationTask`, mais elle
-    // **reprend où elle s'était arrêtée** : une relance ne perd au pire qu'un
-    // lot de cinquante répliques, jamais l'import.
+    // La traduction a quitté l'appareil. Apple Translation tenait 0,55 seconde
+    // par ligne sur un iPhone 15 Pro Max, mesuré sans démarrage lent : 8 minutes
+    // 40 pour une heure de vidéo, écran allumé, app au premier plan — iOS
+    // suspend la traduction dès qu'on en sort, et des lots plus gros font
+    // tomber l'app au lieu d'aller plus vite. Le serveur mène ses tranches en
+    // parallèle et garde le résultat : une trentaine de secondes, une seule
+    // fois par vidéo.
 
-    /// La vidéo dont les répliques attendent d'être traduites, et ce qui en est
-    /// déjà traduit. Hors observation : les toucher ne doit redessiner personne,
-    /// sous peine de relancer la traduction en boucle.
-    @ObservationIgnored private(set) var awaitingTranslation: YouTubeImport.Video?
+    /// Une tranche par aller-retour. Assez grande pour que le serveur ait de
+    /// quoi paralléliser, assez petite pour que l'avancement bouge et qu'une
+    /// coupure ne coûte que la tranche en cours.
+    private static let slice = 200
+
+    @ObservationIgnored private(set) var video: YouTubeImport.Video?
     @ObservationIgnored private var translated: [String] = []
     @ObservationIgnored private var done = 0
+    @ObservationIgnored private var stopped = false
+    @ObservationIgnored private var startedTranslating: Date?
     @ObservationIgnored private var save: (LibraryItem) throws -> Void = { try ImportedLibrary.save($0) }
 
-    /// Change quand une vidéo est prête à traduire. La vue l'observe pour
-    /// relancer sa session — elle seule sait en ouvrir une.
-    private(set) var readyToTranslate = 0
+    /// Combien de répliques sont traduites, sur combien. Hors observation : le
+    /// loader les relit à son rythme, sans redessiner tout l'écran.
+    var progress: (done: Int, total: Int) { (done, translated.count) }
 
-    /// Combien de répliques sont traduites, sur combien. Lu sans être observé :
-    /// l'écran d'attente le relit à son rythme, sans redessiner la vue qui
-    /// porte la session — la redessiner la relancerait.
-    var translationProgress: (done: Int, total: Int) { (done, translated.count) }
-
-    /// Une réplique du transcript, telle qu'elle apparaît pendant l'attente.
-    struct Line: Identifiable {
-        let id: Int
-        let ko: String
-        /// Vide tant que le lot n'est pas revenu : la ligne est là, en gris,
-        /// et son anglais s'allume dessous.
-        let en: String?
-    }
-
-    /// Les quelques lignes autour du front de traduction : celles qui viennent
-    /// de s'allumer, et les suivantes qui attendent. C'est l'attente rendue
-    /// lisible — on voit ce qu'on est en train de recevoir.
-    var visibleLines: [Line] {
-        guard let video = awaitingTranslation, !video.cues.isEmpty else { return [] }
-        let start = max(0, min(done, video.cues.count - 1) - 6)
-        let end = min(done + 2, video.cues.count)
-        guard start < end else { return [] }
-        return (start..<end).map {
-            Line(id: $0, ko: video.cues[$0].text, en: $0 < done ? translated[$0] : nil)
-        }
-    }
-
-    /// Ce qu'il reste à attendre, en langue de tous les jours. Rien avant cent
-    /// répliques : plus tôt, la cadence n'est pas encore une cadence, et
-    /// annoncer « huit minutes » puis « une » est pire que se taire.
+    /// Ce qu'il reste à attendre, en langue de tous les jours. Rien avant une
+    /// tranche : plus tôt, la cadence n'est pas encore une cadence.
     var remaining: String? {
-        guard let started = translationStarted, done >= 100, done < translated.count else { return nil }
+        guard let started = startedTranslating, done > 0, done < translated.count else { return nil }
         let perLine = Date().timeIntervalSince(started) / Double(done)
         let left = perLine * Double(translated.count - done)
-        if left < 45 { return "Less than a minute left" }
+        if left < 10 { return "Almost there" }
+        if left < 60 { return "About \(Int((left / 5).rounded()) * 5) seconds left" }
         let minutes = Int((left / 60).rounded())
         return minutes <= 1 ? "About a minute left" : "About \(minutes) minutes left"
-    }
-
-    @ObservationIgnored private var translationStarted: Date?
-    @ObservationIgnored private var stopped = false
-
-    /// Arrêter, et ne rien garder. Le transcript n'a rien coûté au lecteur —
-    /// le serveur le garde en cache —, donc recommencer plus tard est gratuit.
-    func stop() {
-        stopped = true
-        awaitingTranslation = nil
-        step = .choosing
     }
 
     func begin(
         _ pasted: String,
         fetch: @escaping (String) async throws -> YouTubeImport.Video = { try await YouTubeImport.fetch($0) },
+        translate: @escaping (String, Int, Int) async throws -> [String] = { try await YouTubeImport.translation($0, from: $1, to: $2) },
         save: @escaping (LibraryItem) throws -> Void = { try ImportedLibrary.save($0) }
     ) {
         let value = pasted.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty else { return }
         self.save = save
-        awaitingTranslation = nil
+        video = nil
         translated = []
         done = 0
         stopped = false
-        translationStarted = nil
+        startedTranslating = nil
         step = .importingVideo
-        Task { await fetchVideo(value, fetch: fetch) }
+        Task { await run(value, fetch: fetch, translate: translate) }
     }
 
-    private func fetchVideo(_ value: String, fetch: (String) async throws -> YouTubeImport.Video) async {
+    /// Arrêter. La vidéo reste : elle est rangée depuis les sous-titres, et
+    /// ce qui est traduit l'est aussi. Reprendre plus tard ne repaye rien —
+    /// le serveur garde les deux.
+    func stop() {
+        stopped = true
+        step = .choosing
+    }
+
+    private func run(
+        _ value: String,
+        fetch: (String) async throws -> YouTubeImport.Video,
+        translate: (String, Int, Int) async throws -> [String]
+    ) async {
+        let found: YouTubeImport.Video
         do {
-            let video = try await fetch(value)
-            translated = Array(repeating: "", count: video.cues.count)
-            awaitingTranslation = video
-            // Une vidéo sans coréen reste regardable : rien à traduire, on range.
-            if video.cues.isEmpty { return await file() }
-            step = .translatingVideo
-            readyToTranslate += 1
+            found = try await fetch(value)
         } catch YouTubeImport.ImportError.invalidURL {
             step = .nothing("Paste a YouTube video link.")
+            return
         } catch {
             step = .nothing("Molago couldn’t reach the transcript service. Try again in a moment.")
+            return
         }
-    }
 
-    /// Traduit ce qui reste, lot par lot. Appelée à chaque relance de la session.
-    func translateAwaiting(batch: ([String]) async throws -> [String]) async {
-        guard let video = awaitingTranslation, done < video.cues.count else { return }
-        if translationStarted == nil { translationStarted = Date() }
-        let lines = video.cues.map(\.text)
-        do {
-            while done < lines.count {
-                guard !stopped else { return }
-                let end = min(done + 50, lines.count)
-                let out = try await batch(Array(lines[done..<end]))
-                guard out.count == end - done else { throw YouTubeImport.ImportError.translationCount }
-                translated.replaceSubrange(done..<end, with: out)
+        video = found
+        translated = Array(repeating: "", count: found.cues.count)
+        guard file(note: nil, andStop: found.cues.isEmpty) == false else { return }
+
+        step = .translatingVideo
+        startedTranslating = Date()
+        while done < translated.count {
+            guard !stopped else { return }
+            let end = min(done + Self.slice, translated.count)
+            do {
+                let english = try await translate(value, done, end)
+                guard english.count == end - done else { throw YouTubeImport.ImportError.translationCount }
+                translated.replaceSubrange(done..<end, with: english)
                 done = end
+            } catch {
+                // La vidéo est déjà dans la bibliothèque, en coréen. On le dit
+                // plutôt que de faire croire à un import perdu.
+                _ = file(note: "The English is still missing. Import it again later to finish it.", andStop: true)
+                return
             }
-        } catch is CancellationError {
-            // La session a été relancée : le prochain passage repart d'ici.
-            return
-        } catch {
-            awaitingTranslation = nil
-            step = .nothing("The transcript couldn’t be translated. Download Korean and English in Settings, then try again.")
-            return
+            _ = file(note: nil, andStop: false)
         }
-        await file()
+        guard !stopped else { return }
+        _ = file(note: nil, andStop: true)
     }
 
-    private func file() async {
-        guard let video = awaitingTranslation else { return }
-        awaitingTranslation = nil
+    /// Range la vidéo dans son état du moment. Rendue `true` quand l'écran est
+    /// arrivé au bout — c'est ce qui coupe la boucle sans la dupliquer.
+    @discardableResult
+    private func file(note: String?, andStop finished: Bool) -> Bool {
+        guard let video else { return false }
         do {
-            let item = try YouTubeImport.item(from: video, translations: translated)
-            try save(item)
-            step = .filed(title: item.text.title)
+            try save(YouTubeImport.item(from: video, translations: translated))
+            if finished { step = .filed(title: video.title, note: note) }
         } catch {
-            step = .nothing("The transcript was translated but couldn’t be saved. Check that Molago can use iCloud, then try again.")
+            step = .nothing("The video couldn’t be saved. Check that Molago can use iCloud, then try again.")
+            return true
         }
+        return finished
     }
 
     func reset() { step = .choosing }

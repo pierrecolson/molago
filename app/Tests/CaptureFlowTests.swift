@@ -3,10 +3,10 @@ import XCTest
 
 /// L'import d'une vidéo, vu du flux.
 ///
-/// Le test qui compte est le dernier : SwiftUI relance `translationTask` — et
-/// annule la tâche en cours — dès que la vue se redessine. C'est ce qui tuait
-/// l'import en vol quand le transcript se demandait de là. Ici on rejoue cette
-/// relance, et l'import doit reprendre au lieu de mourir.
+/// Ce qui compte ici : la vidéo est rangée **dès les sous-titres**, avant tout
+/// anglais. Une traduction ratée, coupée ou arrêtée ne doit donc jamais laisser
+/// la bibliothèque vide — c'est la leçon des deux essais précédents, où huit
+/// minutes de traduction sur l'appareil pouvaient partir en fumée d'un coup.
 @MainActor
 final class CaptureFlowTests: XCTestCase {
     private func video(cues: Int) -> YouTubeImport.Video {
@@ -21,117 +21,95 @@ final class CaptureFlowTests: XCTestCase {
         )
     }
 
-    private func waitForTranslation(_ flow: CaptureFlow) async {
-        for _ in 0..<1000 {
-            if flow.awaitingTranslation != nil { return }
-            if case .nothing = flow.step { return }
-            if case .filed = flow.step { return }
-            await Task.yield()
+    /// La récupération n'est pas structurée : on laisse le flux arriver au bout.
+    private func settle(_ flow: CaptureFlow) async {
+        for _ in 0..<2000 {
+            switch flow.step {
+            case .filed, .nothing, .choosing: return
+            default: await Task.yield()
+            }
         }
     }
 
-    func testAVideoIsFetchedThenTranslatedThenFiled() async {
+    func testTheVideoIsFiledOnItsCaptionsThenAgainWithItsEnglish() async {
         let flow = CaptureFlow()
-        var saved: Molago.LibraryItem?
+        var saved: [Molago.LibraryItem] = []
         flow.begin("https://youtu.be/zC4aRaHI-yw",
                    fetch: { _ in self.video(cues: 3) },
-                   save: { saved = $0 })
-        await waitForTranslation(flow)
+                   translate: { _, from, to in (from..<to).map { "en \($0)" } },
+                   save: { saved.append($0) })
+        await settle(flow)
 
-        await flow.translateAwaiting { lines in lines.map { "en: \($0)" } }
-
-        XCTAssertEqual(saved?.text.sentences.map(\.en), ["en: 줄 0", "en: 줄 1", "en: 줄 2"])
-        guard case .filed(let title) = flow.step else { return XCTFail("pas rangé : \(flow.step)") }
+        XCTAssertGreaterThanOrEqual(saved.count, 2, "rangée une fois sans anglais, puis avec")
+        XCTAssertEqual(saved.first?.text.sentences.map(\.en), ["", "", ""], "le coréen seul suffit à ranger")
+        XCTAssertEqual(saved.last?.text.sentences.map(\.en), ["en 0", "en 1", "en 2"])
+        XCTAssertEqual(saved.last?.text.sentences.map(\.ko), ["줄 0", "줄 1", "줄 2"])
+        guard case .filed(let title, let note) = flow.step else { return XCTFail("pas rangé : \(flow.step)") }
         XCTAssertEqual(title, "항공사 뉴스")
+        XCTAssertNil(note)
+    }
+
+    func testALongTranscriptIsTranslatedInSlicesAndProgressFollows() async {
+        let flow = CaptureFlow()
+        var asked: [(Int, Int)] = []
+        flow.begin("https://youtu.be/zC4aRaHI-yw",
+                   fetch: { _ in self.video(cues: 450) },
+                   translate: { _, from, to in
+                       asked.append((from, to))
+                       return (from..<to).map { "en \($0)" }
+                   },
+                   save: { _ in })
+        await settle(flow)
+
+        XCTAssertEqual(asked.map(\.0), [0, 200, 400], "des tranches, pas un bloc")
+        XCTAssertEqual(asked.map(\.1), [200, 400, 450])
+        XCTAssertEqual(flow.progress.done, 450)
+        XCTAssertEqual(flow.progress.total, 450)
+    }
+
+    func testAFailedTranslationStillLeavesAWatchableVideoBehind() async {
+        enum Failure: Error { case unavailable }
+        let flow = CaptureFlow()
+        var saved: [Molago.LibraryItem] = []
+        flow.begin("https://youtu.be/zC4aRaHI-yw",
+                   fetch: { _ in self.video(cues: 3) },
+                   translate: { _, _, _ in throw Failure.unavailable },
+                   save: { saved.append($0) })
+        await settle(flow)
+
+        XCTAssertEqual(saved.last?.text.sentences.map(\.ko), ["줄 0", "줄 1", "줄 2"], "la vidéo reste")
+        guard case .filed(_, let note) = flow.step else { return XCTFail("attendu rangée quand même : \(flow.step)") }
+        XCTAssertEqual(note, "The English is still missing. Import it again later to finish it.")
+    }
+
+    func testStoppingKeepsWhatIsAlreadyThereAndReturnsToTheChoice() async {
+        let flow = CaptureFlow()
+        var saved: [Molago.LibraryItem] = []
+        flow.begin("https://youtu.be/zC4aRaHI-yw",
+                   fetch: { _ in self.video(cues: 450) },
+                   translate: { [weak flow] _, from, to in
+                       // Arrêté juste après la première tranche.
+                       if from > 0 { XCTFail("la boucle continue après Stop") }
+                       defer { flow?.stop() }
+                       return (from..<to).map { "en \($0)" }
+                   },
+                   save: { saved.append($0) })
+        await settle(flow)
+
+        guard case .choosing = flow.step else { return XCTFail("Stop ramène au choix : \(flow.step)") }
+        XCTAssertEqual(saved.first?.text.sentences.count, 450, "rangée dès les sous-titres")
     }
 
     func testAnUnreachableServiceSaysSoRatherThanSpin() async {
         let flow = CaptureFlow()
         flow.begin("https://youtu.be/zC4aRaHI-yw",
                    fetch: { _ in throw YouTubeImport.ImportError.unavailable },
+                   translate: { _, _, _ in [] },
                    save: { _ in })
-        await waitForTranslation(flow)
+        await settle(flow)
 
         guard case .nothing(let message) = flow.step else { return XCTFail("attendu une erreur : \(flow.step)") }
         XCTAssertTrue(message.contains("transcript service"))
-    }
-
-    /// Le cœur de la correction : une session annulée en cours de route ne perd
-    /// que son lot, jamais l'import — et ne retraduit pas ce qui est déjà fait.
-    func testARestartedSessionResumesInsteadOfLosingTheImport() async {
-        let flow = CaptureFlow()
-        var saved: Molago.LibraryItem?
-        flow.begin("https://youtu.be/zC4aRaHI-yw",
-                   fetch: { _ in self.video(cues: 60) },
-                   save: { saved = $0 })
-        await waitForTranslation(flow)
-
-        var asked: [String] = []
-        var lots = 0
-        await flow.translateAwaiting { lines in
-            lots += 1
-            asked.append(contentsOf: lines)
-            // Le premier lot passe ; SwiftUI relance la session pendant le second.
-            if lots > 1 { throw CancellationError() }
-            return lines.map { "en: \($0)" }
-        }
-        XCTAssertNil(saved, "rien n'est rangé tant que tout n'est pas traduit")
-        XCTAssertEqual(asked.count, 60, "les deux lots ont été demandés, le second coupé")
-
-        asked = []
-        await flow.translateAwaiting { lines in
-            asked.append(contentsOf: lines)
-            return lines.map { "en: \($0)" }
-        }
-        XCTAssertEqual(asked, (50..<60).map { "줄 \($0)" }, "la relance ne retraduit pas le premier lot")
-        XCTAssertEqual(saved?.text.sentences.count, 60)
-    }
-
-    func testATranslationFailureExplainsHowToRecoverAndSavesNothing() async {
-        enum Failure: Error { case unavailable }
-        let flow = CaptureFlow()
-        flow.begin("https://youtu.be/zC4aRaHI-yw",
-                   fetch: { _ in self.video(cues: 3) },
-                   save: { _ in XCTFail("une traduction ratée ne se range pas") })
-        await waitForTranslation(flow)
-
-        await flow.translateAwaiting { _ in throw Failure.unavailable }
-
-        guard case .nothing(let message) = flow.step else { return XCTFail("attendu une erreur : \(flow.step)") }
-        XCTAssertEqual(
-            message,
-            "The transcript couldn’t be translated. Download Korean and English in Settings, then try again."
-        )
-    }
-
-    /// L'écran d'attente lit ces deux-là à son rythme : la fenêtre de lignes
-    /// suit le front de traduction, et « Stop » ne laisse rien derrière.
-    func testTheVisibleLinesFollowTheTranslationAndStopLeavesNothing() async {
-        let flow = CaptureFlow()
-        flow.begin("https://youtu.be/zC4aRaHI-yw",
-                   fetch: { _ in self.video(cues: 60) },
-                   save: { _ in XCTFail("un import arrêté ne se range pas") })
-        await waitForTranslation(flow)
-
-        XCTAssertEqual(flow.visibleLines.map(\.id), [0, 1])
-        XCTAssertTrue(flow.visibleLines.allSatisfy { $0.en == nil })
-
-        var lots = 0
-        await flow.translateAwaiting { lines in
-            lots += 1
-            if lots > 1 { throw CancellationError() }
-            return lines.map { "en: \($0)" }
-        }
-
-        XCTAssertEqual(flow.visibleLines.map(\.id), Array(44...51), "les six dernières faites, et les deux qui viennent")
-        XCTAssertEqual(flow.visibleLines.first?.en, "en: 줄 44")
-        XCTAssertNil(flow.visibleLines.last?.en)
-        XCTAssertEqual(flow.translationProgress.done, 50)
-
-        flow.stop()
-        XCTAssertNil(flow.awaitingTranslation)
-        XCTAssertTrue(flow.visibleLines.isEmpty)
-        guard case .choosing = flow.step else { return XCTFail("Stop ramène au choix : \(flow.step)") }
     }
 
     func testAVideoWithoutCaptionsIsStillFiled() async {
@@ -139,8 +117,9 @@ final class CaptureFlowTests: XCTestCase {
         var saved: Molago.LibraryItem?
         flow.begin("https://youtu.be/zC4aRaHI-yw",
                    fetch: { _ in self.video(cues: 0) },
+                   translate: { _, _, _ in XCTFail("rien à traduire"); return [] },
                    save: { saved = $0 })
-        await waitForTranslation(flow)
+        await settle(flow)
 
         XCTAssertEqual(saved?.text.sentences.count, 0)
         guard case .filed = flow.step else { return XCTFail("pas rangé : \(flow.step)") }
