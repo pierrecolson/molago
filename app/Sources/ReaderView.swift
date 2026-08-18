@@ -38,14 +38,55 @@ struct ReaderView: View {
     /// pas par surprise.
     @State private var scrubbing: Int?
     @State private var showingOriginal = false
+    /// Le mot qu'on met sur l'attente quand on touche le bouton des langues
+    /// avant que l'anglais ne soit là.
+    @State private var askingAboutTranslation = false
     @Environment(\.modelContext) private var context
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(Translations.self) private var translations
 
     init(text: Day.Text, startAt: Double? = nil) {
         self.text = text
         _player = State(initialValue: SentencePlayer(urls: text.audioURLs))
         _videoPlayer = State(initialValue: YouTubePlayerModel(startAt: startAt))
         _videoIndex = State(initialValue: nil)
+    }
+
+    private var translationLabel: String {
+        if let job = translation, job.failed { return "Translation stopped, \(job.done) of \(job.total) lines" }
+        if let job = translation, job.isRunning { return "Translating, \(job.done) of \(job.total) lines" }
+        return english ? "Korean only" : "Show English too"
+    }
+
+    /// Le transcript, avec l'anglais qui vient d'arriver.
+    ///
+    /// Un import s'ouvre dès ses sous-titres, sans une ligne d'anglais : celui
+    /// qui arrive derrière se pose ici, sans qu'on ait à recharger l'écran ni à
+    /// attendre devant une barre.
+    private var sentences: [Day.Sentence] {
+        guard let id = text.videoID,
+              let lines = translations.lines(for: id),
+              lines.count == text.sentences.count
+        else { return text.sentences }
+        return zip(text.sentences, lines).map { sentence, english in
+            english.isEmpty ? sentence : Day.Sentence(
+                ko: sentence.ko, en: english, audio: sentence.audio,
+                start: sentence.start, end: sentence.end, words: sentence.words
+            )
+        }
+    }
+
+    private var translation: Translations.Job? {
+        text.videoID.flatMap { translations.job(for: $0) }
+    }
+
+    /// Reprend la traduction si l'import en manque. Sans effet quand tout est
+    /// là — donc rouvrir une vidéo laissée à moitié la termine.
+    private func resumeTranslation() {
+        guard text.isYouTube, sentences.contains(where: { $0.en.isEmpty }),
+              let item = ImportedLibrary.item(slot: text.slot)
+        else { return }
+        translations.start(item)
     }
 
     /// Le document d'origine, quand il y en a un.
@@ -119,13 +160,35 @@ struct ReaderView: View {
                 // bouton décrit donc l'état : un drapeau, tu lis en coréen ;
                 // deux drapeaux, les deux langues sont à l'écran.
                 if !showingOriginal {
+                    // Il porte aussi l'état de la traduction : c'est le bouton
+                    // de l'anglais, donc c'est lui qui doit dire que l'anglais
+                    // est en route — et le toucher réessaie s'il a échoué.
                     Button {
+                        guard translation?.isSettled != false else { return askingAboutTranslation = true }
                         withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) { english.toggle() }
                     } label: {
-                        LanguageToggle(english: english)
+                        LanguageToggle(english: english, job: translation)
                     }
-                    .accessibilityLabel(english ? "Korean only" : "Show English too")
+                    .accessibilityLabel(translationLabel)
                 }
+            }
+        }
+        // Toucher le bouton des langues avant l'heure ne doit pas ne rien
+        // faire : il dit où en est la traduction, et propose de réessayer
+        // quand elle s'est arrêtée en route.
+        .alert(translation?.failed == true ? "Translation stopped" : "Translating",
+               isPresented: $askingAboutTranslation) {
+            if translation?.failed == true {
+                Button("Try again") { resumeTranslation() }
+                Button("Not now", role: .cancel) {}
+            } else {
+                Button("OK", role: .cancel) {}
+            }
+        } message: {
+            if let job = translation {
+                Text(job.failed
+                     ? "\(job.done) of \(job.total) lines are translated. The rest stopped on the way."
+                     : "\(job.done) of \(job.total) lines. The English appears under the Korean as it arrives.")
             }
         }
         // On lit : la barre d'onglets n'a rien à faire là. Elle sert à changer
@@ -135,6 +198,7 @@ struct ReaderView: View {
             // `simctl` ne sait pas appuyer sur un bouton : sans ça, aucune
             // capture du lecteur traduit ou du document n'est possible en
             // ligne de commande.
+            resumeTranslation()
             if ProcessInfo.processInfo.arguments.contains("--english") { english = true }
             if ProcessInfo.processInfo.arguments.contains("--document") { showingOriginal = true }
             // Un texte d'une journée passée n'a que son texte : son audio n'a
@@ -193,7 +257,7 @@ struct ReaderView: View {
                         // Une phrase par ligne, resserrées : ça se lit comme un
                         // paragraphe, mais chaque phrase reste une cible de tap.
                         VStack(alignment: .leading, spacing: 7) {
-                            ForEach(Array(text.sentences.enumerated()), id: \.offset) { i, sentence in
+                            ForEach(Array(sentences.enumerated()), id: \.offset) { i, sentence in
                                 SentenceLine(
                                     sentence: sentence,
                                     english: english,
@@ -254,7 +318,7 @@ struct ReaderView: View {
                             }
                             .padding(.horizontal, 20)
 
-                            if text.sentences.isEmpty {
+                            if sentences.isEmpty {
                                 ContentUnavailableView(
                                     "No Korean transcript available",
                                     systemImage: "captions.bubble",
@@ -263,7 +327,7 @@ struct ReaderView: View {
                                 .frame(minHeight: 260)
                             } else {
                                 LazyVStack(alignment: .leading, spacing: 8) {
-                                    ForEach(Array(text.sentences.enumerated()), id: \.offset) { index, sentence in
+                                    ForEach(Array(sentences.enumerated()), id: \.offset) { index, sentence in
                                         HStack(alignment: .top, spacing: 10) {
                                             if let start = sentence.start {
                                                 let label = Self.timeLabel(start)
@@ -300,7 +364,7 @@ struct ReaderView: View {
                         .padding(.bottom, 82)
                     }
                     .onChange(of: videoPlayer.currentTime) { _, time in
-                        videoIndex = TranscriptTimeline.index(at: time, in: text.sentences)
+                        videoIndex = TranscriptTimeline.index(at: time, in: sentences)
                     }
                     .onChange(of: videoIndex) { _, index in
                         guard let index else { return }
@@ -386,7 +450,7 @@ struct ReaderView: View {
         guard let i = args.firstIndex(of: flag), i + 1 < args.count,
               let n = Int(args[i + 1]) else { return }
         var seen = 0
-        for sentence in text.sentences {
+        for sentence in sentences {
             for word in sentence.words ?? [] where word.isTappable {
                 if keeping && word.en?.isEmpty != false { continue }
                 if seen == n {
@@ -809,6 +873,15 @@ private struct Scrubber: View {
 /// remplace pas le coréen, elle s'ajoute dessous.
 private struct LanguageToggle: View {
     let english: Bool
+    /// Où en est la traduction. Elle ne prend pas la place d'un drapeau : elle
+    /// fait le tour du bouton, parce que c'est le bouton entier qui n'est pas
+    /// encore prêt.
+    var job: Translations.Job?
+
+    private var fraction: Double {
+        guard let job, job.total > 0 else { return 0 }
+        return max(0.04, Double(job.done) / Double(job.total))
+    }
 
     var body: some View {
         HStack(spacing: -11) {
@@ -823,9 +896,21 @@ private struct LanguageToggle: View {
             }
         }
         .padding(.vertical, 4)
+        .padding(3)
+        .overlay {
+            if let job, !job.isSettled {
+                ZStack {
+                    Capsule().stroke(Dancheong.separator, lineWidth: 2.5)
+                    Capsule()
+                        .trim(from: 0, to: job.failed ? 1 : fraction)
+                        .stroke(job.failed ? Dancheong.jangdan.opacity(0.55) : Dancheong.jangdan,
+                                style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                }
+                .transition(.opacity)
+            }
+        }
     }
 }
-
 
 /// La pilule de verre de la barre de lecture.
 private struct GlassPill: ViewModifier {

@@ -18,6 +18,9 @@ struct CaptureView: View {
     /// quand il EST un onglet — auquel cas il n'y a rien à refermer, il faut
     /// rendre la main à la section d'où l'on vient.
     var onClose: (() -> Void)?
+    /// Ce qu'on vient d'ajouter. L'app l'ouvre : on veut voir la vidéo, pas un
+    /// écran qui annonce qu'elle existe.
+    var onImported: ((LibraryItem) -> Void)?
 
     private func close() { if let onClose { onClose() } else { dismiss() } }
     @Environment(\.modelContext) private var context
@@ -49,11 +52,9 @@ struct CaptureView: View {
             case .filing:
                 waiting("Putting it in order…")
             case .importingVideo:
-                waiting("Fetching the captions…", detail: "This takes a few seconds.")
-            case .translatingVideo:
-                translating
-            case .filed(let title, let note):
-                filed(title, note)
+                waiting("Fetching the captions…", detail: "A few seconds. The English follows while you read.")
+            case .filed(let title):
+                filed(title)
             case .nothing(let message):
                 empty(message)
             }
@@ -340,74 +341,6 @@ struct CaptureView: View {
         }
     }
 
-    // ── 2. pendant que ça travaille ──────────────────────────────────────────
-
-    /// L'attente : ce qui avance, ce qu'il reste, et comment sortir.
-    ///
-    /// La version précédente montrait la vignette, deux étapes cochées et le
-    /// transcript qui s'allumait ligne à ligne — trop de choses pour trente
-    /// secondes d'attente. Ce qu'on veut savoir tient en deux nombres.
-    ///
-    /// `TimelineView` relit l'avancement à son rythme plutôt que de le faire
-    /// observer : l'écran se redessine tout seul, sans que le reste bouge.
-    private var translating: some View {
-        TimelineView(.periodic(from: .now, by: 0.5)) { _ in
-            let progress = flow.progress
-            let fraction = progress.total > 0 ? Double(progress.done) / Double(progress.total) : 0
-
-            VStack(spacing: 0) {
-                Spacer()
-
-                Text(flow.video?.title ?? "")
-                    .font(.subheadline)
-                    .foregroundStyle(Dancheong.inkSoft)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .padding(.horizontal, 40)
-                    .padding(.bottom, 22)
-
-                Text("Translating")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(Dancheong.ink)
-                    .padding(.bottom, 18)
-
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Dancheong.separator)
-                        Capsule().fill(Dancheong.jangdan)
-                            .frame(width: max(6, geometry.size.width * fraction))
-                    }
-                }
-                .frame(height: 6)
-                .padding(.horizontal, 44)
-                .animation(reduceMotion ? nil : .easeOut(duration: 0.4), value: progress.done)
-
-                Text(flow.remaining ?? "\(progress.total) lines")
-                    .font(.footnote)
-                    .foregroundStyle(Dancheong.inkSoft)
-                    .padding(.top, 12)
-                    .monospacedDigit()
-
-                Spacer()
-
-                Button("Stop") { flow.stop() }
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(Dancheong.ink)
-                    .frame(maxWidth: .infinity, minHeight: 48)
-                    .background(Dancheong.paper, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .strokeBorder(Dancheong.separator, lineWidth: 1)
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 12)
-            }
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel("Translating the transcript")
-            .accessibilityValue("\(progress.done) of \(progress.total) lines")
-        }
-    }
-
     /// Ce qu'on dit pendant l'attente.
     ///
     /// « Reading the Korean » décrivait ce que la MACHINE faisait, et ne disait
@@ -429,7 +362,7 @@ struct CaptureView: View {
 
     /// Le document est devenu un article. On ne le montre pas ici : il est dans
     /// la bibliothèque, avec les textes du matin, et c'est là qu'on le lit.
-    private func filed(_ title: String, _ note: String?) -> some View {
+    private func filed(_ title: String) -> some View {
         VStack(spacing: 18) {
             Image("UniverseCapture")
                 .resizable().scaledToFit().frame(width: 76, height: 76)
@@ -437,11 +370,9 @@ struct CaptureView: View {
                 .font(.title3.weight(.semibold))
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            Text(note ?? "Added to your library.")
+            Text("Added to your library.")
                 .font(.subheadline)
                 .foregroundStyle(Dancheong.inkSoft)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
             Button("Read it") { close() }
                 .font(.body.weight(.semibold))
                 .tint(Dancheong.jaju)
@@ -464,7 +395,13 @@ struct CaptureView: View {
         }
     }
 
-    private func importVideo() { flow.begin(youtubeURL) }
+    private func importVideo() {
+        flow.begin(youtubeURL, opened: { item in
+            youtubeURL = ""
+            pastedVideo = nil
+            onImported?(item)
+        })
+    }
 
     // ── 2. la photo, avec ses mots allumés ───────────────────────────────────
 
