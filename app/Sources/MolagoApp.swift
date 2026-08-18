@@ -4,7 +4,12 @@ import SwiftData
 @main
 struct MolagoApp: App {
     @State private var store = DayStore()
+    /// La traduction vit ici, pas dans un écran : elle continue quand on quitte
+    /// la capture, quand on ferme le lecteur, quand on change d'onglet.
+    @State private var translations = Translations()
     @State private var tab = 0
+    /// La vidéo qu'on vient d'ajouter, à ouvrir.
+    @State private var justImported: Day.Text?
     /// La dernière vraie section. La capture n'en est pas une : en revenir doit
     /// ramener là où on était, et pas sur la vue vide qui lui sert de coquille.
     @State private var lastSection = 0
@@ -64,7 +69,7 @@ struct MolagoApp: App {
                                 // inatteignable les matins où la fabrique n'a
                                 // rien produit était exactement l'inverse de ce
                                 // qu'il fallait faire.
-                                HomeView(items: store.items)
+                                HomeView(items: store.items, opening: $justImported)
                             }
                             Tab("Wordbook", systemImage: "text.book.closed", value: 1) {
                                 NotebookView()
@@ -82,7 +87,17 @@ struct MolagoApp: App {
                             // la sélection d'un onglet à rôle. En n'ayant plus
                             // rien de vide à montrer, le problème n'existe plus.
                             Tab(value: Self.captureTab, role: .search) {
-                                CaptureView(onClose: { tab = lastSection })
+                                CaptureView(
+                                    onClose: { tab = lastSection },
+                                    onImported: { item in
+                                        // Rangée, ouverte, et l'anglais part
+                                        // derrière : on lit pendant qu'il arrive.
+                                        translations.start(item)
+                                        Task { await store.load() }
+                                        tab = 0
+                                        justImported = item.text
+                                    }
+                                )
                             } label: {
                                 // Un symbole système, de la même encre que les
                                 // autres. Le glyphe orange dessiné à la main
@@ -111,6 +126,7 @@ struct MolagoApp: App {
                 if ProcessInfo.processInfo.arguments.contains("--open-notebook") { tab = 1 }
                 if ProcessInfo.processInfo.arguments.contains("--open-capture") { tab = Self.captureTab }
             }
+            .environment(translations)
             // Le carnet est la seule chose irremplaçable du produit : les textes
             // se régénèrent, une collection de mots non.
             .modelContainer(Self.notebook)

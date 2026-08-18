@@ -3,6 +3,9 @@ import SwiftUI
 /// La bibliothèque personnelle : trois imports riches, puis une archive calme.
 struct HomeView: View {
     let items: [LibraryItem]
+    /// La vidéo à ouvrir sans qu'on ait touché sa carte — celle qu'on vient
+    /// d'ajouter.
+    @Binding var opening: Day.Text?
 
     private var sections: (recent: [LibraryItem], older: [LibraryItem]) {
         LibrarySections.split(items)
@@ -28,6 +31,7 @@ struct HomeView: View {
             }
             .background(Dancheong.ground)
             .navigationTitle("Library")
+            .navigationDestination(item: $opening) { ReaderView(text: $0) }
         }
         .tint(Dancheong.jangdan)
     }

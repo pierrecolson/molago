@@ -15,6 +15,13 @@ enum ImportedLibrary {
         try data.write(to: directory.appending(path: "\(item.text.slot).json"), options: .atomic)
     }
 
+    /// Un import précis. Le lecteur n'a que son texte ; pour réécrire l'anglais
+    /// qui arrive, il lui faut l'import entier.
+    static func item(slot: String, in directory: URL = Paths.imports) -> LibraryItem? {
+        guard let data = try? Data(contentsOf: directory.appending(path: "\(slot).json")) else { return nil }
+        return try? JSONDecoder().decode(LibraryItem.self, from: data)
+    }
+
     static func read(from directory: URL = Paths.imports) async -> [LibraryItem] {
         let manager = FileManager.default
         let files = (try? manager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []

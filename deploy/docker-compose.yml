@@ -56,7 +56,7 @@ services:
       # Même hôte que les fichiers, distingué par le préfixe de chemin. Une
       # priorité plus haute que la route des fichiers, sinon nginx capterait
       # tout et l'API ne verrait jamais rien.
-      - traefik.http.routers.molago-api.rule=Host(`molago.srv1405219.hstgr.cloud`) && PathRegexp(`^/u/[^/]+/(gloss|captures|document|transcript|library)$`)
+      - traefik.http.routers.molago-api.rule=Host(`molago.srv1405219.hstgr.cloud`) && PathRegexp(`^/u/[^/]+/(gloss|captures|document|transcript|translation|library)$`)
       - traefik.http.routers.molago-api.priority=100
       - traefik.http.routers.molago-api.entrypoints=websecure
       - traefik.http.routers.molago-api.tls=true

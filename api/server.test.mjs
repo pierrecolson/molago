@@ -31,10 +31,25 @@ const waitForServer = async (base) => {
 /// sortante, et `outage` rejoue une panne de Supadata sans attendre la vraie.
 const startProviders = async ({ outage = false } = {}) => {
   const port = await freePort()
-  const calls = { transcript: 0 }
+  const calls = { transcript: 0, llm: 0 }
   const server = createServer((req, res) => {
     const url = new URL(req.url, 'http://localhost')
     if (url.pathname === '/transcript') calls.transcript++
+    // Le modèle, joué en local : il rend l'anglais demandé, numéroté comme il
+    // faut, en relisant les numéros du prompt.
+    if (url.pathname === '/chat/completions') {
+      calls.llm++
+      let raw = ''
+      req.on('data', (c) => { raw += c })
+      return req.on('end', () => {
+        const prompt = JSON.parse(raw).messages[0].content
+        const numbers = [...prompt.matchAll(/^(\d+)\. (.+)$/gm)].map((m) => Number(m[1]))
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({
+          choices: [{ message: { content: JSON.stringify({ t: numbers.map((i) => ({ i, e: `line ${i}` })) }) } }],
+        }))
+      })
+    }
     const body = url.pathname === '/transcript'
       ? { lang: 'ko', content: [{ text: '안녕하세요', offset: 6000, duration: 4000, lang: 'ko' }] }
       : { items: [{
@@ -67,6 +82,8 @@ const startAPI = async (t, { data, user, providers }) => {
       MOLAGO_TZ: 'Asia/Seoul',
       SUPADATA_URL: `${providers}/transcript`,
       YOUTUBE_API_URL: `${providers}/videos`,
+      OPENROUTER_URL: `${providers}/chat/completions`,
+      OPENROUTER_API_KEY: 'test',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
@@ -121,6 +138,16 @@ test('serves a timed transcript and lists only imports', async (t) => {
   const again = await post(base, `/u/${user}/transcript`, { url: 'https://www.youtube.com/watch?v=42M_DVvzye8' })
   assert.deepEqual(await again.json(), video)
   assert.equal(providers.calls.transcript, 1)
+
+  // La traduction se demande à part, par tranches, et ne se repaye pas.
+  const first = await post(base, `/u/${user}/translation`, { url: 'https://youtu.be/42M_DVvzye8', from: 0, to: 1 })
+  assert.equal(first.status, 200)
+  assert.deepEqual(await first.json(), { from: 0, to: 1, total: 1, en: ['line 0'] })
+  assert.equal(providers.calls.llm, 1)
+
+  const twice = await post(base, `/u/${user}/translation`, { url: 'https://youtu.be/42M_DVvzye8', from: 0, to: 1 })
+  assert.deepEqual((await twice.json()).en, ['line 0'])
+  assert.equal(providers.calls.llm, 1, 'ce qui est traduit ne se retraduit pas')
 
   // Le serveur ne garde rien : c'est l'appareil qui range l'import.
   const library = await fetch(`${base}/u/${user}/library`)

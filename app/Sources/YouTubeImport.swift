@@ -84,8 +84,37 @@ enum YouTubeImport {
         return try JSONDecoder().decode(Video.self, from: data)
     }
 
+    /// L'anglais d'une tranche de répliques.
+    ///
+    /// Traduire sur l'appareil était mesurable et sans appel : 0,55 seconde par
+    /// ligne sur un iPhone 15 Pro Max, soit 8 minutes 40 pour une heure de
+    /// vidéo, écran allumé, app au premier plan — iOS suspend la traduction dès
+    /// qu'on en sort. Le serveur fait les tranches en parallèle, et garde le
+    /// résultat : on ne le paye qu'une fois par vidéo.
+    static func translation(_ pasted: String, from: Int, to: Int) async throws -> [String] {
+        struct Ask: Encodable { let url: String; let from: Int; let to: Int }
+        struct Reply: Decodable { let en: [String] }
+
+        var request = URLRequest(url: Config.baseURL.appending(path: "translation"))
+        // Une tranche, c'est plusieurs appels au modèle menés de front. Large,
+        // parce qu'un réseau lent ne doit pas faire perdre la tranche.
+        request.timeoutInterval = 120
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        request.httpBody = try JSONEncoder().encode(
+            Ask(url: pasted.trimmingCharacters(in: .whitespacesAndNewlines), from: from, to: to)
+        )
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw ImportError.unavailable }
+        return try JSONDecoder().decode(Reply.self, from: data).en
+    }
+
+    /// `translations` vide range la vidéo en coréen seul : c'est ce qui permet
+    /// de la garder dès que les sous-titres arrivent, sans attendre l'anglais.
     static func item(from video: Video, translations: [String], now: Date = Date()) throws -> LibraryItem {
-        guard translations.count == video.cues.count else { throw ImportError.translationCount }
+        let english = translations.isEmpty ? Array(repeating: "", count: video.cues.count) : translations
+        guard english.count == video.cues.count else { throw ImportError.translationCount }
 
         let dateFormatter = DateFormatter()
         dateFormatter.calendar = Calendar(identifier: .gregorian)
@@ -114,7 +143,7 @@ enum YouTubeImport {
                 sentences: video.cues.enumerated().map { index, cue in
                     Day.Sentence(
                         ko: cue.text,
-                        en: translations[index],
+                        en: english[index],
                         audio: "\(date)-\(slot)-\(String(format: "%04d", index + 1))",
                         start: cue.start,
                         end: cue.end,

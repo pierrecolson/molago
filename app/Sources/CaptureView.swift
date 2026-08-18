@@ -1,7 +1,6 @@
 import SwiftUI
 import SwiftData
 import PhotosUI
-@preconcurrency import Translation
 
 /// Photographier, voir, toucher.
 ///
@@ -19,6 +18,9 @@ struct CaptureView: View {
     /// quand il EST un onglet — auquel cas il n'y a rien à refermer, il faut
     /// rendre la main à la section d'où l'on vient.
     var onClose: (() -> Void)?
+    /// Ce qu'on vient d'ajouter. L'app l'ouvre : on veut voir la vidéo, pas un
+    /// écran qui annonce qu'elle existe.
+    var onImported: ((LibraryItem) -> Void)?
 
     private func close() { if let onClose { onClose() } else { dismiss() } }
     @Environment(\.modelContext) private var context
@@ -29,10 +31,11 @@ struct CaptureView: View {
     @State private var shooting = false
     @State private var chosen: CaptureFlow.Word?
     @State private var youtubeURL = ""
-    @State private var translationConfiguration = TranslationSession.Configuration(
-        source: Locale.Language(identifier: "ko"),
-        target: Locale.Language(identifier: "en")
-    )
+    /// La vidéo prête à ajouter : ce qui a été collé, une fois reconnu.
+    @State private var pastedVideo: (url: String, id: String)?
+    /// Vrai quand le presse-papiers contient probablement une adresse. Su sans
+    /// l'avoir lu — donc sans rien demander à personne.
+    @State private var clipboardLooksLikeALink = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Ce qui a été gardé pendant cette capture — pour le compte et pour la
@@ -49,9 +52,7 @@ struct CaptureView: View {
             case .filing:
                 waiting("Putting it in order…")
             case .importingVideo:
-                waiting("Fetching the captions…", detail: "This takes a few seconds.")
-            case .translatingVideo:
-                waiting("Translating the transcript…", detail: "The first translation may download Korean and English.")
+                waiting("Fetching the captions…", detail: "A few seconds. The English follows while you read.")
             case .filed(let title):
                 filed(title)
             case .nothing(let message):
@@ -76,6 +77,7 @@ struct CaptureView: View {
             if let i = args.firstIndex(of: "--youtube"), i + 1 < args.count {
                 print("[molago] import d'essai : \(args[i + 1])")
                 youtubeURL = args[i + 1]
+                recogniseTypedLink()
                 importVideo()
             }
         }
@@ -83,19 +85,6 @@ struct CaptureView: View {
             guard let picking,
                   let data = try? await picking.loadTransferable(type: Data.self) else { return }
             await flow.read(data: data)
-        }
-        // Relancé à chaque vidéo prête. La traduction reprend où elle en était,
-        // donc une relance de SwiftUI ne coûte au pire qu'un lot.
-        .onChange(of: flow.readyToTranslate) { translationConfiguration.invalidate() }
-        .translationTask(translationConfiguration) { session in
-            guard flow.awaitingTranslation != nil else { return }
-            // Déclenche le téléchargement des langues, avec sa demande système,
-            // plutôt que de le laisser surprendre le premier lot. L'échec n'est
-            // pas traité ici : le lot suivant rendra la même erreur, une fois.
-            try? await session.prepareTranslation()
-            await flow.translateAwaiting { lines in
-                try await Self.translate(lines, with: session)
-            }
         }
         .fullScreenCover(isPresented: $shooting) {
             Camera { image in
@@ -115,10 +104,21 @@ struct CaptureView: View {
         .ignoresSafeArea()
     }
 
-    // ── 1. d'où vient la photo ───────────────────────────────────────────────
+    // ── 1. d'où vient le texte ───────────────────────────────────────────────
 
+    /// Le lien d'abord.
+    ///
+    /// L'écran précédent posait deux pavés « photo » en haut et laissait le
+    /// champ YouTube sous eux, gris et large de rien — alors que coller un lien
+    /// est le geste le plus fréquent. Ici c'est lui le pan peint, et il porte
+    /// l'orange sous lequel ces imports rangent dans la bibliothèque : la
+    /// couleur dit déjà où l'on va.
+    ///
+    /// Le contenu part du HAUT. Avant, tout était tassé contre la barre
+    /// d'onglets, titre compris — on lisait vers le haut et on touchait vers le
+    /// bas.
     private var chooser: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Spacer()
                 CloseButton(onDark: false) { close() }
@@ -126,56 +126,218 @@ struct CaptureView: View {
             .padding(.horizontal, 20)
             .padding(.top, 8)
 
-            Spacer()
-
             VStack(alignment: .leading, spacing: 6) {
-                Text("Catch something")
+                Text("Add to your library")
+                    .font(.caption2.weight(.semibold))
+                    .tracking(1.2)
+                    .textCase(.uppercase)
+                    .foregroundStyle(Dancheong.inkSoft)
+                Text(title)
                     .font(.largeTitle.bold())
                     .foregroundStyle(Dancheong.ink)
-                Text("A photo or video in Korean.")
+                Text(subtitle)
                     .font(.body)
                     .foregroundStyle(Dancheong.inkSoft)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 28)
-            .padding(.bottom, 28)
+            .padding(.horizontal, 24)
+            .padding(.top, 4)
+            .padding(.bottom, 22)
 
-            VStack(spacing: 14) {
+            if let video = pastedVideo {
+                pastedCard(video)
+            } else {
+                linkPanel
+            }
+
+            Text("Or catch it on paper")
+                .font(.caption2.weight(.semibold))
+                .tracking(1.2)
+                .textCase(.uppercase)
+                .foregroundStyle(Dancheong.inkSoft)
+                .padding(.horizontal, 24)
+                .padding(.top, 26)
+                .padding(.bottom, 10)
+
+            HStack(spacing: 12) {
                 Button { shooting = true } label: {
-                    SourceBlock(title: "Take a photo", icon: "camera.fill", filled: true)
+                    PaperTile(title: "Take a photo", icon: "camera.fill")
                 }
-                // Le second bouton ne prend pas le 삼청 : ce bleu veut dire
-                // « tech », et le poser ici ferait dire à la couleur quelque
-                // chose de faux. Même pigment que le premier, creusé.
                 PhotosPicker(selection: $picking, matching: .images, photoLibrary: .shared()) {
-                    SourceBlock(title: "Choose a photo", icon: "photo.on.rectangle.angled", filled: false)
+                    PaperTile(title: "Choose a photo", icon: "photo.on.rectangle.angled")
                 }
-
-                HStack(spacing: 10) {
-                    TextField("Paste a YouTube video URL", text: $youtubeURL)
-                        .accessibilityLabel("YouTube video URL")
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.URL)
-                        .autocorrectionDisabled()
-                        .submitLabel(.go)
-                        .onSubmit { importVideo() }
-                        .padding(.horizontal, 14)
-                        .frame(height: 52)
-                        .background(Dancheong.paper, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                    Button("Add") { importVideo() }
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .frame(minWidth: 64, minHeight: 52)
-                        .background(Dancheong.jaju, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .disabled(youtubeURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        .opacity(youtubeURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
-                }
-                .accessibilityElement(children: .contain)
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, 40)
+
+            Spacer(minLength: 0)
+        }
+        .task { await lookAtTheClipboard() }
+    }
+
+    /// Le pan à coller.
+    ///
+    /// Le bouton est celui du système (`PasteButton`) et pas un bouton à nous :
+    /// lui seul lit le presse-papiers **sans** la demande modale « Molago
+    /// voudrait coller depuis Safari ». Lire tout seul à l'ouverture de l'écran
+    /// la faisait apparaître à chaque fois — un carton en travers de l'écran
+    /// pour un lien qu'on n'a peut-être même pas copié.
+    private var linkPanel: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                TextField("youtube.com/watch?v=…", text: $youtubeURL)
+                    .accessibilityLabel("YouTube video URL")
+                    .textInputAutocapitalization(.never)
+                    .keyboardType(.URL)
+                    .autocorrectionDisabled()
+                    .submitLabel(.go)
+                    .onSubmit { importVideo() }
+                    .onChange(of: youtubeURL) { recogniseTypedLink() }
+                    .foregroundStyle(Dancheong.ink)
+                    .padding(.leading, 14)
+
+                if hasLink {
+                    Button("Add") { importVideo() }
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 44)
+                        .background(Dancheong.jangdan, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .padding(4)
+                } else {
+                    PasteButton(payloadType: String.self) { items in
+                        guard let copied = items.first else { return }
+                        MainActor.assumeIsolated {
+                            youtubeURL = copied.trimmingCharacters(in: .whitespacesAndNewlines)
+                            recogniseTypedLink()
+                        }
+                    }
+                    .labelStyle(.titleAndIcon)
+                    .buttonBorderShape(.capsule)
+                    .tint(Dancheong.jangdan)
+                    .padding(.trailing, 6)
+                }
+            }
+            .frame(height: 52)
+            .background(Dancheong.paper, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .padding(13)
+        .background(Dancheong.jangdan, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .dancheongKeyline(cornerRadius: 20)
+        .padding(.horizontal, 20)
+    }
+
+    /// Le lien reconnu, montré avant de dépenser quoi que ce soit.
+    ///
+    /// La vignette vient de l'adresse publique de YouTube — aucun appel d'API,
+    /// aucun crédit dépensé. Le titre, lui, n'arrive qu'avec le transcript :
+    /// l'app ne connaît toujours qu'une seule adresse, celle du serveur.
+    private func pastedCard(_ clip: (url: String, id: String)) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                AsyncImage(url: URL(string: "https://i.ytimg.com/vi/\(clip.id)/hqdefault.jpg")) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    Dancheong.separator
+                }
+                .frame(width: 108, height: 62)
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .overlay(alignment: .center) {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 15))
+                        .foregroundStyle(.white)
+                        .shadow(radius: 3)
+                }
+
+                // L'identifiant seul ne dit rien à personne : c'est la vignette
+                // qui fait reconnaître la vidéo. Le lien n'est là que pour
+                // confirmer que c'est bien celui qu'on a copié.
+                Text("youtu.be/\(clip.id)")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(Dancheong.inkSoft)
+                    .lineLimit(2)
+                Spacer(minLength: 0)
+            }
+
+            Button {
+                youtubeURL = clip.url
+                importVideo()
+            } label: {
+                Text("Add this video")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .background(Dancheong.jangdan, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .dancheongKeyline(cornerRadius: 14)
+            }
+
+            Button("Use a different link") {
+                pastedVideo = nil
+                youtubeURL = ""
+            }
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Dancheong.jangdan)
+                .frame(maxWidth: .infinity, minHeight: 44)
+        }
+        .padding(12)
+        .background(Dancheong.paper, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(Dancheong.separator, lineWidth: 1)
+        }
+        .padding(.horizontal, 20)
+    }
+
+    private var hasLink: Bool {
+        !youtubeURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func pasteFromClipboard() {
+        youtubeURL = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    /// Regarde s'il y a un lien de vidéo qui attend, sans rien lire pour rien.
+    ///
+    /// `hasURLs` répond « il y a une adresse » **sans** ouvrir le
+    /// presse-papiers : on ne le lit que lorsque la réponse est oui, et le
+    /// bandeau « Molago a collé depuis Safari » n'apparaît donc que quand on a
+    /// vraiment quelque chose à montrer — pas à chaque ouverture de l'écran.
+    private var title: String {
+        if pastedVideo != nil { return "Ready to add" }
+        return clipboardLooksLikeALink ? "You copied a link" : "Paste a YouTube link"
+    }
+
+    private var subtitle: String {
+        if pastedVideo != nil { return "Nothing is fetched until you add it." }
+        return clipboardLooksLikeALink
+            ? "Tap Paste to use it."
+            : "Korean audio with captions works best."
+    }
+
+    /// Reconnaît un lien de vidéo dès qu'il est entré — collé ou tapé — et
+    /// montre alors la vignette. Voir la bonne vidéo avant de lancer l'import
+    /// est ce qui évite d'attendre une minute pour la mauvaise.
+    private func recogniseTypedLink() {
+        let value = youtubeURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let id = try? YouTubeImport.videoID(from: value) else { return }
+        pastedVideo = (url: value, id: id)
+    }
+
+    /// Regarde s'il y a probablement une adresse, **sans ouvrir** le
+    /// presse-papiers. Ça ne sert qu'à changer le titre : le lire vraiment est
+    /// le geste de l'utilisateur, sur le bouton du système.
+    private func lookAtTheClipboard() async {
+        clipboardLooksLikeALink = await Self.clipboardHoldsAWebLink()
+    }
+
+    /// `@Sendable` sur le gestionnaire n'est pas décoratif : UIKit le rappelle
+    /// depuis sa propre file, et une fermeture héritant du main actor y déclenche
+    /// la vérification d'isolation de Swift 6 — l'app s'arrête net.
+    private static func clipboardHoldsAWebLink() async -> Bool {
+        let wanted: Set<UIPasteboard.DetectionPattern> = [.probableWebURL]
+        return await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            UIPasteboard.general.detectPatterns(for: wanted) { @Sendable result in
+                continuation.resume(returning: (try? result.get())?.contains(.probableWebURL) ?? false)
+            }
         }
     }
 
@@ -233,25 +395,12 @@ struct CaptureView: View {
         }
     }
 
-    // La session de traduction n'est PAS ouverte ici : elle le sera quand le
-    // transcript sera arrivé (`readyToTranslate`). C'est tout le fond de la
-    // correction — ouvrir la session d'abord faisait annuler la requête réseau.
-    private func importVideo() { flow.begin(youtubeURL) }
-
-    /// Un lot de répliques, traduit d'un coup. Le découpage vit dans le flux :
-    /// c'est lui qui sait ce qui reste à faire si la session est relancée.
-    private nonisolated static func translate(_ lines: [String], with session: TranslationSession) async throws -> [String] {
-        var translated = Array(repeating: "", count: lines.count)
-        let requests = lines.enumerated().map { index, text in
-            TranslationSession.Request(sourceText: text, clientIdentifier: String(index))
-        }
-        for response in try await session.translations(from: requests) {
-            guard let id = response.clientIdentifier, let index = Int(id), translated.indices.contains(index) else {
-                continue
-            }
-            translated[index] = response.targetText
-        }
-        return translated
+    private func importVideo() {
+        flow.begin(youtubeURL, opened: { item in
+            youtubeURL = ""
+            pastedVideo = nil
+            onImported?(item)
+        })
     }
 
     // ── 2. la photo, avec ses mots allumés ───────────────────────────────────
@@ -284,35 +433,30 @@ struct CaptureView: View {
 
 /// Les mots reconnus, posés sur l'image à leur place exacte.
 ///
-private struct SourceBlock: View {
+/// Une des deux entrées « papier ». Le 자주 est le pigment de ce que
+/// l'utilisateur attrape lui-même — c'est sous cette couleur que les captures
+/// rangent —, et le garder ici fait que la couleur annonce déjà l'étagère.
+private struct PaperTile: View {
     let title: String
     let icon: String
-    let filled: Bool
 
     var body: some View {
-        HStack(spacing: 14) {
+        VStack(alignment: .leading, spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 22, weight: .medium))
+                .font(.system(size: 19, weight: .medium))
                 .accessibilityHidden(true)
             Text(title)
-                .font(.title3.weight(.semibold))
-            Spacer()
+                .font(.subheadline.weight(.semibold))
+                .multilineTextAlignment(.leading)
         }
-        .foregroundStyle(filled ? .white : Dancheong.jaju)
-        .padding(.horizontal, 24)
-        .padding(.vertical, 26)
-        .frame(maxWidth: .infinity)
-        .background(filled ? Dancheong.jaju : Dancheong.jaju.opacity(0.12))
-        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .foregroundStyle(Dancheong.jaju)
+        .frame(maxWidth: .infinity, minHeight: 84, alignment: .topLeading)
+        .padding(14)
+        .background(Dancheong.jaju.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay {
-            if filled {
-                RoundedRectangle(cornerRadius: 19, style: .continuous)
-                    .strokeBorder(.white.opacity(0.42), lineWidth: 1)
-                    .padding(7)
-            } else {
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .strokeBorder(Dancheong.jaju.opacity(0.42), lineWidth: 1)
-            }
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Dancheong.jaju.opacity(0.42), lineWidth: 1)
         }
     }
 }
