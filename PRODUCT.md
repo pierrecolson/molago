@@ -14,7 +14,7 @@ Le contenu est toujours initié par l’utilisateur. Aucun article, abonnement, 
 
 ## Surfaces
 
-- **Library** : `Recent` contient exactement les trois derniers imports, quelle que soit leur date ; `Older` contient le reste sous forme de lignes.
+- **Library** : `Recent` contient exactement les trois derniers imports, quelle que soit leur date ; `Older` contient le reste sous forme de lignes, chacune portant la même vignette que sa carte. Le titre de l’écran est écrit dans le fil, sans barre de navigation.
 - **Capture** : prendre une photo, choisir une photo ou coller directement une URL YouTube.
 - **Reader photo** : texte coréen reconstruit, anglais à la demande et retour vers la photo originale.
 - **Reader YouTube** : lecteur intégré qui reste visible pendant le défilement, transcript synchronisé sous la vidéo, anglais à la demande, tap sur un mot pour sa fiche et tap sur la minute pour déplacer la vidéo. La lecture reprend en fermant la fiche seulement si elle jouait auparavant.

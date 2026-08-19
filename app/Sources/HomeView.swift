@@ -14,23 +14,37 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                if items.isEmpty {
-                    ContentUnavailableView(
-                        "Nothing here yet",
-                        systemImage: "tray",
-                        description: Text("Add a photo or YouTube video to start your library.")
-                    )
-                    .frame(minHeight: 520)
-                } else {
-                    VStack(alignment: .leading, spacing: 34) {
+                VStack(alignment: .leading, spacing: 28) {
+                    Text("Library")
+                        .font(.largeTitle.weight(.bold))
+                        .foregroundStyle(Dancheong.ink)
+                        .padding(.horizontal, 18)
+
+                    if items.isEmpty {
+                        ContentUnavailableView(
+                            "Nothing here yet",
+                            systemImage: "tray",
+                            description: Text("Add a photo or YouTube video to start your library.")
+                        )
+                        .frame(minHeight: 440)
+                    } else {
                         recentSection
                         if !sections.older.isEmpty { olderSection }
                     }
-                    .padding(.bottom, 32)
                 }
+                .padding(.top, 4)
+                .padding(.bottom, 32)
             }
             .background(Dancheong.ground)
             .navigationTitle("Library")
+            // Le titre vit dans le fil, pas dans une barre. Une barre de
+            // navigation vide occupe une centaine de points en haut de l'écran
+            // pour ne rien porter — ni bouton, ni retour : sur la bibliothèque,
+            // c'est une carte entière de perdue. Écrit dans le fil, « Library »
+            // garde sa taille, commence sous l'heure, et s'en va quand on
+            // descend. `navigationTitle` reste posé : c'est lui qui nomme le
+            // bouton de retour depuis le lecteur.
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(item: $opening) { ReaderView(text: $0) }
         }
         .tint(Dancheong.jangdan)
@@ -52,7 +66,6 @@ struct HomeView: View {
             }
             .scrollClipDisabled()
         }
-        .padding(.top, 8)
     }
 
     private var olderSection: some View {
@@ -64,7 +77,10 @@ struct HomeView: View {
                         ImportRow(item: item)
                     }
                     .buttonStyle(.plain)
-                    if index < sections.older.count - 1 { Divider().padding(.leading, 16) }
+                    // Le filet part sous le titre, pas sous la vignette : il
+                    // sépare des lignes, et les vignettes forment déjà leur
+                    // propre colonne.
+                    if index < sections.older.count - 1 { Divider().padding(.leading, 84) }
                 }
             }
             .background(Dancheong.paper)
@@ -86,15 +102,61 @@ private struct SectionLabel: View {
     }
 }
 
+/// La couleur d'un import : celle de sa provenance, et rien d'autre.
+private func importTint(_ text: Day.Text) -> Color {
+    text.isYouTube ? Dancheong.jangdan : Dancheong.hayeop
+}
+
+/// La vignette d'un import — la photo prise, la miniature téléchargée, ou à
+/// défaut le pictogramme de sa provenance.
+///
+/// Carte et ligne montrent la même image. C'est ce qui fait qu'un import
+/// descendu dans `Older` reste reconnaissable : on l'a rangé en le voyant, on
+/// le retrouve en le voyant, sans avoir à relire une pile de titres.
+private struct Artwork: View {
+    let text: Day.Text
+    /// La taille du pictogramme de repli : une ligne d'archive n'a pas la place
+    /// qu'a une carte.
+    var glyph: Font = .title2
+
+    var body: some View {
+        if text.isPhoto,
+           let url = Paths.captureImage(text.slot),
+           let image = UIImage(contentsOfFile: url.path(percentEncoded: false)) {
+            Image(uiImage: image).resizable().scaledToFill()
+        } else if let url = Paths.thumbnail(text.slot),
+                  let image = UIImage(contentsOfFile: url.path(percentEncoded: false)) {
+            Image(uiImage: image).resizable().scaledToFill()
+        } else if let remote = text.thumbnailURL {
+            AsyncImage(url: remote) { image in
+                image.resizable().scaledToFill()
+            } placeholder: {
+                placeholder
+            }
+        } else {
+            placeholder
+        }
+    }
+
+    private var placeholder: some View {
+        ZStack {
+            importTint(text).opacity(0.18)
+            Image(systemName: text.isYouTube ? "play.rectangle" : "photo")
+                .font(glyph)
+                .foregroundStyle(importTint(text))
+        }
+    }
+}
+
 /// Photo et YouTube partagent exactement ce gabarit.
 private struct ImportCard: View {
     let item: LibraryItem
 
-    private var tint: Color { item.text.isYouTube ? Dancheong.jangdan : Dancheong.hayeop }
+    private var tint: Color { importTint(item.text) }
 
     var body: some View {
         VStack(spacing: 0) {
-            artwork
+            Artwork(text: item.text)
                 .frame(width: 220, height: 124)
                 .clipped()
                 .accessibilityHidden(true)
@@ -131,34 +193,6 @@ private struct ImportCard: View {
         }
         return "Photo · \(item.text.meta)"
     }
-
-    @ViewBuilder private var artwork: some View {
-        if item.text.isPhoto,
-           let url = Paths.captureImage(item.text.slot),
-           let image = UIImage(contentsOfFile: url.path(percentEncoded: false)) {
-            Image(uiImage: image).resizable().scaledToFill()
-        } else if let url = Paths.thumbnail(item.text.slot),
-                  let image = UIImage(contentsOfFile: url.path(percentEncoded: false)) {
-            Image(uiImage: image).resizable().scaledToFill()
-        } else if let remote = item.text.thumbnailURL {
-            AsyncImage(url: remote) { image in
-                image.resizable().scaledToFill()
-            } placeholder: {
-                placeholder
-            }
-        } else {
-            placeholder
-        }
-    }
-
-    private var placeholder: some View {
-        ZStack {
-            tint.opacity(0.18)
-            Image(systemName: item.text.isYouTube ? "play.rectangle" : "photo")
-                .font(.title2)
-                .foregroundStyle(tint)
-        }
-    }
 }
 
 private struct ImportRow: View {
@@ -166,6 +200,11 @@ private struct ImportRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
+            Artwork(text: item.text, glyph: .footnote)
+                .frame(width: 56, height: 42)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .accessibilityHidden(true)
+
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.text.title)
                     .font(.subheadline.weight(.medium))
